@@ -1,0 +1,50 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  deploy:
+    needs: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: jfk-vault
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy jfk-research-center \
+            --source=. \
+            --region=us-central1 \
+            --project=jfk-vault \
+            --allow-unauthenticated \
+            --port=8080 \
+            --memory=1Gi --cpu=1 \
+            --max-instances=3 --min-instances=0 \
+            --set-env-vars="JFK_BQ_PROJECT=jfk-vault" \
+            --quiet
