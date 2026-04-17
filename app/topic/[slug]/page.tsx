@@ -46,7 +46,7 @@ export default async function TopicPage({
       >
         <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
         <span aria-hidden style={{ margin: "0 6px" }}>/</span>
-        <Link href="/search" style={{ color: "var(--text-muted)" }}>Topics</Link>
+        <Link href="/topics" style={{ color: "var(--text-muted)" }}>Topics</Link>
         <span aria-hidden style={{ margin: "0 6px" }}>/</span>
         <span style={{ color: "var(--text)" }}>{data.topic.title}</span>
       </nav>

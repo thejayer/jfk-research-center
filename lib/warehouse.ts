@@ -380,6 +380,13 @@ function topicToCard(slug: string, count: number): TopicCard {
   };
 }
 
+export async function fetchAllTopics(): Promise<TopicCard[]> {
+  const counts = await topicCountsMap();
+  return TOPIC_DISPLAY_ORDER.map((slug) =>
+    topicToCard(slug, counts.get(slug) ?? 0),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // ENTITY
 // ---------------------------------------------------------------------------
@@ -534,7 +541,7 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
   const t = TOPIC_CATALOG[slug];
   if (!t) return null;
 
-  const [docs, count, entityCoOcc, aiRows] = await Promise.all([
+  const [docs, count, entityCoOcc, aiRows, articleRows] = await Promise.all([
     query<RecordRow>(
       `SELECT r.*
          FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\` r
@@ -565,6 +572,17 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
         WHERE slug = @slug`,
       { slug },
     ).catch(() => []),
+    query<{
+      article: string;
+      model: string;
+      generated_at: { value: string } | string;
+      source_doc_count: number;
+    }>(
+      `SELECT article, model, generated_at, source_doc_count
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_articles\`
+        WHERE slug = @slug`,
+      { slug },
+    ).catch(() => []),
   ]);
 
   const entities = await loadEntities();
@@ -588,6 +606,7 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
   }));
 
   const ai = aiRows[0];
+  const art = articleRows[0];
   const topic: TopicDetail = {
     slug,
     title: t.title,
@@ -606,6 +625,17 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
               ? ai.generated_at
               : ai.generated_at.value,
           sourceDocCount: ai.source_doc_count,
+        }
+      : undefined,
+    aiArticle: art?.article
+      ? {
+          text: art.article,
+          model: art.model,
+          generatedAt:
+            typeof art.generated_at === "string"
+              ? art.generated_at
+              : art.generated_at.value,
+          sourceDocCount: art.source_doc_count,
         }
       : undefined,
   };

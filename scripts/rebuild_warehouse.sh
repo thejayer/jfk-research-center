@@ -62,7 +62,7 @@ if [[ $SKIP_INDEXES -ne 1 ]]; then
 fi
 
 if [[ $SKIP_SUMMARIES -ne 1 ]]; then
-  FILES+=("24_remote_models.sql" "25_topic_summaries.sql")
+  FILES+=("24_remote_models.sql" "25_topic_summaries.sql" "26_topic_articles.sql")
 fi
 
 for f in "${FILES[@]}"; do

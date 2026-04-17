@@ -83,6 +83,12 @@ export type TopicDetail = TopicCard & {
     generatedAt: string;
     sourceDocCount: number;
   };
+  aiArticle?: {
+    text: string;
+    model: string;
+    generatedAt: string;
+    sourceDocCount: number;
+  };
 };
 
 export type TimelineEvent = {

@@ -251,18 +251,28 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-17 (AI topic summaries)
+**Last updated:** 2026-04-17 (AI topic articles + /topics index)
 
-- **AI topic summaries** are live. `jfk_curated.jfk_topic_summaries`
-  (1 row per slug) is populated by `sql/25_topic_summaries.sql`, which
-  calls Vertex AI Gemini 2.5 Flash via the BQ remote model
-  `jfk_curated.gemini_flash` (defined in `sql/24_remote_models.sql`).
-  Prompt bundles the top 20 docs per topic (title, agency, date,
-  description excerpt) and asks for a grounded 140-200 word summary.
-  `fetchTopic()` reads it; `TopicHero` renders it with an "AI-generated
-  summary" chip. Falls back to the hardcoded `TOPIC_CATALOG[slug].summary`
-  if the row is missing. Rebuild with `--skip-summaries` to avoid the
-  Vertex call during local iterations.
+- **Topics index page** at `/topics` lists all 6 topics; `/api/topics`
+  backs it via `fetchAllTopics()`. Homepage featured-topics grid has
+  a "See all" CTA; topic breadcrumb "Topics" → `/topics` (was `/search`).
+- **AI topic summaries + articles** are both live.
+  - `jfk_curated.jfk_topic_summaries` (1 row/slug) — short 140-200
+    word summary from Gemini 2.5 Flash via `sql/25_topic_summaries.sql`.
+  - `jfk_curated.jfk_topic_articles` (1 row/slug) — long-form 600-900
+    word analysis with inline `[doc:<id>]` citations from Gemini 2.5
+    Pro via `sql/26_topic_articles.sql`. Prompt bundles 30 docs per
+    topic (longer description excerpts) and forces citation tokens.
+  - Remote models live in `sql/24_remote_models.sql` (`gemini_flash`
+    + `gemini_pro`), both bound to connection `jfk-vault.us.vertex_ai`.
+  - UI: `/topic/[slug]` hero shows a split pill ("Short summary" /
+    "Long-form analysis") when both are present. Article citations
+    are parsed client-side in `components/topics/topic-body.tsx`:
+    `[doc:XYZ]` → numbered superscript link `[1]` opening
+    `/document/XYZ` in a new tab. Falls back to the hardcoded
+    `TOPIC_CATALOG[slug].summary` if neither AI row is present.
+  - Rebuild with `--skip-summaries` to omit all three AI SQL files
+    (24, 25, 26) during local iterations.
 - **Vertex AI connection** `jfk-vault.us.vertex_ai` (BQ → Vertex) exists
   with `roles/aiplatform.user` on its connection SA
   (`bqcx-690906762945-gkx3@gcp-sa-bigquery-condel.iam.gserviceaccount.com`).

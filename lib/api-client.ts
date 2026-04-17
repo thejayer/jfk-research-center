@@ -17,6 +17,7 @@ import type {
   EntityResponse,
   HomeResponse,
   SearchResponse,
+  TopicCard,
   TopicResponse,
 } from "./api-types";
 
@@ -92,6 +93,13 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
   return get<TopicResponse>(`/api/topic/${encodeURIComponent(slug)}`, {
     revalidate: 600,
   });
+}
+
+export async function fetchTopics(): Promise<TopicCard[]> {
+  const data = await get<{ topics: TopicCard[] }>("/api/topics", {
+    revalidate: 600,
+  });
+  return data?.topics ?? [];
 }
 
 export async function fetchDocument(id: string): Promise<DocumentResponse | null> {

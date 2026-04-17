@@ -24,3 +24,9 @@
 create or replace model `jfk_curated.gemini_flash`
 remote with connection `jfk-vault.us.vertex_ai`
 options (endpoint = 'gemini-2.5-flash');
+
+-- Gemini 2.5 Pro: slower and costlier than Flash, but noticeably better
+-- long-form prose. Used for per-topic analysis articles in sql/26.
+create or replace model `jfk_curated.gemini_pro`
+remote with connection `jfk-vault.us.vertex_ai`
+options (endpoint = 'gemini-2.5-pro');

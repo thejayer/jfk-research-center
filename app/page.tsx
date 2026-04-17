@@ -93,6 +93,8 @@ export default async function HomePage() {
           eyebrow="Topics"
           title="Subjects & investigations"
           description="Cross-cutting themes for browsing the collection: investigations, agencies, and pivotal locations."
+          actionHref="/topics"
+          actionLabel="See all"
         />
         <div
           style={{
