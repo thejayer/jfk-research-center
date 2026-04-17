@@ -304,9 +304,6 @@ bq query --use_legacy_sql=false \
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.
-- **Filters in `/search` are partially wired.** Agency + year work;
-  entity + topic work; confidence is visible but our `mode=document`
-  branch doesn't use `filters.confidence` yet.
 - **Search index on OCR chunks.** `sql/30_search_indexes.sql` is ready
   but unbuilt. Applying it is a no-op without a query-layer change — the
   app still uses `LIKE`/`REGEXP_CONTAINS`, which search indexes don't
@@ -329,5 +326,12 @@ bq query --use_legacy_sql=false \
   guess — always reflect where the match landed.
 - **No lorem ipsum. No conspiracy framing.** All content is neutral
   and archival.
-- **Tests**: there are no tests yet. If adding, put them in
-  `lib/__tests__/` with Vitest.
+- **Tests**: `npm test` runs Vitest (`lib/__tests__/*.test.ts`). Node
+  env, `@/*` alias matches the TS paths config. Adapter/warehouse
+  tests would need a BigQuery mock — not written yet.
+- **CI/CD**: `.github/workflows/deploy.yml` runs on push to `main`:
+  typecheck → `gcloud run deploy --source=.`. Auths via the
+  `GCP_SA_KEY` repo secret (JSON key for `jfk-deployer@jfk-vault`).
+  If you rotate or revoke the key, regenerate with
+  `gcloud iam service-accounts keys create` and update the secret via
+  `gh secret set GCP_SA_KEY --repo=thejayer/jfk-research-center`.
