@@ -1,0 +1,4 @@
+{
+  "note": "Read-only snapshot. Authoritative mock topic data lives in lib/mock-data.ts::buildTopicResponse('cia').",
+  "slug": "cia"
+}

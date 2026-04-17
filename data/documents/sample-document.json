@@ -1,0 +1,8 @@
+{
+  "note": "Read-only snapshot. Authoritative mock document data lives in lib/mock-data.ts::buildDocumentResponse(id).",
+  "id": "wc-report-1964",
+  "naid": "193887",
+  "title": "Report of the President's Commission on the Assassination of President Kennedy",
+  "date": "1964-09-24",
+  "agency": "Warren Commission"
+}

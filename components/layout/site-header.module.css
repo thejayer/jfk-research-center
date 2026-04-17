@@ -1,0 +1,125 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(1.2) blur(8px);
+  -webkit-backdrop-filter: saturate(1.2) blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 64px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  text-decoration: none;
+  min-width: 0;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  min-width: 0;
+}
+
+.brandLine {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  letter-spacing: -0.005em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.brandSub {
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nav {
+  display: none;
+  gap: 20px;
+  margin-left: 12px;
+}
+
+.navLink {
+  font-size: 0.93rem;
+  color: var(--text-muted);
+  padding: 4px 2px;
+  border-bottom: 1px solid transparent;
+  transition: color var(--motion), border-color var(--motion);
+}
+
+.navLink:hover {
+  color: var(--text);
+  border-bottom-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.searchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 10px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: background var(--motion), color var(--motion), border-color var(--motion);
+}
+
+.searchBtn:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.searchBtn span {
+  display: none;
+}
+
+.kbd {
+  display: none;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  background: var(--bg);
+}
+
+@media (min-width: 720px) {
+  .nav {
+    display: flex;
+  }
+  .searchBtn span,
+  .kbd {
+    display: inline-flex;
+  }
+}

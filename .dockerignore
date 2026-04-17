@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+.env*.local
+npm-debug.log
+.DS_Store
+README.md
+.vercel
+.vscode
+dist
+out
+coverage
+tsconfig.tsbuildinfo

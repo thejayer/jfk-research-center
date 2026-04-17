@@ -1,0 +1,9 @@
+{
+  "note": "Authoritative mock data is produced by lib/mock-data.ts::buildHomeResponse(). This file exists as a readable snapshot of shape and intent; it is not loaded by the app at runtime.",
+  "stats": {
+    "documentCount": 14302,
+    "mentionCount": 186421,
+    "entityCount": 9,
+    "topicCount": 5
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "note": "Read-only snapshot. Authoritative mock entity data lives in lib/mock-data.ts::buildEntityResponse('oswald').",
+  "slug": "oswald",
+  "name": "Lee Harvey Oswald",
+  "type": "person",
+  "aliases": ["Lee H. Oswald", "Oswald", "LHO", "Alek J. Hidell", "O. H. Lee"],
+  "born": "1939-10-18",
+  "died": "1963-11-24"
+}

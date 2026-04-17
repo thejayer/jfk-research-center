@@ -1,0 +1,257 @@
+/* --- Design tokens --- */
+:root {
+  --bg: #f6f3ee;
+  --surface: #fbf8f3;
+  --surface-2: #f1ece5;
+  --border: rgba(33, 30, 26, 0.12);
+  --border-strong: rgba(33, 30, 26, 0.22);
+  --text: #1f1b17;
+  --text-muted: #6c665f;
+  --accent: #6d2f2f;
+  --accent-soft: #e7d7d3;
+  --link: #234a6b;
+  --shadow-sm: 0 1px 2px rgba(33, 30, 26, 0.04);
+  --shadow-md: 0 4px 18px rgba(33, 30, 26, 0.07);
+
+  --font-serif: "Source Serif 4", "Instrument Serif", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", "Work Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --step-1: 0.82rem;
+  --step-2: 0.95rem;
+  --step-3: 1.05rem;
+  --step-4: 1.25rem;
+  --step-5: 1.5rem;
+  --step-6: 2rem;
+  --step-7: 2.75rem;
+  --step-8: 3.5rem;
+
+  --content-max: 1200px;
+  --reading-max: 70ch;
+
+  --motion: 180ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+[data-theme="dark"] {
+  --bg: #141311;
+  --surface: #1a1917;
+  --surface-2: #22211f;
+  --border: rgba(241, 236, 229, 0.12);
+  --border-strong: rgba(241, 236, 229, 0.24);
+  --text: #ece6dd;
+  --text-muted: #aaa39b;
+  --accent: #c68b84;
+  --accent-soft: #3a2a29;
+  --link: #8cb1d1;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Reset --- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html {
+  color-scheme: light;
+}
+
+[data-theme="dark"] html,
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  transition: background var(--motion), color var(--motion);
+}
+
+a {
+  color: var(--link);
+  text-decoration: none;
+  transition: color var(--motion);
+}
+
+a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-serif);
+  color: var(--text);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  margin: 0;
+}
+
+h1 {
+  font-size: clamp(2rem, 1.3rem + 2.2vw, var(--step-8));
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: var(--step-6);
+}
+
+h3 {
+  font-size: var(--step-5);
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+mark {
+  background: var(--accent-soft);
+  color: var(--text);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--step-6) 0;
+}
+
+/* --- Layout primitives --- */
+.container {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+@media (min-width: 720px) {
+  .container {
+    padding: 0 32px;
+  }
+}
+
+.reading {
+  max-width: var(--reading-max);
+}
+
+.stack-sm > * + * {
+  margin-top: 8px;
+}
+.stack > * + * {
+  margin-top: 16px;
+}
+.stack-md > * + * {
+  margin-top: 24px;
+}
+.stack-lg > * + * {
+  margin-top: 40px;
+}
+.stack-xl > * + * {
+  margin-top: 64px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  width: 100%;
+}
+
+.rule-short {
+  height: 1px;
+  width: 40px;
+  background: var(--accent);
+}
+
+/* --- Focus ring --- */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --- Reveal animation --- */
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.reveal {
+  animation: reveal-up 220ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* --- Tabular-lining numbers in stats --- */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum", "lnum";
+}

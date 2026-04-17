@@ -1,0 +1,6 @@
+{
+  "note": "Read-only snapshot. Authoritative search results are produced by lib/mock-data.ts::buildSearchResponse().",
+  "query": "Oswald Mexico City",
+  "mode": "mention",
+  "exampleHits": 3
+}
