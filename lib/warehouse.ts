@@ -780,39 +780,39 @@ export async function fetchSearch({
   limit?: number;
 }): Promise<SearchResponse> {
   const qNorm = q.trim();
-  const params: Record<string, unknown> = { q: qNorm, qLike: `%${qNorm.toLowerCase()}%` };
+  const params: Record<string, unknown> = {
+    qNorm,
+    qLike: qNorm ? `%${qNorm.toLowerCase()}%` : "%",
+  };
 
   const where: string[] = [];
-  if (qNorm) {
-    where.push(
-      `(LOWER(r.title) LIKE @qLike
-        OR LOWER(r.description) LIKE @qLike
-        OR r.document_id IN (
-          SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
-          WHERE source_type = 'abbyy_ocr' AND LOWER(chunk_text) LIKE @qLike
-        ))`,
-    );
+  // match_confidence is NULL when the query is empty; this clause also
+  // enforces "must actually match the query" when a query is present.
+  if (qNorm) where.push("match_confidence IS NOT NULL");
+
+  if (filters.confidence?.length && qNorm) {
+    where.push("match_confidence IN UNNEST(@confidences)");
+    params.confidences = filters.confidence;
   }
 
   if (filters.agencies?.length) {
-    where.push("r.agency IN UNNEST(@agencies)");
+    where.push("agency IN UNNEST(@agencies)");
     params.agencies = filters.agencies;
   }
   if (filters.years?.length) {
     where.push(
-      "CAST(EXTRACT(YEAR FROM r.start_date) AS STRING) IN UNNEST(@years)",
+      "CAST(EXTRACT(YEAR FROM start_date) AS STRING) IN UNNEST(@years)",
     );
     params.years = filters.years;
   }
   if (filters.entities?.length) {
-    where.push(`r.document_id IN (
+    where.push(`document_id IN (
       SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
       WHERE entity_id IN UNNEST(@entities)
     )`);
     params.entities = filters.entities;
   }
   if (filters.topics?.length) {
-    // Each topic is its own mvp table — join union
     const unionSql = filters.topics
       .filter((t) => TOPIC_CATALOG[t])
       .map(
@@ -820,48 +820,65 @@ export async function fetchSearch({
           `SELECT document_id FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[t]!.mvpTable}\``,
       )
       .join(" UNION ALL ");
-    if (unionSql) where.push(`r.document_id IN (${unionSql})`);
+    if (unionSql) where.push(`document_id IN (${unionSql})`);
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
 
+  // Shared CTE: compute per-doc match_confidence based on where the query
+  // landed — title (high) > description (medium) > OCR chunks (low). The
+  // results query and the total-count query both read from `scored`.
+  const cteSql = `
+    WITH doc_with_ocr_hit AS (
+      SELECT document_id, ANY_VALUE(chunk_text) AS hit_text
+        FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
+       WHERE source_type = 'abbyy_ocr' AND @qNorm != '' AND LOWER(chunk_text) LIKE @qLike
+       GROUP BY document_id
+    ),
+    scored AS (
+      SELECT r.*, o.hit_text AS ocr_hit_text,
+        CASE
+          WHEN @qNorm = '' THEN CAST(NULL AS STRING)
+          WHEN LOWER(r.title) LIKE @qLike THEN 'high'
+          WHEN LOWER(r.description) LIKE @qLike THEN 'medium'
+          WHEN o.document_id IS NOT NULL THEN 'low'
+        END AS match_confidence
+      FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+      LEFT JOIN doc_with_ocr_hit o USING (document_id)
+    )
+  `;
+
   const [results, filterData] = await Promise.all([
-    query<RecordRow>(
-      `WITH doc_with_ocr_hit AS (
-         SELECT DISTINCT document_id,
-                ANY_VALUE(chunk_text) AS hit_text
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
-          WHERE source_type = 'abbyy_ocr' AND LOWER(chunk_text) LIKE @qLike
-          GROUP BY document_id
-       )
-       SELECT r.*, o.hit_text AS ocr_hit_text
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-         LEFT JOIN doc_with_ocr_hit o USING (document_id)
-         ${whereSql}
-        ORDER BY
-          CASE WHEN LOWER(r.title) LIKE @qLike THEN 0 ELSE 1 END,
-          CASE WHEN o.document_id IS NOT NULL THEN 0 ELSE 1 END,
-          r.start_date DESC NULLS LAST
-        LIMIT ${Number(limit)}`,
+    query<
+      RecordRow & { ocr_hit_text: string | null; match_confidence: ConfidenceLevel | null }
+    >(
+      `${cteSql}
+       SELECT * FROM scored
+       ${whereSql}
+       ORDER BY
+         CASE match_confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
+         start_date DESC NULLS LAST
+       LIMIT ${Number(limit)}`,
       params,
     ),
     loadSearchFacets(),
   ]);
 
-  // Also surface the total count (capped) for UI
   const total = await query<{ n: number }>(
-    `SELECT COUNT(*) AS n FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r ${whereSql}`,
+    `${cteSql}
+     SELECT COUNT(*) AS n FROM scored ${whereSql}`,
     params,
   );
 
   const docResults: SearchResult[] = results.map((r) => {
-    const hit = (r as RecordRow & { ocr_hit_text?: string | null }).ocr_hit_text;
-    const snippet = hit ? truncateAround(hit, [qNorm], 260) : undefined;
+    const snippet = r.ocr_hit_text
+      ? truncateAround(r.ocr_hit_text, [qNorm], 260)
+      : undefined;
     return {
       kind: "document",
       document: rowToCard(r, snippet),
       mentionCount: 0,
-      confidence: hit ? ("low" as ConfidenceLevel) : ("medium" as ConfidenceLevel),
+      confidence: (r.match_confidence ?? "none") as ConfidenceLevel,
     };
   });
 
