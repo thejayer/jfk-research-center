@@ -9,20 +9,26 @@
 #     populated (scripts/ingest_abbyy.py)
 #
 # Usage:
-#   ./scripts/rebuild_warehouse.sh [--project jfk-vault] [--skip-indexes]
+#   ./scripts/rebuild_warehouse.sh [--project jfk-vault] \
+#                                  [--skip-indexes] [--skip-summaries]
 #
 # The script runs each SQL file with `bq query`; stops on first failure.
+# --skip-summaries omits the Vertex AI Gemini call (sql/24, sql/25); use
+# it for local iterations to avoid paying for LLM regeneration on every
+# rebuild.
 
 set -euo pipefail
 
 PROJECT="${JFK_BQ_PROJECT:-jfk-vault}"
 SKIP_INDEXES=0
+SKIP_SUMMARIES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --project)       PROJECT="$2"; shift 2 ;;
-    --skip-indexes)  SKIP_INDEXES=1; shift ;;
-    -h|--help)       sed -n '/^# /p' "$0" | head -25; exit 0 ;;
+    --project)         PROJECT="$2"; shift 2 ;;
+    --skip-indexes)    SKIP_INDEXES=1; shift ;;
+    --skip-summaries)  SKIP_SUMMARIES=1; shift ;;
+    -h|--help)         sed -n '/^# /p' "$0" | head -25; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
   esac
 done
@@ -53,6 +59,10 @@ FILES=(
 
 if [[ $SKIP_INDEXES -ne 1 ]]; then
   FILES+=("30_search_indexes.sql")
+fi
+
+if [[ $SKIP_SUMMARIES -ne 1 ]]; then
+  FILES+=("24_remote_models.sql" "25_topic_summaries.sql")
 fi
 
 for f in "${FILES[@]}"; do

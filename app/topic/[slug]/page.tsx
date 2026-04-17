@@ -53,10 +53,36 @@ export default async function TopicPage({
 
       <TopicHero topic={data.topic} />
 
+      <section
+        aria-label="Topic actions"
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 12,
+          marginTop: 28,
+        }}
+      >
+        <LinkButton
+          href={`/search?q=${encodeURIComponent(data.topic.title)}&mode=document`}
+          variant="primary"
+        >
+          Search within topic →
+        </LinkButton>
+        <LinkButton href="#documents" variant="secondary">
+          Browse documents
+        </LinkButton>
+        {data.relatedEntities.length > 0 && (
+          <LinkButton href="#entities" variant="secondary">
+            Related entities
+          </LinkButton>
+        )}
+      </section>
+
       {data.topDocuments.length > 0 && (
         <section
+          id="documents"
           aria-label="Top documents"
-          style={{ marginTop: 56 }}
+          style={{ marginTop: 56, scrollMarginTop: 24 }}
         >
           <SectionHeading
             eyebrow="Documents"
@@ -69,8 +95,9 @@ export default async function TopicPage({
 
       {data.relatedEntities.length > 0 && (
         <section
+          id="entities"
           aria-label="Related entities"
-          style={{ marginTop: 72 }}
+          style={{ marginTop: 72, scrollMarginTop: 24 }}
         >
           <SectionHeading
             eyebrow="Entities"

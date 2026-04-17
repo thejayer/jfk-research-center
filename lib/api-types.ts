@@ -77,6 +77,12 @@ export type TopicCard = {
 export type TopicDetail = TopicCard & {
   description: string;
   relatedSlugs?: string[];
+  aiSummary?: {
+    text: string;
+    model: string;
+    generatedAt: string;
+    sourceDocCount: number;
+  };
 };
 
 export type TimelineEvent = {

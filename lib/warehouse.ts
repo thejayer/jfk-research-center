@@ -534,7 +534,7 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
   const t = TOPIC_CATALOG[slug];
   if (!t) return null;
 
-  const [docs, count, entityCoOcc] = await Promise.all([
+  const [docs, count, entityCoOcc, aiRows] = await Promise.all([
     query<RecordRow>(
       `SELECT r.*
          FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\` r
@@ -554,6 +554,17 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
         ORDER BY n DESC
         LIMIT 6`,
     ),
+    query<{
+      summary: string;
+      model: string;
+      generated_at: { value: string } | string;
+      source_doc_count: number;
+    }>(
+      `SELECT summary, model, generated_at, source_doc_count
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_summaries\`
+        WHERE slug = @slug`,
+      { slug },
+    ).catch(() => []),
   ]);
 
   const entities = await loadEntities();
@@ -576,6 +587,7 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
     pageLabel: null,
   }));
 
+  const ai = aiRows[0];
   const topic: TopicDetail = {
     slug,
     title: t.title,
@@ -585,6 +597,17 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
     href: `/topic/${slug}`,
     eyebrow: t.eyebrow,
     relatedSlugs: t.relatedSlugs,
+    aiSummary: ai?.summary
+      ? {
+          text: ai.summary,
+          model: ai.model,
+          generatedAt:
+            typeof ai.generated_at === "string"
+              ? ai.generated_at
+              : ai.generated_at.value,
+          sourceDocCount: ai.source_doc_count,
+        }
+      : undefined,
   };
 
   return {

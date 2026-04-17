@@ -251,8 +251,23 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-17 02:45 UTC
+**Last updated:** 2026-04-17 (AI topic summaries)
 
+- **AI topic summaries** are live. `jfk_curated.jfk_topic_summaries`
+  (1 row per slug) is populated by `sql/25_topic_summaries.sql`, which
+  calls Vertex AI Gemini 2.5 Flash via the BQ remote model
+  `jfk_curated.gemini_flash` (defined in `sql/24_remote_models.sql`).
+  Prompt bundles the top 20 docs per topic (title, agency, date,
+  description excerpt) and asks for a grounded 140-200 word summary.
+  `fetchTopic()` reads it; `TopicHero` renders it with an "AI-generated
+  summary" chip. Falls back to the hardcoded `TOPIC_CATALOG[slug].summary`
+  if the row is missing. Rebuild with `--skip-summaries` to avoid the
+  Vertex call during local iterations.
+- **Vertex AI connection** `jfk-vault.us.vertex_ai` (BQ → Vertex) exists
+  with `roles/aiplatform.user` on its connection SA
+  (`bqcx-690906762945-gkx3@gcp-sa-bigquery-condel.iam.gserviceaccount.com`).
+  This was a one-time manual step, documented in `sql/24_remote_models.sql`
+  header; don't re-create it.
 - ABBYY OCR is **live** in the deployed Cloud Run service. Documents that
   have OCR (`has_ocr = true`) show an `OCR` chip on cards across search,
   entity, and topic pages; the document page shows real per-page OCR text.
