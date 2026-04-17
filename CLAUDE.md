@@ -32,6 +32,14 @@ Live: **https://jfk-research-center-690906762945.us-central1.run.app**
   SSH session. Use the user's gcloud identity.
 - **On Cloud Run**, the runtime SA is that same compute default SA,
   but there it has `roles/editor` which is enough for BigQuery.
+- **Source control**: this project is versioned at
+  `https://github.com/thejayer/jfk-research-center` (private). The VM
+  has `gh` CLI authenticated as `thejayer`. Make commits with
+  `austincwiley@gmail.com` as the author (set as the local
+  `user.email`). `gh` token carries `repo` scope, enough to push +
+  manage the repo. Cloud Run still deploys from `--source=.` (local
+  tree → GCS tar → Cloud Build → Artifact Registry), not from
+  GitHub; git is for history and recovery, not CI.
 
 ---
 
@@ -243,7 +251,7 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-17 02:20 UTC
+**Last updated:** 2026-04-17 02:45 UTC
 
 - ABBYY OCR is **live** in the deployed Cloud Run service. Documents that
   have OCR (`has_ocr = true`) show an `OCR` chip on cards across search,
@@ -260,6 +268,10 @@ gcloud run deploy jfk-research-center \
   applying them is pure cost until the query layer swaps `LIKE`/`REGEXP_CONTAINS`
   for `SEARCH()`. `rebuild_warehouse.sh` still runs this step by default;
   pass `--skip-indexes` to omit it.
+- Project is now under git at
+  `https://github.com/thejayer/jfk-research-center` (private, one
+  "Initial commit" landed so far — further work should go in as
+  separate logical commits: ingester vs. SQL vs. UI vs. docs).
 
 **Useful diagnostic queries:**
 
