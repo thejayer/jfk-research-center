@@ -296,17 +296,17 @@ bq query --use_legacy_sql=false \
 
 ## Open TODOs
 
-- **Parallelize ingestion** — current single-threaded rate is ~40 docs/min.
-  A 4-worker pool over `_pdf_source_iter` would likely get it under 10 min.
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.
 - **Search index on OCR chunks.** `sql/30_search_indexes.sql` is ready
-  but unbuilt. Applying it is a no-op without a query-layer change — the
-  app still uses `LIKE`/`REGEXP_CONTAINS`, which search indexes don't
-  accelerate. To actually benefit: (a) run the file to build indexes,
-  (b) rewrite queries in `lib/warehouse.ts` to call `SEARCH()` on
-  indexed columns.
+  but **not worth applying at current scale**. BigQuery only
+  auto-maintains search indexes once a table passes ~10 GiB;
+  `jfk_text_chunks` is ~135 MB, so any index sits at 0% coverage
+  (`TEMPORARILY DISABLED`) and does nothing. Additionally, `SEARCH()`
+  is token-based while current `LIKE '%q%'` queries are substring —
+  migrating would drop a few percent of matches (e.g. OCR noise
+  `KOSTIKOV2`). Revisit when the corpus grows ~10×.
 
 ---
 
