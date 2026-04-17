@@ -298,9 +298,6 @@ bq query --use_legacy_sql=false \
 
 - **Parallelize ingestion** — current single-threaded rate is ~40 docs/min.
   A 4-worker pool over `_pdf_source_iter` would likely get it under 10 min.
-- **Replace description-fallback chunks with the full description text.**
-  Current fallback is a single chunk with no `page_label`. If description
-  is long, chunk it properly.
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.
