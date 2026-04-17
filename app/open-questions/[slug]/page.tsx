@@ -7,6 +7,7 @@ import { OpenQuestionsArticleBody } from "@/components/open-questions/article-bo
 import { OpenQuestionsThreadList } from "@/components/open-questions/thread-list";
 import { LinkButton } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
+import layout from "@/components/ui/two-column.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -117,26 +118,28 @@ export default async function OpenQuestionsTopicPage({
         </div>
       </header>
 
-      {data.article && (
+      {(data.article || data.threads.length > 0) && (
         <section
-          aria-label="Topic-level synthesis"
+          aria-label="Analysis and evidence"
           style={{ marginTop: 36 }}
         >
-          <OpenQuestionsArticleBody article={data.article} />
-        </section>
-      )}
-
-      {data.threads.length > 0 && (
-        <section
-          aria-label="Underlying threads"
-          style={{ marginTop: 64 }}
-        >
-          <SectionHeading
-            eyebrow="Evidence"
-            title="Underlying threads"
-            description="The batch-level candidate questions that the article above synthesizes. Each links to the documents that grounded it."
-          />
-          <OpenQuestionsThreadList threads={data.threads} />
+          <div className={layout.grid}>
+            {data.article && (
+              <div className={layout.main}>
+                <OpenQuestionsArticleBody article={data.article} />
+              </div>
+            )}
+            {data.threads.length > 0 && (
+              <aside className={layout.aside}>
+                <SectionHeading
+                  eyebrow="Evidence"
+                  title="Underlying threads"
+                  description="The batch-level candidate questions that the article synthesizes. Each links to the documents that grounded it."
+                />
+                <OpenQuestionsThreadList threads={data.threads} />
+              </aside>
+            )}
+          </div>
         </section>
       )}
     </div>

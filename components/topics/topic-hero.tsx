@@ -1,6 +1,5 @@
 import type { TopicDetail } from "@/lib/api-types";
 import { formatNumber } from "@/lib/format";
-import { TopicBody } from "./topic-body";
 
 export function TopicHero({ topic }: { topic: TopicDetail }) {
   return (
@@ -39,12 +38,9 @@ export function TopicHero({ topic }: { topic: TopicDetail }) {
         {topic.summary}
       </p>
 
-      <TopicBody topic={topic} />
-
       <div
         className="num muted"
         style={{
-          marginTop: 22,
           fontSize: "0.88rem",
           letterSpacing: "0.02em",
         }}

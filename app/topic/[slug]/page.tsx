@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { TopicDetail } from "@/lib/api-types";
 import { fetchTopic } from "@/lib/api-client";
 import { TopicHero } from "@/components/topics/topic-hero";
+import { TopicBody } from "@/components/topics/topic-body";
 import { TopicDocumentGrid } from "@/components/topics/topic-document-grid";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { LinkButton } from "@/components/ui/button";
+import layout from "@/components/ui/two-column.module.css";
 
 export const dynamic = "force-dynamic";
+
+function hasTopicBody(topic: TopicDetail): boolean {
+  return Boolean(topic.aiSummary || topic.aiArticle || topic.description);
+}
 
 export async function generateMetadata({
   params,
@@ -107,22 +114,38 @@ export default async function TopicPage({
         </section>
       )}
 
-      {data.mentionExcerpts.length > 0 && (
+      {(hasTopicBody(data.topic) || data.mentionExcerpts.length > 0) && (
         <section
-          aria-label="Relevant mentions"
+          aria-label="Analysis and evidence"
           style={{ marginTop: 72 }}
         >
-          <SectionHeading
-            eyebrow="Excerpts"
-            title="Relevant passages"
-            description="Short passages from OCR text and descriptions that characterize this topic."
-          />
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: 22 }}
-          >
-            {data.mentionExcerpts.map((m) => (
-              <MentionSnippet key={m.id} mention={m} />
-            ))}
+          <div className={layout.grid}>
+            {hasTopicBody(data.topic) && (
+              <div className={layout.main}>
+                <SectionHeading
+                  eyebrow="Analysis"
+                  title="AI-generated reading"
+                  description="A synthesized view of this topic, with inline citations to the underlying records."
+                />
+                <TopicBody topic={data.topic} />
+              </div>
+            )}
+            {data.mentionExcerpts.length > 0 && (
+              <aside className={layout.aside}>
+                <SectionHeading
+                  eyebrow="Evidence"
+                  title="Relevant passages"
+                  description="Short passages from OCR text and descriptions that characterize this topic."
+                />
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 22 }}
+                >
+                  {data.mentionExcerpts.map((m) => (
+                    <MentionSnippet key={m.id} mention={m} />
+                  ))}
+                </div>
+              </aside>
+            )}
           </div>
         </section>
       )}
