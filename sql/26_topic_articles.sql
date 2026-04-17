@@ -110,17 +110,15 @@ topic_context as (
 select * from topic_context;
 
 -- ---------------------------------------------------------------------
--- Call Gemini Pro once per topic and persist the result.
+-- Call Gemini Pro once per topic and stash the raw output in a staging
+-- table. We validate citations in the next step.
 -- ---------------------------------------------------------------------
-create or replace table jfk_curated.jfk_topic_articles as
+create or replace table jfk_curated._topic_article_raw as
 select
   slug,
   title,
-  ml_generate_text_llm_result as article,
-  source_doc_ids,
-  array_length(source_doc_ids) as source_doc_count,
-  'gemini-2.5-pro' as model,
-  current_timestamp() as generated_at
+  ml_generate_text_llm_result as raw_article,
+  source_doc_ids
 from ml.generate_text(
   model `jfk_curated.gemini_pro`,
   (select slug, title, source_doc_ids, prompt from jfk_curated._topic_article_input),
@@ -131,4 +129,47 @@ from ml.generate_text(
   )
 );
 
+-- ---------------------------------------------------------------------
+-- Strip [doc:<id>] citations whose id is NOT in source_doc_ids. The
+-- model occasionally emits ids that look real but aren't in the sample;
+-- unchecked they would render as broken links. A JS UDF keeps the
+-- cleanup step inline (temp functions are in-query only, so the final
+-- table write lives in the same statement).
+-- ---------------------------------------------------------------------
+create temp function strip_invalid_citations(article string, valid_ids array<string>)
+returns struct<cleaned string, stripped array<string>>
+language js as """
+  const set = new Set(valid_ids);
+  const stripped = [];
+  const cleaned = article.replace(/\\[doc:([^\\]]+)\\]/g, (match, id) => {
+    const trimmed = id.trim();
+    if (set.has(trimmed)) return match;
+    stripped.push(trimmed);
+    return '';
+  });
+  return { cleaned: cleaned, stripped: stripped };
+""";
+
+create or replace table jfk_curated.jfk_topic_articles as
+with cleaned as (
+  select
+    slug,
+    title,
+    strip_invalid_citations(raw_article, source_doc_ids) as c,
+    source_doc_ids
+  from jfk_curated._topic_article_raw
+)
+select
+  slug,
+  title,
+  c.cleaned as article,
+  c.stripped as invalid_citation_ids,
+  array_length(c.stripped) as invalid_citation_count,
+  source_doc_ids,
+  array_length(source_doc_ids) as source_doc_count,
+  'gemini-2.5-pro' as model,
+  current_timestamp() as generated_at
+from cleaned;
+
 drop table if exists jfk_curated._topic_article_input;
+drop table if exists jfk_curated._topic_article_raw;

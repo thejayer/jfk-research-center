@@ -5,7 +5,8 @@ import styles from "./site-header.module.css";
 const NAV: Array<{ label: string; href: string }> = [
   { label: "Search", href: "/search" },
   { label: "Entities", href: "/entity/oswald" },
-  { label: "Topics", href: "/topic/warren-commission" },
+  { label: "Topics", href: "/topics" },
+  { label: "Open Questions", href: "/open-questions" },
 ];
 
 export function SiteHeader() {

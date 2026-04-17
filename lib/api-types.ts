@@ -167,3 +167,49 @@ export type DocumentResponse = {
   relatedEntities: EntityCard[];
   relatedDocuments: DocumentCard[];
 };
+
+// ---------------------------------------------------------------------------
+// Open Questions — neutral-framing article surfacing tensions in the
+// collection. Backed by the sql/27-29 map-reduce pipeline.
+// ---------------------------------------------------------------------------
+
+export type OpenQuestionsArticle = {
+  text: string;
+  model: string;
+  generatedAt: string;
+  sourceDocCount: number;
+};
+
+export type OpenQuestionsTopicCard = {
+  slug: string;
+  title: string;
+  eyebrow?: string;
+  summary: string;
+  href: string;
+  questionCount: number;
+  sourceDocCount: number;
+  tensionCounts: Record<string, number>;
+};
+
+export type OpenQuestionThread = {
+  id: string;
+  question: string;
+  summary: string | null;
+  tensionType: string | null;
+  supportingDocIds: string[];
+};
+
+export type OpenQuestionsIndexResponse = {
+  global: OpenQuestionsArticle | null;
+  topics: OpenQuestionsTopicCard[];
+};
+
+export type OpenQuestionsTopicResponse = {
+  slug: string;
+  title: string;
+  eyebrow?: string;
+  topicHref: string;
+  article: OpenQuestionsArticle | null;
+  questionCount: number;
+  threads: OpenQuestionThread[];
+};

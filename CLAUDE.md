@@ -251,7 +251,7 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-17 (AI topic articles + /topics index)
+**Last updated:** 2026-04-17 (Open Questions pipeline + /open-questions)
 
 - **Topics index page** at `/topics` lists all 6 topics; `/api/topics`
   backs it via `fetchAllTopics()`. Homepage featured-topics grid has
@@ -273,6 +273,39 @@ gcloud run deploy jfk-research-center \
     `TOPIC_CATALOG[slug].summary` if neither AI row is present.
   - Rebuild with `--skip-summaries` to omit all three AI SQL files
     (24, 25, 26) during local iterations.
+  - `sql/26` runs a JS UDF after generation that strips any
+    `[doc:<id>]` whose id isn't in the per-topic source_doc_ids
+    (captured in `invalid_citation_ids` for audit). Spot-check with:
+    `bq query --use_legacy_sql=false 'SELECT slug, invalid_citation_count FROM jfk-vault.jfk_curated.jfk_topic_articles ORDER BY slug'`.
+- **Open Questions (corpus-wide map-reduce).** `/open-questions` landing
+  page + `/open-questions/[slug]` per-topic pages. Three SQL files drive
+  the pipeline:
+  - `sql/27_topic_batch_analyses.sql` — MAP stage. Partitions every
+    record in every topic into batches of 150, calls Gemini 2.5 Pro
+    per batch, extracts structured JSON open-questions (one-sentence
+    question + 2-4 sentence summary + supporting_doc_ids +
+    tension_type ∈ {contradiction, timing, redaction,
+    unexplained_reference, pattern, gap}). Writes
+    `jfk_curated.jfk_topic_batch_questions` (one row per question).
+  - `sql/28_topic_open_questions.sql` — REDUCE stage. Per slug, bundles
+    all batch questions, asks Pro to merge/dedupe and write a 700-1000
+    word article with `[doc:id]` citations. Writes
+    `jfk_curated.jfk_topic_open_questions` (one row per slug). Citations
+    validated against the union of supporting_doc_ids for that slug.
+  - `sql/29_global_open_questions.sql` — CROSS-TOPIC synthesis. Bundles
+    the 6 per-topic articles and asks Pro for a landing-page article
+    (600-900 words) surfacing threads that cut across topics. Writes
+    `jfk_curated.jfk_global_open_questions` (one row, slug='global').
+  - Cost: ~287 batches × ~$0.10 ≈ $25-30 for a full rebuild across all
+    six topics. Gated behind both `--skip-summaries` and
+    `--skip-open-questions` in `rebuild_warehouse.sh`. Use
+    `--skip-open-questions` if you want the cheap 24/25/26 AI content
+    without paying for the map-reduce pipeline.
+  - UI: `components/open-questions/article-body.tsx` reuses the
+    `[doc:id]` → numbered superscript link pattern from
+    `topic-body.tsx` (duplicated, not extracted — intentional). The
+    per-topic page also renders the underlying batch questions grouped
+    by tension_type so readers can drill from the article into evidence.
 - **Vertex AI connection** `jfk-vault.us.vertex_ai` (BQ → Vertex) exists
   with `roles/aiplatform.user` on its connection SA
   (`bqcx-690906762945-gkx3@gcp-sa-bigquery-condel.iam.gserviceaccount.com`).
@@ -346,8 +379,14 @@ bq query --use_legacy_sql=false \
 - **Confidence semantics** (in UI and DB): `high` = entity name in
   title, `medium` = in description, `low` = in OCR text only. Never
   guess — always reflect where the match landed.
-- **No lorem ipsum. No conspiracy framing.** All content is neutral
-  and archival.
+- **No lorem ipsum.** All content is neutral and archival.
+- **Neutral framing — surface tensions, don't assert conclusions.**
+  The collection contains real ambiguities, redactions, and
+  unreconciled records; the site may name them openly (see the
+  Open Questions feature) but must not take a position on whether
+  the official story is correct. Prefer phrasing like "the record
+  is inconsistent on X" over "X proves Y." No conspiracy advocacy,
+  and no defense-of-orthodoxy either.
 - **Tests**: `npm test` runs Vitest (`lib/__tests__/*.test.ts`). Node
   env, `@/*` alias matches the TS paths config. Adapter/warehouse
   tests would need a BigQuery mock — not written yet.

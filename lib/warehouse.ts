@@ -26,6 +26,11 @@ import type {
   EntityResponse,
   HomeResponse,
   MentionExcerpt,
+  OpenQuestionThread,
+  OpenQuestionsArticle,
+  OpenQuestionsIndexResponse,
+  OpenQuestionsTopicCard,
+  OpenQuestionsTopicResponse,
   SearchResponse,
   SearchResult,
   TopicCard,
@@ -1044,6 +1049,217 @@ async function loadSearchFacets() {
     topics: TOPIC_DISPLAY_ORDER.map((slug) => TOPIC_CATALOG[slug]!.title),
     entities: entities.map((e) => e.entity_name),
     confidence: ["high", "medium", "low"] as ConfidenceLevel[],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// OPEN QUESTIONS — backed by sql/27-29 (map-reduce over every record)
+// ---------------------------------------------------------------------------
+
+function firstParagraph(text: string, maxLen = 320): string {
+  const para = text.split(/\n{2,}/)[0]?.trim() ?? "";
+  if (para.length <= maxLen) return para;
+  // clip on sentence boundary if possible
+  const clipped = para.slice(0, maxLen);
+  const lastDot = clipped.lastIndexOf(". ");
+  return lastDot > 120 ? clipped.slice(0, lastDot + 1) : clipped + "…";
+}
+
+function readTimestamp(
+  v: { value: string } | string | null | undefined,
+): string {
+  if (!v) return "";
+  return typeof v === "string" ? v : v.value;
+}
+
+type OpenQuestionsTopicRow = {
+  slug: string;
+  topic_title: string;
+  article: string | null;
+  source_doc_count: number | null;
+  input_question_count: number | null;
+  model: string | null;
+  generated_at: { value: string } | string | null;
+  tension_counts:
+    | Array<{ tension_type: string | null; n: number }>
+    | null;
+  question_count: number | null;
+};
+
+async function loadOpenQuestionsTopicRows(): Promise<OpenQuestionsTopicRow[]> {
+  // LEFT JOIN the reduce-stage article onto the map-stage question
+  // counts so we still get a row if the article failed but questions
+  // exist, and so per-topic tension histograms are available cheaply.
+  return query<OpenQuestionsTopicRow>(
+    `WITH tension_by_topic AS (
+       SELECT slug,
+              tension_type,
+              COUNT(*) AS n
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_batch_questions\`
+        GROUP BY slug, tension_type
+     ),
+     grouped AS (
+       SELECT slug,
+              ARRAY_AGG(STRUCT(tension_type, n)) AS tension_counts,
+              SUM(n) AS question_count
+         FROM tension_by_topic
+        GROUP BY slug
+     )
+     SELECT q.slug,
+            q.topic_title,
+            q.article,
+            q.source_doc_count,
+            q.input_question_count,
+            q.model,
+            q.generated_at,
+            g.tension_counts,
+            g.question_count
+       FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_open_questions\` q
+       LEFT JOIN grouped g USING (slug)`,
+  );
+}
+
+function rowToOpenQuestionsTopicCard(
+  r: OpenQuestionsTopicRow,
+): OpenQuestionsTopicCard {
+  const catalog = TOPIC_CATALOG[r.slug];
+  const tensionCounts: Record<string, number> = {};
+  for (const t of r.tension_counts ?? []) {
+    const key = t.tension_type ?? "other";
+    tensionCounts[key] = (tensionCounts[key] ?? 0) + t.n;
+  }
+  return {
+    slug: r.slug,
+    title: catalog?.title ?? r.topic_title,
+    eyebrow: catalog?.eyebrow,
+    summary: r.article ? firstParagraph(r.article) : (catalog?.summary ?? ""),
+    href: `/open-questions/${r.slug}`,
+    questionCount: r.question_count ?? r.input_question_count ?? 0,
+    sourceDocCount: r.source_doc_count ?? 0,
+    tensionCounts,
+  };
+}
+
+export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexResponse> {
+  const [globalRows, topicRows] = await Promise.all([
+    query<{
+      article: string | null;
+      source_doc_count: number | null;
+      model: string | null;
+      generated_at: { value: string } | string | null;
+    }>(
+      `SELECT article, source_doc_count, model, generated_at
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_global_open_questions\`
+        WHERE slug = 'global'
+        LIMIT 1`,
+    ).catch(() => []),
+    loadOpenQuestionsTopicRows().catch(() => []),
+  ]);
+
+  const g = globalRows[0];
+  const global: OpenQuestionsArticle | null =
+    g && g.article
+      ? {
+          text: g.article,
+          model: g.model ?? "gemini-2.5-pro",
+          generatedAt: readTimestamp(g.generated_at),
+          sourceDocCount: g.source_doc_count ?? 0,
+        }
+      : null;
+
+  const topicCards = topicRows
+    .map((r) => rowToOpenQuestionsTopicCard(r))
+    // Preserve the canonical topic display order
+    .sort(
+      (a, b) =>
+        TOPIC_DISPLAY_ORDER.indexOf(a.slug) -
+        TOPIC_DISPLAY_ORDER.indexOf(b.slug),
+    );
+
+  return { global, topics: topicCards };
+}
+
+export async function fetchOpenQuestionsTopic(
+  slug: string,
+): Promise<OpenQuestionsTopicResponse | null> {
+  const catalog = TOPIC_CATALOG[slug];
+  if (!catalog) return null;
+
+  const [articleRows, threadRows] = await Promise.all([
+    query<{
+      topic_title: string;
+      article: string | null;
+      source_doc_count: number | null;
+      input_question_count: number | null;
+      model: string | null;
+      generated_at: { value: string } | string | null;
+    }>(
+      `SELECT topic_title, article, source_doc_count, input_question_count,
+              model, generated_at
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_open_questions\`
+        WHERE slug = @slug
+        LIMIT 1`,
+      { slug },
+    ).catch(() => []),
+    query<{
+      batch_num: number;
+      question_index: number;
+      question: string;
+      summary: string | null;
+      tension_type: string | null;
+      supporting_doc_ids: string[] | null;
+    }>(
+      `SELECT batch_num, question_index, question, summary, tension_type,
+              supporting_doc_ids
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_batch_questions\`
+        WHERE slug = @slug
+        ORDER BY
+          CASE tension_type
+            WHEN 'contradiction' THEN 0
+            WHEN 'timing' THEN 1
+            WHEN 'unexplained_reference' THEN 2
+            WHEN 'redaction' THEN 3
+            WHEN 'gap' THEN 4
+            WHEN 'pattern' THEN 5
+            ELSE 6
+          END,
+          batch_num, question_index
+        LIMIT 200`,
+      { slug },
+    ).catch(() => []),
+  ]);
+
+  const row = articleRows[0];
+  const article: OpenQuestionsArticle | null =
+    row && row.article
+      ? {
+          text: row.article,
+          model: row.model ?? "gemini-2.5-pro",
+          generatedAt: readTimestamp(row.generated_at),
+          sourceDocCount: row.source_doc_count ?? 0,
+        }
+      : null;
+
+  const threads: OpenQuestionThread[] = threadRows.map((t) => ({
+    id: `q-${t.batch_num}-${t.question_index}`,
+    question: t.question,
+    summary: t.summary,
+    tensionType: t.tension_type,
+    supportingDocIds: t.supporting_doc_ids ?? [],
+  }));
+
+  // If neither an article nor any threads exist, treat as not-found so
+  // the page can 404 cleanly rather than render an empty shell.
+  if (!article && threads.length === 0) return null;
+
+  return {
+    slug,
+    title: catalog.title,
+    eyebrow: catalog.eyebrow,
+    topicHref: `/topic/${slug}`,
+    article,
+    questionCount: threads.length,
+    threads,
   };
 }
 

@@ -16,6 +16,8 @@ import type {
   DocumentResponse,
   EntityResponse,
   HomeResponse,
+  OpenQuestionsIndexResponse,
+  OpenQuestionsTopicResponse,
   SearchResponse,
   TopicCard,
   TopicResponse,
@@ -106,4 +108,21 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   return get<DocumentResponse>(`/api/document/${encodeURIComponent(id)}`, {
     revalidate: 600,
   });
+}
+
+export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexResponse> {
+  const data = await get<OpenQuestionsIndexResponse>("/api/open-questions", {
+    revalidate: 600,
+  });
+  if (!data) throw new Error("Open questions payload missing");
+  return data;
+}
+
+export async function fetchOpenQuestionsTopic(
+  slug: string,
+): Promise<OpenQuestionsTopicResponse | null> {
+  return get<OpenQuestionsTopicResponse>(
+    `/api/open-questions/${encodeURIComponent(slug)}`,
+    { revalidate: 600 },
+  );
 }
