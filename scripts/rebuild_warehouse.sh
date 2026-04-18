@@ -51,12 +51,19 @@ run_sql() {
 }
 
 # Order matters. Don't reshuffle.
+# 10a populates document_versions (per-release history) before sql/10
+# builds jfk_records from it. sql/18 runs after sql/11 to append the
+# supplementary primary-source reports (Warren, ARRB, Church Book V)
+# into jfk_records + jfk_text_chunks; those sources are populated by
+# scripts/ingest_primary_sources.py into jfk_staging.
 FILES=(
+  "10a_document_versions.sql"
   "10_curated_jfk_records.sql"
   "05_abbyy_to_nara_map.sql"
   "12_curated_jfk_entities.sql"
   "11_curated_jfk_text_chunks.sql"
   "13_curated_jfk_document_entity_map.sql"
+  "18_primary_sources.sql"
   "20_mvp_oswald_mentions.sql"
   "21_mvp_topic_views.sql"
   "90_dq_reports.sql"
