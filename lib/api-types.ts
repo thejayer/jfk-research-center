@@ -252,3 +252,54 @@ export type OpenQuestionsTopicResponse = {
   threads: OpenQuestionThread[];
   editorialFootnotes: EditorialFootnote[];
 };
+
+// ---------------------------------------------------------------------------
+// Physical evidence — catalog of ballistic, firearm, photographic, medical,
+// documentary, clothing, and environmental items from the case. Backed by
+// sql/17 (jfk_curated.physical_evidence).
+// ---------------------------------------------------------------------------
+
+export type PhysicalEvidenceCategory =
+  | "ballistic"
+  | "firearm"
+  | "photographic"
+  | "medical"
+  | "documentary"
+  | "clothing"
+  | "environmental";
+
+export type EvidenceChainStep = {
+  stepOrder: number;
+  date: string | null;
+  custodian: string;
+  action: string;
+};
+
+export type EvidenceWcTestimonyRef = {
+  volume: number;
+  witness: string;
+  page: number;
+};
+
+export type PhysicalEvidenceCard = {
+  id: string;
+  category: PhysicalEvidenceCategory;
+  shortName: string;
+  href: string;
+  shortDescription: string;
+  imageUrl: string | null;
+  imageCredit: string | null;
+};
+
+export type PhysicalEvidenceDetail = PhysicalEvidenceCard & {
+  longDescription: string;
+  chainOfCustody: EvidenceChainStep[];
+  referencedNaids: string[];
+  referencedWcTestimony: EvidenceWcTestimonyRef[];
+  relatedEntities: EntityCard[];
+};
+
+export type PhysicalEvidenceIndex = {
+  items: PhysicalEvidenceCard[];
+  categories: Array<{ category: PhysicalEvidenceCategory; count: number }>;
+};

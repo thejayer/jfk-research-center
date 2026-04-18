@@ -19,6 +19,8 @@ import type {
   HomeResponse,
   OpenQuestionsIndexResponse,
   OpenQuestionsTopicResponse,
+  PhysicalEvidenceDetail,
+  PhysicalEvidenceIndex,
   SearchResponse,
   TopicCard,
   TopicResponse,
@@ -132,6 +134,23 @@ export async function fetchOpenQuestionsTopic(
 ): Promise<OpenQuestionsTopicResponse | null> {
   return get<OpenQuestionsTopicResponse>(
     `/api/open-questions/${encodeURIComponent(slug)}`,
+    { revalidate: 600 },
+  );
+}
+
+export async function fetchPhysicalEvidenceIndex(): Promise<PhysicalEvidenceIndex> {
+  const data = await get<PhysicalEvidenceIndex>("/api/evidence", {
+    revalidate: 600,
+  });
+  if (!data) throw new Error("Physical evidence index missing");
+  return data;
+}
+
+export async function fetchPhysicalEvidenceItem(
+  id: string,
+): Promise<PhysicalEvidenceDetail | null> {
+  return get<PhysicalEvidenceDetail>(
+    `/api/evidence/${encodeURIComponent(id)}`,
     { revalidate: 600 },
   );
 }

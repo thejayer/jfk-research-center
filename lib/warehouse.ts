@@ -27,6 +27,10 @@ import type {
   EntityDetail,
   EntityResponse,
   EntitySource,
+  PhysicalEvidenceCard,
+  PhysicalEvidenceCategory,
+  PhysicalEvidenceDetail,
+  PhysicalEvidenceIndex,
   ReleaseHistoryEntry,
   HomeResponse,
   MentionExcerpt,
@@ -1409,6 +1413,115 @@ export async function fetchOpenQuestionsTopic(
     questionCount: threads.length,
     threads,
     editorialFootnotes,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PHYSICAL EVIDENCE
+// ---------------------------------------------------------------------------
+
+type EvidenceRow = {
+  evidence_id: string;
+  category: string;
+  short_name: string;
+  long_description: string | null;
+  chain_of_custody:
+    | Array<{
+        step_order: number;
+        date: { value: string } | string | null;
+        custodian: string;
+        action: string;
+      }>
+    | null;
+  referenced_naids: string[] | null;
+  referenced_wc_testimony:
+    | Array<{ volume: number; witness: string; page: number }>
+    | null;
+  related_entity_ids: string[] | null;
+  image_url: string | null;
+  image_credit: string | null;
+  sort_order: number | null;
+};
+
+function shortDescOf(long: string | null): string {
+  if (!long) return "";
+  const firstSentence = long.split(". ")[0];
+  return firstSentence ? firstSentence.replace(/\.$/, "") + "." : "";
+}
+
+function evidenceRowToCard(r: EvidenceRow): PhysicalEvidenceCard {
+  return {
+    id: r.evidence_id,
+    category: r.category as PhysicalEvidenceCategory,
+    shortName: r.short_name,
+    href: `/evidence/${encodeURIComponent(r.evidence_id)}`,
+    shortDescription: shortDescOf(r.long_description),
+    imageUrl: r.image_url && r.image_url !== "" ? r.image_url : null,
+    imageCredit: r.image_credit && r.image_credit !== "" ? r.image_credit : null,
+  };
+}
+
+export async function fetchPhysicalEvidenceIndex(): Promise<PhysicalEvidenceIndex> {
+  const rows = await query<EvidenceRow>(
+    `SELECT *
+       FROM \`${PROJECT}.${DATASET_CURATED}.physical_evidence\`
+      ORDER BY category, sort_order, short_name`,
+  );
+  const items = rows.map(evidenceRowToCard);
+  const counts = new Map<PhysicalEvidenceCategory, number>();
+  for (const it of items) counts.set(it.category, (counts.get(it.category) ?? 0) + 1);
+  const CATEGORY_ORDER: PhysicalEvidenceCategory[] = [
+    "ballistic",
+    "firearm",
+    "photographic",
+    "medical",
+    "documentary",
+    "clothing",
+    "environmental",
+  ];
+  const categories = CATEGORY_ORDER.filter((c) => counts.has(c)).map((c) => ({
+    category: c,
+    count: counts.get(c) ?? 0,
+  }));
+  return { items, categories };
+}
+
+export async function fetchPhysicalEvidenceItem(
+  id: string,
+): Promise<PhysicalEvidenceDetail | null> {
+  const rows = await query<EvidenceRow>(
+    `SELECT *
+       FROM \`${PROJECT}.${DATASET_CURATED}.physical_evidence\`
+      WHERE evidence_id = @id
+      LIMIT 1`,
+    { id },
+  );
+  const r = rows[0];
+  if (!r) return null;
+
+  const entities = await loadEntities();
+  const relatedEntities: EntityCard[] = (r.related_entity_ids ?? [])
+    .map((slug) => entities.find((e) => e.entity_id === slug))
+    .filter((e): e is EntityRow => !!e)
+    .map((e) => entityRowToCard(e));
+
+  const chainOfCustody = (r.chain_of_custody ?? []).map((s) => ({
+    stepOrder: s.step_order,
+    date:
+      typeof s.date === "object" && s.date
+        ? s.date.value
+        : ((s.date as string | null) ?? null),
+    custodian: s.custodian,
+    action: s.action,
+  }));
+
+  return {
+    ...evidenceRowToCard(r),
+    longDescription: r.long_description ?? "",
+    chainOfCustody,
+    referencedNaids: r.referenced_naids ?? [],
+    referencedWcTestimony: r.referenced_wc_testimony ?? [],
+    relatedEntities,
   };
 }
 

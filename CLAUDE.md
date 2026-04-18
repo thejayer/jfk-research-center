@@ -258,8 +258,43 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-18 (per-release version history)
+**Last updated:** 2026-04-18 (physical evidence + primary-source ingest)
 
+- **Physical evidence + primary-source ingest (2026-04-18).** Phases 1-D
+  (medium slice) and 1-E from the gameplan.
+  - `sql/17_physical_evidence.sql` — hand-curated `jfk_curated.physical_evidence`
+    table, 33 items across 7 categories (ballistic, firearm, photographic,
+    medical, documentary, clothing, environmental). CE-399, the Carcano,
+    Zapruder film, backyard photos, Tippit shell casings, motorcade map,
+    JFK/Connally clothing, sniper\'s-nest geometry. Each row carries
+    short_name, long_description, chain_of_custody (where uncontroversial),
+    referenced NAIDs + WC testimony refs, related entity slugs, and
+    optional public-domain image URLs. Autopsy photographs are cataloged
+    by description only — not hosted.
+  - UI: `/evidence` list grid with anchor-linked category filters, `/evidence/[id]`
+    detail pages with chain-of-custody timeline, WC testimony refs,
+    related entities. Nav updated to include "Evidence". Fetchers:
+    `/api/evidence` (index), `/api/evidence/[id]` (detail).
+  - `scripts/ingest_primary_sources.py` — new Python script that fetches
+    3 supplementary primary-source reports and chunks them at 1,200 chars:
+    Warren Commission Report (26 chapters+appendices via archives.gov
+    HTML = ~2.27M chars / 1,991 chunks), ARRB Final Report (single ASCII
+    at archives.gov = 767K chars / 693 chunks), Church Committee Book V
+    (Senate PDF -> pdftotext = 310K chars / 274 chunks). Loads to
+    `jfk_staging.primary_source_docs` + `jfk_staging.primary_source_chunks`.
+  - `sql/18_primary_sources.sql` appends the 3 documents to jfk_records
+    (with document_ids `ps-warren-report`, `ps-arrb-report`,
+    `ps-church-book-v`, `release_set = \'primary-source\'`) and their
+    chunks to jfk_text_chunks (`source_type = \'primary_source\'`). Idempotent
+    via NOT EXISTS guards.
+  - `scripts/rebuild_warehouse.sh` updated to include `10a_document_versions.sql`
+    and `18_primary_sources.sql` in the rebuild order. Primary sources
+    re-append after every sql/10+sql/11 TRUNCATE+INSERT cycle.
+  - Outcome: users can now search "single-bullet" / "Silvia Duran" /
+    "acoustic" and get hits from the actual Warren Commission Report,
+    ARRB analysis, and Church Committee conclusions — not just NARA
+    metadata about them. Physical-evidence surface closes the
+    "intelligence-flavored" neutrality gap the audit flagged.
 - **Per-release version history (2026-04-18).** Part 1 of Phase 1-B from
   the gameplan. Replaces the "latest release wins" dedup model with a
   proper (NAID × release) version table.

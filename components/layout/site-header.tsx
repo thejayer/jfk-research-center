@@ -6,6 +6,7 @@ const NAV: Array<{ label: string; href: string }> = [
   { label: "Search", href: "/search" },
   { label: "Entities", href: "/entity/oswald" },
   { label: "Topics", href: "/topics" },
+  { label: "Evidence", href: "/evidence" },
   { label: "Open Questions", href: "/open-questions" },
 ];
 
