@@ -27,6 +27,7 @@ import type {
   EntityDetail,
   EntityResponse,
   EntitySource,
+  ReleaseHistoryEntry,
   HomeResponse,
   MentionExcerpt,
   OpenQuestionThread,
@@ -70,6 +71,12 @@ async function query<T = Record<string, unknown>>(
 // Row adapters
 // ---------------------------------------------------------------------------
 
+type ReleaseHistoryRow = {
+  release_set: string;
+  release_date: { value: string } | string | null;
+  is_ocr_source: boolean;
+};
+
 type RecordRow = {
   document_id: string;
   naid: string;
@@ -91,7 +98,24 @@ type RecordRow = {
   num_pages: number | null;
   pages_released: number | null;
   withholding_status: string | null;
+  release_history: ReleaseHistoryRow[] | null;
 };
+
+function readReleaseHistory(
+  rows: ReleaseHistoryRow[] | null,
+): ReleaseHistoryEntry[] {
+  if (!rows) return [];
+  return rows
+    .map((r) => ({
+      releaseSet: r.release_set,
+      releaseDate:
+        typeof r.release_date === "object" && r.release_date
+          ? r.release_date.value
+          : ((r.release_date as string | null) ?? null),
+      isOcrSource: !!r.is_ocr_source,
+    }))
+    .sort((a, b) => (a.releaseDate ?? "").localeCompare(b.releaseDate ?? ""));
+}
 
 function readDate(d: RecordRow["start_date"]): string | null {
   if (!d) return null;
@@ -139,6 +163,7 @@ function rowToDetail(
     citation: r.record_group
       ? `NAID ${r.naid} · ${r.record_group}`
       : `NAID ${r.naid} · JFK Assassination Records Collection`,
+    releaseHistory: readReleaseHistory(r.release_history),
   };
 }
 
@@ -379,7 +404,13 @@ type ManifestRow = {
   has_2023_release: boolean;
   has_2025_release: boolean;
   has_2026_release: boolean;
-  coverage_note: string;
+  records_in_2017_2018: number;
+  records_in_2021: number;
+  records_in_2022: number;
+  records_in_2023: number;
+  records_in_2025: number;
+  records_in_2026: number;
+  records_with_2025_ocr: number;
 };
 
 export async function fetchCorpusManifest(): Promise<CorpusManifest> {
@@ -394,27 +425,33 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
       latestIndexedReleaseDate: null,
       releasesIndexed: [],
       releasesPending: [],
+      recordsByRelease: {},
+      recordsWith2025Ocr: 0,
       coverageNote: "",
     };
   }
-  const knownReleases: { set: string; flag: boolean }[] = [
-    { set: "2017-2018", flag: r.has_2017_2018_release },
-    { set: "2021", flag: r.has_2021_release },
-    { set: "2022", flag: r.has_2022_release },
-    { set: "2023", flag: r.has_2023_release },
-    { set: "2025", flag: r.has_2025_release },
-    { set: "2026", flag: r.has_2026_release },
+  const knownReleases: { set: string; flag: boolean; count: number }[] = [
+    { set: "2017-2018", flag: r.has_2017_2018_release, count: Number(r.records_in_2017_2018 ?? 0) },
+    { set: "2021", flag: r.has_2021_release, count: Number(r.records_in_2021 ?? 0) },
+    { set: "2022", flag: r.has_2022_release, count: Number(r.records_in_2022 ?? 0) },
+    { set: "2023", flag: r.has_2023_release, count: Number(r.records_in_2023 ?? 0) },
+    { set: "2025", flag: r.has_2025_release, count: Number(r.records_in_2025 ?? 0) },
+    { set: "2026", flag: r.has_2026_release, count: Number(r.records_in_2026 ?? 0) },
   ];
   const latest = r.latest_indexed_release_date;
   const latestStr =
     typeof latest === "object" && latest ? latest.value : (latest as string | null);
+  const recordsByRelease: Record<string, number> = {};
+  for (const k of knownReleases) recordsByRelease[k.set] = k.count;
   return {
     totalRecords: Number(r.total_records ?? 0),
     recordsWithOcr: Number(r.records_with_ocr ?? 0),
     latestIndexedReleaseDate: latestStr ?? null,
     releasesIndexed: knownReleases.filter((k) => k.flag).map((k) => k.set),
     releasesPending: knownReleases.filter((k) => !k.flag).map((k) => k.set),
-    coverageNote: r.coverage_note ?? "",
+    recordsByRelease,
+    recordsWith2025Ocr: Number(r.records_with_2025_ocr ?? 0),
+    coverageNote: "",
   };
 }
 

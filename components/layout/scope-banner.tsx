@@ -3,13 +3,15 @@ import type { CorpusManifest } from "@/lib/api-types";
 import { formatNumber } from "@/lib/format";
 
 /**
- * Disclosure strip shown above the fold on / and /search. Tells users that
- * the indexed corpus is a curated subset of the full JFK Collection and
- * which declassification releases are / are not yet indexed.
+ * Disclosure strip shown above the fold on / and /search. Tells users
+ * which releases are indexed (and how the OCR text maps to release
+ * dates), so someone reading a document doesn't mistake the XLSX-
+ * manifest release_date ("released 2018") for the release the text was
+ * actually sourced from (often the less-redacted 2025 re-release).
  */
 export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
-  const indexed = manifest.releasesIndexed.join(", ");
-  const pending = manifest.releasesPending.join(", ");
+  const indexed = manifest.releasesIndexed;
+  const pending = manifest.releasesPending;
 
   return (
     <div
@@ -34,17 +36,28 @@ export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
       <span className="num">{formatNumber(manifest.totalRecords)}</span>{" "}
       records — a curated subset of the ~300,000 documents in the JFK
       Assassination Records Collection.
-      {indexed && (
+      {indexed.length > 0 && (
         <>
           {" "}
-          Releases indexed: <span className="num">{indexed}</span>.
+          Releases indexed: <span className="num">{indexed.join(", ")}</span>.
         </>
       )}
-      {pending && (
+      {manifest.recordsWith2025Ocr > 0 && (
+        <>
+          {" "}
+          OCR text is sourced from the 2025 re-release for{" "}
+          <span className="num">
+            {formatNumber(manifest.recordsWith2025Ocr)}
+          </span>{" "}
+          records (NARA has not yet published an XLSX manifest for 2025; each
+          document&rsquo;s prior-release history is shown on its page).
+        </>
+      )}
+      {pending.length > 0 && (
         <>
           {" "}
           Releases <em>not yet indexed</em>:{" "}
-          <span className="num">{pending}</span>.
+          <span className="num">{pending.join(", ")}</span>.
         </>
       )}{" "}
       <Link href="/about/methodology">Methodology &rarr;</Link>

@@ -6,6 +6,7 @@ import { DocumentHeader } from "@/components/documents/document-header";
 import { MetadataPanel } from "@/components/documents/metadata-panel";
 import { OcrPanel } from "@/components/documents/ocr-panel";
 import { SourceLinks } from "@/components/documents/source-links";
+import { ReleaseHistory } from "@/components/documents/release-history";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -55,6 +56,10 @@ export default async function DocumentPage({
       </nav>
 
       <DocumentHeader doc={data.document} />
+
+      {data.document.releaseHistory && data.document.releaseHistory.length > 0 && (
+        <ReleaseHistory entries={data.document.releaseHistory} />
+      )}
 
       <div
         className="document-grid"

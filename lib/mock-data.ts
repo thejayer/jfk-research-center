@@ -1338,11 +1338,19 @@ export function buildHomeResponse(): HomeResponse {
     corpusManifest: {
       totalRecords: totalDocs,
       recordsWithOcr: 2162,
-      latestIndexedReleaseDate: "2023-08-24",
-      releasesIndexed: ["2017-2018", "2021", "2022", "2023"],
-      releasesPending: ["2025", "2026"],
-      coverageNote:
-        "~37K of ~300K records in the Collection. 2025 and 2026 unredacted releases are not yet indexed.",
+      latestIndexedReleaseDate: "2025-03-18",
+      releasesIndexed: ["2017-2018", "2021", "2022", "2023", "2025"],
+      releasesPending: ["2026"],
+      recordsByRelease: {
+        "2017-2018": 36576,
+        "2021": 1491,
+        "2022": 13177,
+        "2023": 2677,
+        "2025": 2162,
+        "2026": 0,
+      },
+      recordsWith2025Ocr: 2162,
+      coverageNote: "",
     },
   };
 }

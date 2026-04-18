@@ -23,6 +23,12 @@ export type DocumentCard = {
   hasOcr?: boolean;
 };
 
+export type ReleaseHistoryEntry = {
+  releaseSet: string;
+  releaseDate: string | null;
+  isOcrSource: boolean;
+};
+
 export type DocumentDetail = DocumentCard & {
   description?: string | null;
   recordGroup?: string | null;
@@ -37,6 +43,8 @@ export type DocumentDetail = DocumentCard & {
   ocrExcerpt?: string | null;
   ocrPages?: OcrPage[];
   citation?: string | null;
+  /** All releases this record appeared in, earliest to latest. */
+  releaseHistory?: ReleaseHistoryEntry[];
 };
 
 export type OcrPage = {
@@ -130,6 +138,10 @@ export type CorpusManifest = {
   latestIndexedReleaseDate: string | null;
   releasesIndexed: string[];
   releasesPending: string[];
+  /** Per-release record counts, keyed by release label (e.g. "2025"). */
+  recordsByRelease: Record<string, number>;
+  /** Records whose OCR content was sourced from the 2025 re-release. */
+  recordsWith2025Ocr: number;
   coverageNote: string;
 };
 

@@ -258,8 +258,41 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-18 (Phase 0 accuracy + provenance)
+**Last updated:** 2026-04-18 (per-release version history)
 
+- **Per-release version history (2026-04-18).** Part 1 of Phase 1-B from
+  the gameplan. Replaces the "latest release wins" dedup model with a
+  proper (NAID × release) version table.
+  - `sql/10a_document_versions.sql` — new table `jfk_curated.document_versions`
+    with one row per (NAID × release_set). Pulled from `nara_manifest`
+    (collapsed across same-release same-NAID duplicates — RIF
+    124-10190-10078 had 21 rows in 2017-2018 alone) plus a synthesized
+    row per ABBYY-matched RIF with `release_set='2025'` and
+    `is_ocr_source=true`. Resolves the prior tagging bug where docs
+    whose OCR came from the 2025 re-release were labeled as "released
+    2018" because that was the XLSX manifest they matched.
+  - `sql/10` rewritten to read from `document_versions` instead of
+    `nara_manifest`. Adds `release_history ARRAY<STRUCT<release_set,
+    release_date, is_ocr_source>>` column to `jfk_records`. Metadata
+    columns (title, agency, etc.) come from the most-recent MANIFEST
+    row; `release_set` comes from the overall-latest row (so '2025' when
+    OCR is sourced from there). One-time `drop table jfk_records` gate
+    added for the schema change; subsequent rebuilds TRUNCATE+INSERT as
+    before. Row count unchanged at 37,138.
+  - `sql/14_corpus_manifest` extended with `records_in_<release>` and
+    `records_with_2025_ocr` fields. Now reports 2,162 records tagged
+    `2025` with OCR sourced from that release. `has_2025_release` flips
+    to true.
+  - New `components/documents/release-history.tsx` renders a left-to-
+    right strip (earliest → latest) on every document page, with the
+    OCR-source release visually highlighted. Includes a short copy line
+    explaining that older releases were typically heavier redactions of
+    the same record.
+  - `ScopeBanner` copy updated to separately report "releases indexed"
+    and "N records with OCR sourced from the 2025 re-release (NARA XLSX
+    still pending)". Methodology page picks up the same language.
+  - Follow-up: Part 2 of 1-B (character-level redaction diffs) still
+    pending — requires acquiring pre-2025 PDFs to diff against.
 - **Phase 0 accuracy + provenance pass (2026-04-18).** Ships the 9 audit
   findings from `jfk_research_center_gameplan.md` Phase 0.
   - Entity bios corrected in `sql/12`: Oswald (Tippit sentence inserted),

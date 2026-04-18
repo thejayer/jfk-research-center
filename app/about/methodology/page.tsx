@@ -48,10 +48,20 @@ export default async function MethodologyPage() {
             Releases indexed:{" "}
             <strong>{manifest.releasesIndexed.join(", ") || "none"}</strong>.
             Releases <em>not yet indexed</em>:{" "}
-            <strong>{manifest.releasesPending.join(", ") || "none"}</strong>{" "}
-            — the 2025 EO 14176 drops and January 2026 release are pending a
-            NARA XLSX manifest publication.
+            <strong>{manifest.releasesPending.join(", ") || "none"}</strong>.
           </p>
+          {manifest.recordsWith2025Ocr > 0 && (
+            <p>
+              <strong>2025 re-release layer:</strong> for{" "}
+              {formatNumber(manifest.recordsWith2025Ocr)} records, the OCR text
+              shown on this site was sourced from the March 2025
+              unredaction (EO 14176). NARA has not yet published an XLSX
+              manifest for the 2025 release, so the archival metadata
+              fields (title, agency, pages released) still come from the
+              latest prior XLSX appearance of each record. Every document
+              page shows the full release history as a strip.
+            </p>
+          )}
         </Section>
 
         <Section title="Data pipeline">
