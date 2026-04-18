@@ -223,6 +223,13 @@ gcloud run deploy jfk-research-center \
 - **Next.js 15 force-static + fetch.** Pages that fetch their own
   `/api/*` routes cannot be prerendered at build time because the
   server isn't running. All pages use `export const dynamic = "force-dynamic"`.
+- **Viewport meta lives in `app/layout.tsx`, not `<head>`.** In App
+  Router, a literal `<meta name="viewport">` in `<head>` gets
+  stripped/ignored. Use `export const viewport: Viewport = { width:
+  "device-width", initialScale: 1, ... }`. Without it, mobile
+  browsers render at ~980px and shrink to fit — the whole site
+  looks unreadably tiny. (Regression caught 2026-04-18 on the
+  Open Questions page.)
 - **Cloud Build default SA.** Newer projects need an explicit
   `roles/cloudbuild.builds.builder` grant on
   `690906762945-compute@…` even though it has `roles/editor`.
@@ -251,7 +258,7 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-17 (Open Questions pipeline + /open-questions)
+**Last updated:** 2026-04-18 (mobile viewport meta fix)
 
 - **Topics index page** at `/topics` lists all 6 topics; `/api/topics`
   backs it via `fetchAllTopics()`. Homepage featured-topics grid has
