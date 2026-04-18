@@ -1,0 +1,157 @@
+-- 16_entity_sources.sql
+--
+-- Purpose:
+--   Lightweight provenance for entity bios: a small, curated list of the
+--   primary documents and allowlisted secondary sources that ground each
+--   entity's biography + timeline. Rendered as a numbered "Sources" block
+--   at the bottom of each entity page so readers can trace bio claims to
+--   verifiable archival material.
+--
+--   This is the Phase 0 precursor to a full per-sentence citation registry
+--   (Phase 1, BQ-1H). It intentionally uses hand-curated lists rather than
+--   Gemini-generated citations; the full citation_registry + regeneration
+--   lands with Phase 1.
+--
+-- Dependencies: (none — optional sidecar to jfk_curated.jfk_entities)
+--
+-- `kind` values:
+--   - 'NARA'     — NARA finding aid or record description
+--   - 'WC'       — Warren Commission Report or Hearings
+--   - 'HSCA'     — HSCA Report or Volumes
+--   - 'ARRB'     — ARRB Final Report or staff materials
+--   - 'CHURCH'   — Church Committee Book V
+--   - 'REFERENCE'— allowlisted reference source (Britannica, archives.gov)
+
+create or replace table jfk_curated.jfk_entity_sources as
+select * from unnest([
+  struct<
+    entity_id      string,
+    sort_order     int64,
+    label          string,
+    url            string,
+    kind           string,
+    note           string
+  >(
+    'oswald', 1,
+    'Warren Commission Report, Appendix 13: Biography of Lee Harvey Oswald',
+    'https://www.archives.gov/research/jfk/warren-commission-report/appendix-13.html',
+    'WC',
+    'Service record, travels 1956–1963, and pre-assassination timeline.'
+  ),
+  ('oswald', 2,
+    'HSCA Final Report (1979), Vol. I',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Re-examines Oswald biographical record with access to post-WC declassifications.'
+  ),
+  ('oswald', 3,
+    'ARRB Final Report (1998)',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'Declassified material on Oswald 201 file and Mexico City contacts.'
+  ),
+
+  ('ruby', 1,
+    'Warren Commission Report, Appendix 16: Biography of Jack Ruby',
+    'https://www.archives.gov/research/jfk/warren-commission-report/appendix-16.html',
+    'WC',
+    'Early life, Dallas club operations, and events of November 24, 1963.'
+  ),
+  ('ruby', 2,
+    'Ruby v. Texas, 407 S.W.2d 793 (Tex. Crim. App. 1966)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Texas Court of Criminal Appeals reversal of the 1964 conviction.'
+  ),
+
+  ('marina-oswald', 1,
+    'Warren Commission Hearings, Vol. I (Marina Oswald testimony)',
+    'https://www.archives.gov/research/jfk/warren-commission-hearings',
+    'WC',
+    'Primary biographical source; four separate appearances before the Commission.'
+  ),
+
+  ('hoover', 1,
+    'FBI Records Vault — J. Edgar Hoover Official and Confidential files',
+    'https://vault.fbi.gov/hoovers-official-and-confidential-file',
+    'NARA',
+    'Bureau memoranda documenting Hoover\'s direction of the Dallas investigation.'
+  ),
+  ('hoover', 2,
+    'Church Committee, Book III: Supplementary Detailed Staff Reports',
+    'https://www.intelligence.senate.gov/resources/intelligence-related-commissions',
+    'CHURCH',
+    'Contextual record of Hoover-era FBI operations.'
+  ),
+
+  ('angleton', 1,
+    'Church Committee, Book V: The Investigation of the Assassination of President John F. Kennedy',
+    'https://www.intelligence.senate.gov/resources/intelligence-related-commissions',
+    'CHURCH',
+    'CIA counterintelligence handling of the Oswald file.'
+  ),
+  ('angleton', 2,
+    'ARRB Final Report (1998), Chapter 6',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'CI/SIG routing and the pre-assassination Oswald cable traffic.'
+  ),
+
+  ('cia', 1,
+    'NARA JFK Assassination Records Collection — CIA records',
+    'https://www.archives.gov/research/jfk/cia-records',
+    'NARA',
+    'Finding aid for the Agency\'s JFK holdings.'
+  ),
+  ('cia', 2,
+    'Church Committee, Book V',
+    'https://www.intelligence.senate.gov/resources/intelligence-related-commissions',
+    'CHURCH',
+    'Comprehensive congressional review of CIA conduct around the assassination.'
+  ),
+
+  ('fbi', 1,
+    'NARA JFK Assassination Records Collection — FBI records',
+    'https://www.archives.gov/research/jfk/fbi-records',
+    'NARA',
+    'Bureau records transferred to NARA under the JFK Records Act.'
+  ),
+  ('fbi', 2,
+    'FBI Records Vault — JFK Assassination',
+    'https://vault.fbi.gov/John%20F.%20Kennedy%20Assassination%20File',
+    'NARA',
+    'Digitized Bureau files on Oswald, Ruby, and the Dallas investigation.'
+  ),
+
+  ('warren-commission', 1,
+    'Report of the President\'s Commission on the Assassination of President Kennedy (1964)',
+    'https://www.archives.gov/research/jfk/warren-commission-report',
+    'WC',
+    'The 888-page final report.'
+  ),
+  ('warren-commission', 2,
+    'Warren Commission Hearings and Exhibits (26 volumes)',
+    'https://www.archives.gov/research/jfk/warren-commission-hearings',
+    'WC',
+    '552 witness testimonies and documentary exhibits.'
+  ),
+
+  ('hsca', 1,
+    'HSCA Final Report (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'The committee\'s conclusions, including the acoustic finding.'
+  ),
+  ('hsca', 2,
+    'National Research Council, Report of the Committee on Ballistic Acoustics (1982)',
+    'https://nap.nationalacademies.org/catalog/10264/report-of-the-committee-on-ballistic-acoustics',
+    'REFERENCE',
+    'The NAS/Ramsey Panel review rejecting the HSCA acoustic conclusion.'
+  ),
+  ('hsca', 3,
+    'U.S. Department of Justice letter to the Speaker of the House, March 28, 1988',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'REFERENCE',
+    'DOJ declines to reopen investigation, citing the NAS findings.'
+  )
+]);
