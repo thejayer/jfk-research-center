@@ -258,8 +258,40 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-18 (physical evidence + primary-source ingest)
+**Last updated:** 2026-04-18 (entity facts + timeline + citation registry)
 
+- **Entity facts, timeline events, citation registry (2026-04-18).**
+  Phases 1-F, 1-G, 1-H from the gameplan — first wave. Schemas + seed
+  data for all three; minimal UI exposure (entity Quick Facts).
+  - `sql/19_entity_facts.sql` — `jfk_curated.entity_facts` table, 56
+    structured facts across the 9 existing entities. Each row has
+    fact_key, fact_value, effective_date, source_type (WC/HSCA/ARRB/
+    CHURCH/NAID/REFERENCE), source_ref, confidence. Unblocks Phase 2
+    entity expansion and P0-8 full per-sentence citations.
+  - `sql/22_timeline_events.sql` — `jfk_curated.timeline_events` table,
+    57 high-signal events across biographical / operational /
+    investigation / release / death categories. Covers Oswald pre-1963
+    life, Cold War context (CIA founded, Bay of Pigs, Cuban Missile
+    Crisis), Nov 22-25 1963 hour-by-hour (8 events from motorcade
+    through LBJ swearing-in), WC/HSCA/ARRB/Church milestones, every
+    document release (JFK Records Act 1992 through Jan 2026 release),
+    and 5 neutrally-catalogued witness deaths. 300-event full target
+    deferred; schema is live and ready for expansion.
+  - `sql/23_citation_registry.sql` — `jfk_curated.citation_registry`
+    table, 53 citations (27 Warren sources = report + 26 hearings
+    volumes, 13 HSCA sources = report + 12 appendix volumes, ARRB
+    Final Report, Church Book V, NAS/Ramsey 1982, Clark Panel 1968,
+    Rockefeller 1975, DOJ 1988 letter, JFK Records Act 1992, Ruby v.
+    Texas, 5 NARA/FBI finding aids). All `allowlisted=true`. Bluebook,
+    Chicago, and APA formats per row. Unblocks Phase 3-I bibliography
+    page and P0-8 full-version per-sentence footnotes.
+  - `components/entities/entity-quick-facts.tsx` renders the per-entity
+    facts as a dl-grid block above the entity description. Each fact
+    shows a source-type chip (WC / HSCA / ARRB / REFERENCE) that
+    tooltips the full source_ref and confidence. Displayed on all 9
+    entity pages.
+  - Warehouse / types updated: `EntityFact` in api-types, `facts` array
+    on EntityResponse, fetchEntity joins `entity_facts`.
 - **Physical evidence + primary-source ingest (2026-04-18).** Phases 1-D
   (medium slice) and 1-E from the gameplan.
   - `sql/17_physical_evidence.sql` — hand-curated `jfk_curated.physical_evidence`

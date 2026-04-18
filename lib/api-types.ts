@@ -174,6 +174,15 @@ export type EntitySource = {
   note?: string | null;
 };
 
+export type EntityFact = {
+  key: string;
+  value: string;
+  effectiveDate: string | null;
+  sourceType: string;
+  sourceRef: string;
+  confidence: "High" | "Medium" | "Low";
+};
+
 export type EntityResponse = {
   entity: EntityDetail;
   timeline: TimelineEvent[];
@@ -182,6 +191,7 @@ export type EntityResponse = {
   topDocuments: DocumentCard[];
   mentionExcerpts: MentionExcerpt[];
   sources: EntitySource[];
+  facts: EntityFact[];
 };
 
 export type TopicResponse = {

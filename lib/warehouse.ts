@@ -25,6 +25,7 @@ import type {
   EditorialFootnote,
   EntityCard,
   EntityDetail,
+  EntityFact,
   EntityResponse,
   EntitySource,
   PhysicalEvidenceCard,
@@ -496,7 +497,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
   const entity = entities.find((e) => e.entity_id === slug);
   if (!entity) return null;
 
-  const [docRows, entityDocCount, coOccurrence, sourceRows] = await Promise.all([
+  const [docRows, entityDocCount, coOccurrence, sourceRows, factRows] = await Promise.all([
     query<RecordRow & { confidence: ConfidenceLevel; match_source: string; score: number }>(
       `SELECT r.*, m.confidence, m.match_source, m.score
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
@@ -540,6 +541,21 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
         ORDER BY sort_order`,
       { slug },
     ).catch(() => []),
+    query<{
+      fact_key: string;
+      fact_value: string;
+      effective_date: { value: string } | string | null;
+      source_type: string;
+      source_ref: string;
+      confidence: string;
+    }>(
+      `SELECT fact_key, fact_value, effective_date, source_type,
+              source_ref, confidence
+         FROM \`${PROJECT}.${DATASET_CURATED}.entity_facts\`
+        WHERE entity_id = @slug
+        ORDER BY sort_order`,
+      { slug },
+    ).catch(() => []),
   ]);
 
   const sources: EntitySource[] = sourceRows.map((s) => ({
@@ -547,6 +563,21 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
     url: s.url,
     kind: s.kind,
     note: s.note,
+  }));
+
+  const facts: EntityFact[] = factRows.map((f) => ({
+    key: f.fact_key,
+    value: f.fact_value,
+    effectiveDate:
+      typeof f.effective_date === "object" && f.effective_date
+        ? f.effective_date.value
+        : ((f.effective_date as string | null) ?? null),
+    sourceType: f.source_type,
+    sourceRef: f.source_ref,
+    confidence:
+      f.confidence === "High" || f.confidence === "Medium" || f.confidence === "Low"
+        ? f.confidence
+        : "Medium",
   }));
 
   const docCount = entityDocCount[0]?.n ?? 0;
@@ -650,6 +681,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
     topDocuments: docRows.slice(0, 10).map((r) => rowToCard(r)),
     mentionExcerpts,
     sources,
+    facts,
   };
 }
 

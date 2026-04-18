@@ -1400,6 +1400,7 @@ export function buildEntityResponse(slug: string): EntityResponse | null {
     topDocuments,
     mentionExcerpts: mentions,
     sources: [],
+    facts: [],
   };
 }
 

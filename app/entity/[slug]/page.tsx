@@ -5,6 +5,7 @@ import { fetchEntity } from "@/lib/api-client";
 import { EntityHero } from "@/components/entities/entity-hero";
 import { EntityTimeline } from "@/components/entities/entity-timeline";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
+import { EntityQuickFacts } from "@/components/entities/entity-quick-facts";
 import { EntitySources } from "@/components/entities/entity-sources";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
@@ -56,6 +57,8 @@ export default async function EntityPage({
       </nav>
 
       <EntityHero entity={data.entity} />
+
+      {data.facts.length > 0 && <EntityQuickFacts facts={data.facts} />}
 
       {data.timeline.length > 0 && (
         <section
