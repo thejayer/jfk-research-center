@@ -73,7 +73,8 @@ export function OpenQuestionsArticleBody({
         Synthesized by {article.model} from {formatNumber(article.sourceDocCount)}{" "}
         cited records on {generated}. May contain inaccuracies — cross-check
         with the primary documents. {citationMap.size} inline citations →
-        linked documents.
+        linked documents. &nbsp;·&nbsp;
+        <a href="/about/methodology">Methodology &rarr;</a>
       </div>
     </div>
   );

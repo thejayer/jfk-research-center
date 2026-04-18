@@ -5,6 +5,7 @@ import { fetchEntity } from "@/lib/api-client";
 import { EntityHero } from "@/components/entities/entity-hero";
 import { EntityTimeline } from "@/components/entities/entity-timeline";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
+import { EntitySources } from "@/components/entities/entity-sources";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -166,6 +167,20 @@ export default async function EntityPage({
             title="Connected people & organizations"
           />
           <RelatedEntities entities={data.relatedEntities} />
+        </section>
+      )}
+
+      {data.sources.length > 0 && (
+        <section
+          aria-label="Sources"
+          style={{ marginTop: 72 }}
+        >
+          <SectionHeading
+            eyebrow="Sources"
+            title="Primary documents and references"
+            description="Curated list of the archival materials and allowlisted secondary references that ground this entity's biography and timeline."
+          />
+          <EntitySources sources={data.sources} />
         </section>
       )}
 

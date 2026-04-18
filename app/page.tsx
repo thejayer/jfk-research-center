@@ -4,6 +4,7 @@ import { SearchBar } from "@/components/search/search-bar";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StatPill } from "@/components/ui/stat-pill";
 import { Badge } from "@/components/ui/badge";
+import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,9 @@ export default async function HomePage() {
 
   return (
     <div>
+      <div className="container" style={{ paddingTop: 16 }}>
+        <ScopeBanner manifest={data.corpusManifest} />
+      </div>
       <Hero />
 
       <section

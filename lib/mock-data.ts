@@ -44,7 +44,7 @@ const ENTITY_TABLE: Record<string, EntityDetail> = {
     summary:
       "U.S. Marine veteran, defector to the Soviet Union, and the sole person charged by the Dallas Police Department with the assassination of President Kennedy on November 22, 1963.",
     description:
-      "Lee Harvey Oswald served in the U.S. Marine Corps from 1956 to 1959 before defecting to the Soviet Union, where he lived in Minsk until 1962. After returning to the United States with his wife Marina, he worked briefly in Dallas and New Orleans, undertook a trip to Mexico City in late September 1963, and was arrested at the Texas Theatre on November 22, 1963. He was shot and killed two days later by Dallas nightclub owner Jack Ruby while being transferred between jails.",
+      "Lee Harvey Oswald served in the U.S. Marine Corps from 1956 to 1959 before defecting to the Soviet Union, where he lived in Minsk until 1962. After returning to the United States with his wife Marina, he worked briefly in Dallas and New Orleans, undertook a trip to Mexico City in late September 1963, and was arrested at the Texas Theatre on November 22, 1963. Approximately 45 minutes after the assassination of President Kennedy, Dallas Police Officer J. D. Tippit was shot and killed on East 10th Street in Oak Cliff; Oswald was charged with both murders the same day. He was shot and killed two days later by Dallas nightclub owner Jack Ruby while being transferred between jails.",
     href: "/entity/oswald",
     documentCount: 412,
     mentionCount: 2834,
@@ -60,7 +60,7 @@ const ENTITY_TABLE: Record<string, EntityDetail> = {
     summary:
       "Dallas nightclub owner who shot Lee Harvey Oswald in the basement of Dallas Police Headquarters on November 24, 1963.",
     description:
-      "Jack Ruby owned the Carousel Club and the Vegas Club in Dallas, Texas. He had long-running contacts with Dallas Police officers and was the subject of extensive FBI and Warren Commission inquiry into his movements in the days surrounding the assassination. He was convicted of Oswald's murder in March 1964; the conviction was later overturned on appeal, and he died of cancer before a retrial.",
+      "Jack Ruby owned the Carousel Club and the Vegas Club in Dallas, Texas. He had long-running contacts with Dallas Police officers and was the subject of extensive FBI and Warren Commission inquiry into his movements in the days surrounding the assassination. He was convicted of Oswald's murder in March 1964. On October 5, 1966 the Texas Court of Criminal Appeals reversed the conviction; before a retrial could be held, Ruby died on January 3, 1967 of a pulmonary embolism while being treated for lung cancer at Parkland Memorial Hospital.",
     href: "/entity/ruby",
     documentCount: 188,
     mentionCount: 612,
@@ -135,7 +135,7 @@ const ENTITY_TABLE: Record<string, EntityDetail> = {
     summary:
       "Chief of CIA Counterintelligence Staff from 1954 to 1974; supervised handling of the Oswald 201 file.",
     description:
-      "As Chief of Counterintelligence, James Angleton oversaw the agency's long-running molehunt and had direct knowledge of the pre-assassination Oswald file. His name appears on routing slips and correspondence throughout the CIA's JFK releases.",
+      "As Chief of CIA Counterintelligence (1954–1974), James Angleton oversaw the agency's long-running molehunt and had direct knowledge of the pre-assassination Oswald file. His name appears on routing slips and correspondence throughout the CIA's JFK releases.",
     href: "/entity/angleton",
     documentCount: 96,
     mentionCount: 402,
@@ -1156,7 +1156,7 @@ const OSWALD_TIMELINE: TimelineEvent[] = [
     dateLabel: "October 24, 1956",
     title: "Enlists in the U.S. Marine Corps",
     description:
-      "Enlists at San Diego, California, at the age of 17. Trains in aviation electronics and is later assigned to MCAS Atsugi, Japan.",
+      "Enlists in Dallas at age 17; reports to the Marine Corps Recruit Depot, San Diego, on October 26, 1956. Trains in aviation electronics and is later assigned as a radar operator at MCAS Atsugi, Japan.",
     relatedDocumentIds: ["oswald-marines-service-record"],
   },
   {
@@ -1210,6 +1210,14 @@ const OSWALD_TIMELINE: TimelineEvent[] = [
     description:
       "President Kennedy is fatally shot in Dealey Plaza, Dallas, at 12:30 p.m. local time. Oswald is arrested at the Texas Theatre at 1:50 p.m.",
     relatedDocumentIds: ["secret-service-trip-report"],
+  },
+  {
+    id: "t-oswald-tippit",
+    date: "1963-11-22",
+    dateLabel: "November 22, 1963 (1:15 p.m.)",
+    title: "Murder of Officer J. D. Tippit",
+    description:
+      "Dallas Police Officer J. D. Tippit is shot and killed at East 10th Street and Patton Avenue in Oak Cliff. Nine eyewitnesses later identify Oswald as the gunman in lineups or photo arrays; Oswald is charged the same day with both the Tippit and Kennedy murders.",
   },
   {
     id: "t-oswald-killed",
@@ -1327,6 +1335,15 @@ export function buildHomeResponse(): HomeResponse {
       .filter(Boolean)
       .map(topicToCard),
     recentDocuments: recent,
+    corpusManifest: {
+      totalRecords: totalDocs,
+      recordsWithOcr: 2162,
+      latestIndexedReleaseDate: "2023-08-24",
+      releasesIndexed: ["2017-2018", "2021", "2022", "2023"],
+      releasesPending: ["2025", "2026"],
+      coverageNote:
+        "~37K of ~300K records in the Collection. 2025 and 2026 unredacted releases are not yet indexed.",
+    },
   };
 }
 
@@ -1374,6 +1391,7 @@ export function buildEntityResponse(slug: string): EntityResponse | null {
     relatedEntities,
     topDocuments,
     mentionExcerpts: mentions,
+    sources: [],
   };
 }
 

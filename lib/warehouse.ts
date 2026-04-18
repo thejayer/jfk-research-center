@@ -18,12 +18,15 @@
 import { BigQuery } from "@google-cloud/bigquery";
 import type {
   ConfidenceLevel,
+  CorpusManifest,
   DocumentCard,
   DocumentDetail,
   DocumentResponse,
+  EditorialFootnote,
   EntityCard,
   EntityDetail,
   EntityResponse,
+  EntitySource,
   HomeResponse,
   MentionExcerpt,
   OpenQuestionThread,
@@ -310,7 +313,7 @@ const TOPIC_DISPLAY_ORDER = [
 // ---------------------------------------------------------------------------
 
 export async function fetchHome(): Promise<HomeResponse> {
-  const [stats, entities, topicCounts, recent] = await Promise.all([
+  const [stats, entities, topicCounts, recent, manifest] = await Promise.all([
     query<{ records: number; entities: number; mapped: number }>(
       `SELECT
         (SELECT COUNT(*) FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`) AS records,
@@ -330,6 +333,7 @@ export async function fetchHome(): Promise<HomeResponse> {
         ORDER BY r.release_date DESC, r.start_date DESC
         LIMIT 8`,
     ),
+    fetchCorpusManifest(),
   ]);
 
   // Per-entity document counts
@@ -361,6 +365,56 @@ export async function fetchHome(): Promise<HomeResponse> {
       topicToCard(slug, topicCounts.get(slug) ?? 0),
     ),
     recentDocuments: recent.map((r) => rowToCard(r)),
+    corpusManifest: manifest,
+  };
+}
+
+type ManifestRow = {
+  total_records: number;
+  records_with_ocr: number;
+  latest_indexed_release_date: { value: string } | string | null;
+  has_2017_2018_release: boolean;
+  has_2021_release: boolean;
+  has_2022_release: boolean;
+  has_2023_release: boolean;
+  has_2025_release: boolean;
+  has_2026_release: boolean;
+  coverage_note: string;
+};
+
+export async function fetchCorpusManifest(): Promise<CorpusManifest> {
+  const rows = await query<ManifestRow>(
+    `SELECT * FROM \`${PROJECT}.${DATASET_CURATED}.corpus_manifest\``,
+  );
+  const r = rows[0];
+  if (!r) {
+    return {
+      totalRecords: 0,
+      recordsWithOcr: 0,
+      latestIndexedReleaseDate: null,
+      releasesIndexed: [],
+      releasesPending: [],
+      coverageNote: "",
+    };
+  }
+  const knownReleases: { set: string; flag: boolean }[] = [
+    { set: "2017-2018", flag: r.has_2017_2018_release },
+    { set: "2021", flag: r.has_2021_release },
+    { set: "2022", flag: r.has_2022_release },
+    { set: "2023", flag: r.has_2023_release },
+    { set: "2025", flag: r.has_2025_release },
+    { set: "2026", flag: r.has_2026_release },
+  ];
+  const latest = r.latest_indexed_release_date;
+  const latestStr =
+    typeof latest === "object" && latest ? latest.value : (latest as string | null);
+  return {
+    totalRecords: Number(r.total_records ?? 0),
+    recordsWithOcr: Number(r.records_with_ocr ?? 0),
+    latestIndexedReleaseDate: latestStr ?? null,
+    releasesIndexed: knownReleases.filter((k) => k.flag).map((k) => k.set),
+    releasesPending: knownReleases.filter((k) => !k.flag).map((k) => k.set),
+    coverageNote: r.coverage_note ?? "",
   };
 }
 
@@ -401,7 +455,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
   const entity = entities.find((e) => e.entity_id === slug);
   if (!entity) return null;
 
-  const [docRows, entityDocCount, coOccurrence] = await Promise.all([
+  const [docRows, entityDocCount, coOccurrence, sourceRows] = await Promise.all([
     query<RecordRow & { confidence: ConfidenceLevel; match_source: string; score: number }>(
       `SELECT r.*, m.confidence, m.match_source, m.score
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
@@ -433,7 +487,26 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
         LIMIT 6`,
       { slug },
     ),
+    query<{
+      label: string;
+      url: string | null;
+      kind: string;
+      note: string | null;
+    }>(
+      `SELECT label, url, kind, note
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_entity_sources\`
+        WHERE entity_id = @slug
+        ORDER BY sort_order`,
+      { slug },
+    ).catch(() => []),
   ]);
+
+  const sources: EntitySource[] = sourceRows.map((s) => ({
+    label: s.label,
+    url: s.url,
+    kind: s.kind,
+    note: s.note,
+  }));
 
   const docCount = entityDocCount[0]?.n ?? 0;
 
@@ -535,6 +608,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
     relatedEntities,
     topDocuments: docRows.slice(0, 10).map((r) => rowToCard(r)),
     mentionExcerpts,
+    sources,
   };
 }
 
@@ -1185,7 +1259,7 @@ export async function fetchOpenQuestionsTopic(
   const catalog = TOPIC_CATALOG[slug];
   if (!catalog) return null;
 
-  const [articleRows, threadRows] = await Promise.all([
+  const [articleRows, threadRows, footnoteRows] = await Promise.all([
     query<{
       topic_title: string;
       article: string | null;
@@ -1227,6 +1301,20 @@ export async function fetchOpenQuestionsTopic(
         LIMIT 200`,
       { slug },
     ).catch(() => []),
+    query<{
+      footnote_id: string;
+      tag: string;
+      title: string;
+      body: string;
+      source_citation: string;
+      trigger_patterns: string[] | null;
+    }>(
+      `SELECT footnote_id, tag, title, body, source_citation, trigger_patterns
+         FROM \`${PROJECT}.${DATASET_CURATED}.editorial_footnotes\`
+        WHERE @slug IN UNNEST(applies_to_slugs)
+        ORDER BY sort_order`,
+      { slug },
+    ).catch(() => []),
   ]);
 
   const row = articleRows[0];
@@ -1248,6 +1336,29 @@ export async function fetchOpenQuestionsTopic(
     supportingDocIds: t.supporting_doc_ids ?? [],
   }));
 
+  // Match editorial footnotes to this topic's surface. A footnote with no
+  // trigger_patterns attaches unconditionally; otherwise any pattern must
+  // occur in the article text or any thread's question/summary.
+  const corpus = [
+    article?.text ?? "",
+    ...threads.flatMap((t) => [t.question, t.summary ?? ""]),
+  ]
+    .join(" \n ")
+    .toLowerCase();
+  const editorialFootnotes: EditorialFootnote[] = footnoteRows
+    .filter((f) => {
+      const patterns = f.trigger_patterns ?? [];
+      if (patterns.length === 0) return true;
+      return patterns.some((p) => corpus.includes(p.toLowerCase()));
+    })
+    .map((f) => ({
+      id: f.footnote_id,
+      tag: f.tag,
+      title: f.title,
+      body: f.body,
+      sourceCitation: f.source_citation,
+    }));
+
   // If neither an article nor any threads exist, treat as not-found so
   // the page can 404 cleanly rather than render an empty shell.
   if (!article && threads.length === 0) return null;
@@ -1260,6 +1371,7 @@ export async function fetchOpenQuestionsTopic(
     article,
     questionCount: threads.length,
     threads,
+    editorialFootnotes,
   };
 }
 
@@ -1283,7 +1395,7 @@ function oswaldTimeline() {
       dateLabel: "October 24, 1956",
       title: "Enlists in the U.S. Marine Corps",
       description:
-        "Enlists at San Diego, California, at the age of 17. Trains in aviation electronics and is later assigned to MCAS Atsugi, Japan.",
+        "Enlists in Dallas at age 17; reports to the Marine Corps Recruit Depot, San Diego, on October 26, 1956. Trains in aviation electronics and is later assigned as a radar operator at MCAS Atsugi, Japan.",
     },
     {
       id: "t-oswald-defection",
@@ -1324,6 +1436,14 @@ function oswaldTimeline() {
       title: "Assassination of President Kennedy",
       description:
         "President Kennedy is fatally shot in Dealey Plaza, Dallas, at 12:30 p.m. local time. Oswald is arrested at the Texas Theatre at 1:50 p.m.",
+    },
+    {
+      id: "t-oswald-tippit",
+      date: "1963-11-22",
+      dateLabel: "November 22, 1963 (1:15 p.m.)",
+      title: "Murder of Officer J. D. Tippit",
+      description:
+        "Dallas Police Officer J. D. Tippit is shot and killed at East 10th Street and Patton Avenue in Oak Cliff. Nine eyewitnesses later identify Oswald as the gunman in lineups or photo arrays; Oswald is charged the same day with both the Tippit and Kennedy murders.",
     },
     {
       id: "t-oswald-killed",

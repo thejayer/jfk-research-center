@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { fetchSearch } from "@/lib/api-client";
+import { fetchCorpusManifest, fetchSearch } from "@/lib/api-client";
 import { parseSearchParams, buildSearchUrl } from "@/lib/search";
 import { SearchBar } from "@/components/search/search-bar";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,10 @@ export default async function SearchPage({
 }) {
   const params = await searchParams;
   const { q, mode, filters } = parseSearchParams(params);
-  const response = await fetchSearch(q, mode, filters);
+  const [response, manifest] = await Promise.all([
+    fetchSearch(q, mode, filters),
+    fetchCorpusManifest(),
+  ]);
 
   return (
     <div>
@@ -53,6 +57,10 @@ export default async function SearchPage({
           <SearchBar autoFocus />
           <ModeTabs q={q} mode={mode} filters={filters} total={response.total} />
         </div>
+      </div>
+
+      <div className="container" style={{ paddingTop: 16 }}>
+        <ScopeBanner manifest={manifest} />
       </div>
 
       <div

@@ -210,6 +210,8 @@ function AiFooter({
       Synthesized by {model} from {formatNumber(docCount)} records on {date}.
       May contain inaccuracies — cross-check with the primary documents below.
       {extra && <> &nbsp;·&nbsp; {extra}</>}
+      &nbsp;·&nbsp;
+      <a href="/about/methodology">Methodology &rarr;</a>
     </div>
   );
 }

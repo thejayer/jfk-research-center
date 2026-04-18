@@ -5,6 +5,7 @@ import { fetchOpenQuestionsTopic } from "@/lib/api-client";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { OpenQuestionsArticleBody } from "@/components/open-questions/article-body";
 import { OpenQuestionsThreadList } from "@/components/open-questions/thread-list";
+import { EditorialFootnotes } from "@/components/open-questions/editorial-footnotes";
 import { LinkButton } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
 import layout from "@/components/ui/two-column.module.css";
@@ -127,6 +128,7 @@ export default async function OpenQuestionsTopicPage({
             {data.article && (
               <div className={layout.main}>
                 <OpenQuestionsArticleBody article={data.article} />
+                <EditorialFootnotes notes={data.editorialFootnotes} />
               </div>
             )}
             {data.threads.length > 0 && (

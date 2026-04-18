@@ -258,8 +258,39 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-18 (mobile viewport meta fix)
+**Last updated:** 2026-04-18 (Phase 0 accuracy + provenance)
 
+- **Phase 0 accuracy + provenance pass (2026-04-18).** Ships the 9 audit
+  findings from `jfk_research_center_gameplan.md` Phase 0.
+  - Entity bios corrected in `sql/12`: Oswald (Tippit sentence inserted),
+    Ruby (Oct 5 1966 reversal + Jan 3 1967 PE at Parkland), Angleton
+    (explicit CI tenure 1954-1974). Oswald timeline in `lib/warehouse.ts`
+    +`lib/mock-data.ts`: enlistment corrected (Dallas → MCRD San Diego,
+    Oct 26 1956), Tippit murder event inserted between assassination and
+    Ruby shooting.
+  - `jfk_curated.corpus_manifest` view (`sql/14`) + `/api/corpus-manifest`
+    + `ScopeBanner` on `/` and `/search` disclose the ~37K subset vs.
+    ~300K total and flag 2025/2026 releases as not yet indexed.
+  - `jfk_curated.editorial_footnotes` table (`sql/15`) attaches standing
+    editorial notes to Open Questions surfaces by topic slug + trigger
+    patterns. Seeded with the NAS/Ramsey 1982 rebuttal + DOJ 1988 decline
+    for any HSCA acoustic / dictabelt / second-gunman / grassy-knoll-shot
+    reference. Rendered via `components/open-questions/editorial-footnotes.tsx`.
+  - `jfk_curated.jfk_entity_sources` sidecar (`sql/16`) seeded with 2-3
+    primary + reference citations per existing entity (Warren Report,
+    HSCA, ARRB, Church, NARA finding aids, NAS Panel). Rendered as a
+    numbered "Sources" section on each entity page. Phase-0 precursor to
+    the full per-sentence citation registry (Phase 1, BQ-1H).
+  - `sql/26b_wc_rebalance.sql` regenerates only the `warren-commission`
+    row in `jfk_topic_articles` with a rebalanced prompt (35-40%
+    conclusions → 30-35% methodology → 25-30% criticisms / subsequent
+    review). One Gemini Pro call; merges into the shared table so the
+    other 5 topics are untouched.
+  - AI footers in both `components/topics/topic-body.tsx` and
+    `components/open-questions/article-body.tsx` now link to
+    `/about/methodology`. Stub methodology page at `app/about/methodology/`
+    pulls live numbers from `corpus_manifest`. Full methodology page is
+    Phase 3 (UI-3A-1).
 - **Topics index page** at `/topics` lists all 6 topics; `/api/topics`
   backs it via `fetchAllTopics()`. Homepage featured-topics grid has
   a "See all" CTA; topic breadcrumb "Topics" → `/topics` (was `/search`).

@@ -124,6 +124,15 @@ export type SearchFilters = {
   confidence: ConfidenceLevel[];
 };
 
+export type CorpusManifest = {
+  totalRecords: number;
+  recordsWithOcr: number;
+  latestIndexedReleaseDate: string | null;
+  releasesIndexed: string[];
+  releasesPending: string[];
+  coverageNote: string;
+};
+
 export type HomeResponse = {
   stats: {
     documentCount: number;
@@ -134,6 +143,7 @@ export type HomeResponse = {
   featuredEntities: EntityCard[];
   featuredTopics: TopicCard[];
   recentDocuments: DocumentCard[];
+  corpusManifest: CorpusManifest;
 };
 
 export type SearchResponse = {
@@ -145,6 +155,13 @@ export type SearchResponse = {
   results: SearchResult[];
 };
 
+export type EntitySource = {
+  label: string;
+  url: string | null;
+  kind: string;
+  note?: string | null;
+};
+
 export type EntityResponse = {
   entity: EntityDetail;
   timeline: TimelineEvent[];
@@ -152,6 +169,7 @@ export type EntityResponse = {
   relatedEntities: EntityCard[];
   topDocuments: DocumentCard[];
   mentionExcerpts: MentionExcerpt[];
+  sources: EntitySource[];
 };
 
 export type TopicResponse = {
@@ -204,6 +222,14 @@ export type OpenQuestionsIndexResponse = {
   topics: OpenQuestionsTopicCard[];
 };
 
+export type EditorialFootnote = {
+  id: string;
+  tag: string;
+  title: string;
+  body: string;
+  sourceCitation: string;
+};
+
 export type OpenQuestionsTopicResponse = {
   slug: string;
   title: string;
@@ -212,4 +238,5 @@ export type OpenQuestionsTopicResponse = {
   article: OpenQuestionsArticle | null;
   questionCount: number;
   threads: OpenQuestionThread[];
+  editorialFootnotes: EditorialFootnote[];
 };

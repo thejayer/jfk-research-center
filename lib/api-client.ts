@@ -13,6 +13,7 @@
 
 import { headers } from "next/headers";
 import type {
+  CorpusManifest,
   DocumentResponse,
   EntityResponse,
   HomeResponse,
@@ -58,6 +59,14 @@ async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
 export async function fetchHome(): Promise<HomeResponse> {
   const data = await get<HomeResponse>("/api/home", { revalidate: 600 });
   if (!data) throw new Error("Home payload missing");
+  return data;
+}
+
+export async function fetchCorpusManifest(): Promise<CorpusManifest> {
+  const data = await get<CorpusManifest>("/api/corpus-manifest", {
+    revalidate: 600,
+  });
+  if (!data) throw new Error("Corpus manifest missing");
   return data;
 }
 
