@@ -186,11 +186,12 @@ export default async function TopicPage({
               marginBottom: 6,
             }}
           >
-            Search only within the {data.topic.title} topic
+            Search across the full archive
           </div>
           <p className="muted" style={{ fontSize: "0.92rem" }}>
-            This MVP uses a single global index; topic-scoped search is the
-            next warehouse layer on the roadmap.
+            Drop the topic filter and search the entire collection by
+            keyword. To stay scoped to {data.topic.title}, use “Search
+            within topic →” at the top of this page.
           </p>
         </div>
         <LinkButton

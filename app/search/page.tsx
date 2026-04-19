@@ -8,6 +8,7 @@ import { SavedSearches } from "@/components/search/saved-searches";
 import { SearchSidebar } from "@/components/search/search-sidebar";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { MentionSnippet } from "@/components/search/mention-snippet";
+import { ActiveTopicChip } from "@/components/search/active-topic-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
@@ -106,6 +107,7 @@ export default async function SearchPage({
             </div>
 
             <div className="search-main">
+              <ActiveTopicChip topicLabels={response.filters.topicLabels} />
               <ResultHeading q={q} mode={mode} total={response.total} manifest={manifest} />
 
               {response.total === 0 ? (
