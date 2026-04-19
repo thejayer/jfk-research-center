@@ -128,14 +128,14 @@ select * from unnest([
 
   ('duran','Silvia Duran','person',
     ['Silvia Duran','Sylvia Duran','Silvia Tirado Duran','Silvia Tirado de Duran'],
-    'Mexican national employed at the Cuban Consulate in Mexico City who spoke directly with Lee Harvey Oswald during his September–October 1963 visit.',
-    'Silvia Duran was a receptionist at the Cuban Consulate in Mexico City when Oswald applied for a transit visa to Cuba via the Soviet Union in late September 1963. She processed the unsuccessful application and spoke with Oswald over several visits. The Mexican government detained and interrogated her at U.S. request on November 23, 1963. Her testimony across multiple interviews — to Mexican authorities, to the Warren Commission, and to the HSCA in 1978 — is a central thread in the Mexico City record.',
+    'Mexican citizen employed at the Cuban Consulate in Mexico City in 1963; processed Oswald\'s visa inquiry during his September 27 visit. Testified before the Warren Commission by written statement and later before the HSCA.',
+    'Silvia Duran was a receptionist at the Cuban Consulate in Mexico City when Oswald applied for a transit visa to Cuba via the Soviet Union in late September 1963. She processed the unsuccessful application and spoke with Oswald over several visits beginning September 27. The Mexican government detained and interrogated her at U.S. request on November 23, 1963. Her account across multiple interviews — a written statement provided to the Warren Commission, an interview with Mexican authorities, and live HSCA testimony in 1978 — is a central thread in the Mexico City record.',
     null,'1937-02-01',null,'1963–present', 18),
 
   ('phillips','David Atlee Phillips','person',
     ['David Atlee Phillips','David Phillips','D. A. Phillips','Maurice Bishop'],
-    'CIA Chief of Cuban Operations at Mexico City station during Oswald\'s October 1963 visit; later Chief of the Western Hemisphere Division.',
-    'David Atlee Phillips joined the CIA in 1950 and served in Havana, Beirut, Mexico City, and Washington. At the time of Oswald\'s Mexico City visit, Phillips ran propaganda and anti-Castro operations from the Mexico City station. HSCA testimony from Antonio Veciana identified Phillips as the man Veciana knew as "Maurice Bishop," an allegation Phillips denied and the HSCA did not conclusively resolve. Phillips retired from the CIA in 1975 and founded the Association of Former Intelligence Officers.',
+    'CIA Chief of Covert Action, Mexico City station (1961–1965), with primary responsibility for Cuban operations. His role in the pre- and post-assassination Oswald cables is documented across HSCA and ARRB releases.',
+    'David Atlee Phillips joined the CIA in 1950 and served in Havana, Beirut, Mexico City, and Washington. From 1961 to 1965 he was Chief of Covert Action at the Mexico City station, with primary responsibility for Cuban operations including propaganda and anti-Castro work. HSCA testimony from Antonio Veciana identified Phillips as the man Veciana knew as "Maurice Bishop," an allegation Phillips denied and the HSCA did not conclusively resolve. Phillips retired from the CIA in 1975 and founded the Association of Former Intelligence Officers.',
     null,'1922-10-31','1988-07-07','1950–1975', 19),
 
   ('win-scott','Winston "Win" Scott','person',
