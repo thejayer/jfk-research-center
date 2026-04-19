@@ -125,8 +125,11 @@ export type SearchResult =
   | { kind: "mention"; mention: MentionExcerpt };
 
 export type SearchFilters = {
+  // Event-date histogram (one entry per year within yearBounds) backs the
+  // /search year range slider.
   years: string[];
   yearCounts: Record<string, number>;
+  yearBounds: { min: number; max: number };
   agencies: string[];
   agencyCounts: Record<string, number>;
   // topics/entities values are stable slugs/ids used in URLs and BQ filters;
@@ -138,6 +141,16 @@ export type SearchFilters = {
   entityLabels: Record<string, string>;
   entityCounts: Record<string, number>;
   confidence: ConfidenceLevel[];
+};
+
+/** Filter values applied to a search — shape used by fetchSearch. */
+export type SearchFilterInput = {
+  agencies?: string[];
+  yearFrom?: number | null;
+  yearTo?: number | null;
+  topics?: string[];
+  entities?: string[];
+  confidence?: ConfidenceLevel[];
 };
 
 export type CorpusManifest = {
@@ -171,7 +184,6 @@ export type SearchResponse = {
   mode: "document" | "mention";
   total: number;
   filters: SearchFilters;
-  appliedFilters?: Partial<SearchFilters>;
   results: SearchResult[];
 };
 

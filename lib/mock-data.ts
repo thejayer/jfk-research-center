@@ -1491,6 +1491,7 @@ export function buildSearchResponse({
   const filters = {
     years: mockYears,
     yearCounts: Object.fromEntries(mockYears.map((y) => [y, 0])),
+    yearBounds: { min: 1950, max: 2005 },
     agencies: mockAgencies,
     agencyCounts: Object.fromEntries(mockAgencies.map((a) => [a, 0])),
     topics: Object.keys(TOPIC_TABLE),

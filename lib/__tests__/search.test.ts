@@ -34,6 +34,20 @@ describe("parseSearchParams", () => {
     expect(r.filters.confidence).toEqual(["high", "low"]);
   });
 
+  it("parses yearFrom/yearTo as numbers", () => {
+    const r = parseSearchParams({ yearFrom: "1960", yearTo: "1975" });
+    expect(r.filters.yearFrom).toBe(1960);
+    expect(r.filters.yearTo).toBe(1975);
+  });
+
+  it("leaves yearFrom/yearTo null when absent or unparseable", () => {
+    const r1 = parseSearchParams({});
+    expect(r1.filters.yearFrom).toBeNull();
+    expect(r1.filters.yearTo).toBeNull();
+    const r2 = parseSearchParams({ yearFrom: "garbage" });
+    expect(r2.filters.yearFrom).toBeNull();
+  });
+
   it("keeps only the first q if an array is passed", () => {
     const r = parseSearchParams({ q: ["first", "second"] });
     expect(r.q).toBe("first");
@@ -43,7 +57,8 @@ describe("parseSearchParams", () => {
 describe("buildSearchUrl", () => {
   const emptyFilters = {
     agency: [],
-    year: [],
+    yearFrom: null,
+    yearTo: null,
     entity: [],
     topic: [],
     confidence: [],
@@ -73,10 +88,27 @@ describe("buildSearchUrl", () => {
     expect(params).toEqual(["CIA", "FBI"]);
   });
 
+  it("serializes yearFrom/yearTo when set", () => {
+    const url = buildSearchUrl("x", "document", {
+      ...emptyFilters,
+      yearFrom: 1963,
+      yearTo: 1978,
+    });
+    expect(url).toContain("yearFrom=1963");
+    expect(url).toContain("yearTo=1978");
+  });
+
+  it("omits yearFrom/yearTo when null", () => {
+    const url = buildSearchUrl("x", "document", emptyFilters);
+    expect(url).not.toContain("yearFrom");
+    expect(url).not.toContain("yearTo");
+  });
+
   it("round-trips through parseSearchParams", () => {
     const url = buildSearchUrl("Oswald", "mention", {
       agency: ["CIA"],
-      year: ["1963"],
+      yearFrom: 1963,
+      yearTo: 1978,
       entity: ["oswald"],
       topic: ["mexico-city"],
       confidence: ["high", "medium"],
@@ -90,7 +122,8 @@ describe("buildSearchUrl", () => {
       q: bag.q?.[0],
       mode: bag.mode?.[0],
       agency: bag.agency,
-      year: bag.year,
+      yearFrom: bag.yearFrom?.[0],
+      yearTo: bag.yearTo?.[0],
       entity: bag.entity,
       topic: bag.topic,
       confidence: bag.confidence,
@@ -98,6 +131,8 @@ describe("buildSearchUrl", () => {
     expect(parsed.q).toBe("Oswald");
     expect(parsed.mode).toBe("mention");
     expect(parsed.filters.agency).toEqual(["CIA"]);
+    expect(parsed.filters.yearFrom).toBe(1963);
+    expect(parsed.filters.yearTo).toBe(1978);
     expect(parsed.filters.confidence).toEqual(["high", "medium"]);
   });
 });
@@ -105,7 +140,8 @@ describe("buildSearchUrl", () => {
 describe("toggleFilter", () => {
   const baseline = {
     agency: ["CIA"],
-    year: [] as string[],
+    yearFrom: null,
+    yearTo: null,
     entity: [] as string[],
     topic: [] as string[],
     confidence: [] as ("high" | "medium" | "low" | "none")[],
@@ -121,33 +157,36 @@ describe("toggleFilter", () => {
 
   it("leaves other keys untouched", () => {
     const next = toggleFilter(baseline, "agency", "FBI");
-    expect(next.year).toBe(baseline.year);
+    expect(next.yearFrom).toBe(baseline.yearFrom);
     expect(next.entity).toBe(baseline.entity);
   });
 });
 
 describe("hasAnyFilter", () => {
-  it("is false when all arrays are empty", () => {
-    expect(
-      hasAnyFilter({
-        agency: [],
-        year: [],
-        entity: [],
-        topic: [],
-        confidence: [],
-      }),
-    ).toBe(false);
+  const empty = {
+    agency: [],
+    yearFrom: null,
+    yearTo: null,
+    entity: [],
+    topic: [],
+    confidence: [] as ("high" | "medium" | "low" | "none")[],
+  };
+
+  it("is false when all filters are empty", () => {
+    expect(hasAnyFilter(empty)).toBe(false);
   });
 
-  it("is true when any filter has entries", () => {
+  it("is true when a list filter has entries", () => {
     expect(
-      hasAnyFilter({
-        agency: [],
-        year: [],
-        entity: [],
-        topic: [],
-        confidence: ["high"],
-      }),
+      hasAnyFilter({ ...empty, confidence: ["high"] }),
     ).toBe(true);
+  });
+
+  it("is true when only yearFrom is set", () => {
+    expect(hasAnyFilter({ ...empty, yearFrom: 1963 })).toBe(true);
+  });
+
+  it("is true when only yearTo is set", () => {
+    expect(hasAnyFilter({ ...empty, yearTo: 1978 })).toBe(true);
   });
 });

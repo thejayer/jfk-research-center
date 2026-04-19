@@ -1075,7 +1075,8 @@ function truncateAround(text: string, aliases: string[], budget: number): string
 
 type SearchFilters = {
   agencies?: string[];
-  years?: string[];
+  yearFrom?: number | null;
+  yearTo?: number | null;
   topics?: string[];
   entities?: string[];
   confidence?: ConfidenceLevel[];
@@ -1112,11 +1113,13 @@ export async function fetchSearch({
     where.push("agency IN UNNEST(@agencies)");
     params.agencies = filters.agencies;
   }
-  if (filters.years?.length) {
-    where.push(
-      "CAST(EXTRACT(YEAR FROM start_date) AS STRING) IN UNNEST(@years)",
-    );
-    params.years = filters.years;
+  if (typeof filters.yearFrom === "number") {
+    where.push("EXTRACT(YEAR FROM start_date) >= @yearFrom");
+    params.yearFrom = filters.yearFrom;
+  }
+  if (typeof filters.yearTo === "number") {
+    where.push("EXTRACT(YEAR FROM start_date) <= @yearTo");
+    params.yearTo = filters.yearTo;
   }
   if (filters.entities?.length) {
     where.push(`document_id IN (
@@ -1272,7 +1275,6 @@ export async function fetchSearch({
     mode,
     total: mode === "mention" ? mentionResults.length : (total[0]?.n ?? 0),
     filters: filterData,
-    appliedFilters: filters,
     results: mode === "mention" ? mentionResults : docResults,
   };
 }
@@ -1327,9 +1329,24 @@ async function loadSearchFacets() {
       (entityCountMap[b.entity_id] ?? 0) - (entityCountMap[a.entity_id] ?? 0),
   );
 
+  // Expand the sparse year-count rows into a dense series over the full
+  // [min, max] range so the slider histogram can render zero-bars for
+  // uneventful years instead of collapsing the axis.
+  const countedYears = years.map((r) => parseInt(r.y, 10)).filter(
+    (n): n is number => Number.isFinite(n),
+  );
+  const yearMin = countedYears.length ? Math.min(...countedYears) : 1950;
+  const yearMax = countedYears.length ? Math.max(...countedYears) : 2005;
+  const yearSeries: string[] = [];
+  for (let y = yearMin; y <= yearMax; y++) yearSeries.push(String(y));
+  const yearCountMap: Record<string, number> = {};
+  for (const y of yearSeries) yearCountMap[y] = 0;
+  for (const r of years) yearCountMap[r.y] = r.n;
+
   return {
-    years: years.map((r) => r.y),
-    yearCounts: Object.fromEntries(years.map((r) => [r.y, r.n])),
+    years: yearSeries,
+    yearCounts: yearCountMap,
+    yearBounds: { min: yearMin, max: yearMax },
     agencies: agencies.map((r) => r.agency),
     agencyCounts: Object.fromEntries(agencies.map((r) => [r.agency, r.n])),
     topics: searchableTopicSlugs,

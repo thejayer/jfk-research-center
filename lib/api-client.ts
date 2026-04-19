@@ -81,7 +81,8 @@ export async function fetchSearch(
   mode: "document" | "mention" = "document",
   filters: {
     agency?: string[];
-    year?: string[];
+    yearFrom?: number | null;
+    yearTo?: number | null;
     entity?: string[];
     topic?: string[];
     confidence?: string[];
@@ -90,9 +91,11 @@ export async function fetchSearch(
   const params = new URLSearchParams();
   if (query) params.set("q", query);
   if (mode !== "document") params.set("mode", mode);
-  for (const k of ["agency", "year", "entity", "topic", "confidence"] as const) {
+  for (const k of ["agency", "entity", "topic", "confidence"] as const) {
     for (const v of filters[k] ?? []) params.append(k, v);
   }
+  if (filters.yearFrom != null) params.set("yearFrom", String(filters.yearFrom));
+  if (filters.yearTo != null) params.set("yearTo", String(filters.yearTo));
   const qs = params.toString();
   const path = qs ? `/api/search?${qs}` : "/api/search";
   const data = await get<SearchResponse>(path, { noStore: true });

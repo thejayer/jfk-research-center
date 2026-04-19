@@ -8,6 +8,12 @@ function multi(u: URL, key: string): string[] {
   return u.searchParams.getAll(key).filter(Boolean);
 }
 
+function parseIntOrNull(v: string | null): number | null {
+  if (!v) return null;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q") ?? "";
@@ -16,7 +22,8 @@ export async function GET(req: NextRequest) {
 
   const filters = {
     agencies: multi(url, "agency"),
-    years: multi(url, "year"),
+    yearFrom: parseIntOrNull(url.searchParams.get("yearFrom")),
+    yearTo: parseIntOrNull(url.searchParams.get("yearTo")),
     entities: multi(url, "entity"),
     topics: multi(url, "topic"),
     confidence: multi(url, "confidence") as ConfidenceLevel[],

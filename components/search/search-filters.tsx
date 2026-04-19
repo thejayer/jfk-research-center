@@ -4,16 +4,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SearchFilters as FacetData } from "@/lib/api-types";
+import { YearRangeFacet } from "./year-range-facet";
 
-type FilterKey = "agency" | "year" | "entity" | "topic" | "confidence";
+type FilterKey = "agency" | "entity" | "topic" | "confidence";
+type GroupKey = FilterKey | "eventDate";
 
 export function SearchFilters({ filters }: { filters: FacetData }) {
   const router = useRouter();
   const params = useSearchParams();
 
-  const [openGroups, setOpenGroups] = useState<Record<FilterKey, boolean>>({
+  const [openGroups, setOpenGroups] = useState<Record<GroupKey, boolean>>({
     agency: true,
-    year: true,
+    eventDate: true,
     entity: false,
     topic: false,
     confidence: false,
@@ -51,10 +53,12 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
     [params],
   );
 
-  const activeTotal = FILTER_GROUPS.reduce(
-    (n, g) => n + (params?.getAll(g.key).length ?? 0),
-    0,
-  );
+  const activeTotal =
+    FILTER_GROUPS.reduce(
+      (n, g) => n + (params?.getAll(g.key).length ?? 0),
+      0,
+    ) +
+    (params?.get("yearFrom") || params?.get("yearTo") ? 1 : 0);
 
   return (
     <aside
@@ -87,7 +91,7 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
         )}
       </div>
 
-      {FILTER_GROUPS.map((g) => {
+      {FILTER_GROUPS.map((g, idx) => {
         const values = g.fromFilters(filters);
         const activeCount = params?.getAll(g.key).length ?? 0;
         const renderValue = g.renderValue
@@ -97,21 +101,31 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
           ? (v: string) => g.countFor!(v, filters)
           : () => undefined;
         return (
-          <FilterGroup
-            key={g.key}
-            label={g.label}
-            values={values}
-            renderValue={renderValue}
-            countFor={countFor}
-            isActive={(v) => isActive(g.key, v)}
-            onToggle={(v) => toggleParam(g.key, v)}
-            activeCount={activeCount}
-            onClear={() => clearKey(g.key)}
-            open={openGroups[g.key]}
-            onToggleOpen={() =>
-              setOpenGroups((s) => ({ ...s, [g.key]: !s[g.key] }))
-            }
-          />
+          <div key={g.key}>
+            <FilterGroup
+              label={g.label}
+              values={values}
+              renderValue={renderValue}
+              countFor={countFor}
+              isActive={(v) => isActive(g.key, v)}
+              onToggle={(v) => toggleParam(g.key, v)}
+              activeCount={activeCount}
+              onClear={() => clearKey(g.key)}
+              open={openGroups[g.key]}
+              onToggleOpen={() =>
+                setOpenGroups((s) => ({ ...s, [g.key]: !s[g.key] }))
+              }
+            />
+            {idx === 0 && (
+              <YearRangeFacet
+                filters={filters}
+                open={openGroups.eventDate}
+                onToggleOpen={() =>
+                  setOpenGroups((s) => ({ ...s, eventDate: !s.eventDate }))
+                }
+              />
+            )}
+          </div>
         );
       })}
     </aside>
@@ -124,6 +138,8 @@ function buildClearUrl(params: URLSearchParams | null | ReturnType<typeof useSea
   const mode = params?.get("mode") ?? "";
   if (q) sp.set("q", q);
   if (mode) sp.set("mode", mode);
+  // yearFrom/yearTo are not list-type, so they already get dropped when we
+  // start with an empty URLSearchParams — no further cleanup needed.
   const qs = sp.toString();
   return qs ? `/search?${qs}` : "/search";
 }
@@ -142,12 +158,6 @@ const FILTER_GROUPS: Group[] = [
     label: "Agency",
     fromFilters: (f) => f.agencies,
     countFor: (v, f) => f.agencyCounts[v],
-  },
-  {
-    key: "year",
-    label: "Year",
-    fromFilters: (f) => f.years,
-    countFor: (v, f) => f.yearCounts[v],
   },
   {
     key: "entity",
