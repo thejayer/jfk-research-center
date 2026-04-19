@@ -258,8 +258,106 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (small wins polish — mobile nav, copy-NAID, empty state)
+**Last updated:** 2026-04-19 (April hotfix cycle — 12 tickets, P0 + T1-T11)
 
+- **April hotfix cycle (2026-04-19).** P0 + 11 follow-on tickets shipped
+  in one session, each as its own PR. Cycle re-audit + ticket file:
+  `~/jfk_hotfix_tickets.md`. Headlines:
+  - **P0 — entity SSR throw fix (PR #1).** All 20 `/entity/[slug]`
+    pages were 500'ing because `fetchEntity` looped `TOPIC_DISPLAY_ORDER`
+    and queried `jfk_mvp.physical_evidence` — a table that doesn't
+    exist (physical-evidence is a redirect-only topic). Consolidated
+    the existing ad-hoc filters into a single `MVP_QUERYABLE_TOPIC_SLUGS`
+    constant in `lib/warehouse.ts` and routed all three call sites
+    through it (`fetchEntity`, `topicCountsMap`, `loadSearchFacets`,
+    plus the search-mode topic union).
+  - **T1 — corpus number unification (PR #2).** Added `ocr_passages`
+    to `corpus_manifest` view (sql/14, count of `abbyy_ocr` chunks =
+    112,445). Threaded through `CorpusManifest` type → home At a
+    Glance, `/search` empty-query headline, `/about/methodology`,
+    `/about/editorial-policy`. Removed three hardcoded number sites.
+    Single source of truth: every surface reads from the manifest.
+  - **T2 — chunk anchors + per-chunk citations (PR #3).** OCR mention
+    cards expose hover-revealed copy-link + cite popovers. Anchors
+    switched from `#chunk-{mention-id}` to `#chunk-{N}` (N = the
+    existing BQ `chunk_order`, no migration needed). New
+    `ChunkActions` and `ChunkHashHandler` client components. New
+    smooth-scroll + flash-highlight on hash navigation. `lib/citations.ts`
+    gains `chunkOrder` + `siteUrl` inputs; deep links bake `#chunk-N`
+    into Bluebook/Chicago/APA. 5 new vitests.
+  - **T3 — topic-scoped search (PR #8).** Backend was already wired
+    (filters.topics → UNION over MVP topic tables); shipped the
+    visible affordance: `ActiveTopicChip` removable pill above the
+    result list, plus removed the misleading "topic-scoped search is
+    on the roadmap" copy from `/topic/[slug]`. Hardened
+    `fetchSearch.filters.topics` against a hand-crafted
+    `?topic=physical-evidence` URL via the same MVP_QUERYABLE_TOPIC_SLUGS
+    defense.
+  - **T4 — keyboard shortcut g h (PR #7).** Most of the spec was
+    already shipped in Phase 4 wave 1b (KeyboardShortcuts component);
+    only the `g h` chord (go home) was missing. Added the chord +
+    matching help-modal row.
+  - **T5 — public corrections workflow (PR #9).** New
+    `jfk_curated.corrections_submissions` table (sql/40),
+    `/corrections` form (server shell + client form),
+    `POST /api/corrections` with surface allowlist + length-checks +
+    email validation + honeypot, `ReportErrorLink` deep-entry on
+    /entity/[slug] and /topic/[slug]. About pages no longer say
+    "forthcoming". Admin triage view at `/admin/corrections` deferred
+    on auth scheme (still tracked in roadmap).
+  - **T6 — `/dealey-plaza` interactive map (PR #12).** New
+    `jfk_curated.dealey_plaza_witnesses` table (sql/43) with 20
+    witnesses sourced from WC Vols. 2-7. Schematic-SVG over a
+    bounding-box-normalized lat/lng projection. Toggleable shot-origin
+    filter chips (TSBD / Grassy knoll / Triple Underpass /
+    Undetermined), click-to-read side panel with WC ref, neutrality
+    disclaimer. No external map deps.
+  - **T7 — Open Questions status pills + cryptonym tooltips (PR #10).**
+    `jfk_curated.cryptonym_glossary` (sql/41) seeded with 24 entries
+    (AM/LI/ZR/LC/KU/OD/PB/MH/HT/GP-prefixed). Added status /
+    resolution_text / resolution_naids / resolution_citation_ids to
+    `jfk_topic_batch_questions` (sql/42); a MERGE auto-tags **498
+    of 1531** threads (32.5%) as `resolved` via word-boundary regex
+    against the glossary. New `CryptonymMention` client component
+    wraps detected tokens with a hover/focus popover. Threads now
+    sort open → partially_resolved → resolved within each tension
+    bucket; resolved ones render with reduced opacity + status pill
+    + inline resolution text.
+  - **T8 — Wave 2 entities Kostikov / de Mohrenschildt / Cubela
+    (PR #11).** Three rows added to sql/12 (sort_orders 21/22/23),
+    5-7 facts each in sql/19, 2 sources each in sql/16. Re-ran
+    sql/13 to backfill alias mentions: cubela 216, de-mohrenschildt
+    82, kostikov 12. Roster now 23 entities. The cryptonym glossary's
+    `cubela` related_entity_ids resolve to a real page.
+  - **T9 — evidence alt text + canonical links (PR #6).** Added
+    image_alt_text / canonical_copy_url / canonical_copy_host to
+    physical_evidence via a new sql/17a migration (separate from
+    sql/17 to avoid mechanically rewriting all 33 rows; sql/17 has
+    a header note flagging the dep). Backfilled the 3 image-bearing
+    items (zapruder-film, CE-139, CE-133-A). UI: `<img alt>` reads
+    from imageAlt; figcaption gains "View canonical copy at {host} →"
+    link. axe-core CI sweep skipped (still tracked in roadmap).
+  - **T10 — Phillips/Duran/Zapruder copy fixes (PR #4).** Phillips
+    bio now correctly framed as "Chief of Covert Action, Mexico City
+    station (1961-1965)" with primary responsibility for Cuban
+    operations (was "Chief of Cuban Operations"). Duran tightened to
+    "Mexican citizen" + WC-by-written-statement vs. HSCA-in-person.
+    Zapruder chain-of-custody replaced with the 6-entry corrected
+    sequence (Nov 23 $50k print rights → Nov 25 $100k all rights →
+    1975 family return → 1997-04-24 ARRB designation → 1998-08-03
+    eminent-domain take → 2000 $16M arbitration award).
+  - **T11 — `/about` hub + roadmap (PR #5).** `/about` was 404'ing.
+    Now a three-card hub (Methodology / Editorial policy / Roadmap).
+    `/about/roadmap` lists 21 surfaces grouped by status (shipped /
+    in_progress / planned), backed by hand-maintained `lib/roadmap.ts`.
+    /ask, /compare, public dataset mirror, API key layer all marked
+    "planned" so users probing those URLs see a deliberate signal.
+    Footer "About" column gains Overview + Roadmap links.
+  - **New SQL files added this cycle:** sql/40 (corrections), sql/41
+    (cryptonym glossary), sql/42 (OQ status), sql/43 (dealey witnesses),
+    sql/17a (evidence alt + canonical migration). None added to
+    `rebuild_warehouse.sh` — they\'re hand-curated catalogs / one-shot
+    migrations, not pipeline steps.
 - **Polish follow-ups (2026-04-19).** Three loose ends closed after
   Phase 5-E:
   - **Mobile primary nav.** Site header's 7-item nav used to vanish
