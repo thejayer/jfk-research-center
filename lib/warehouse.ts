@@ -2018,6 +2018,9 @@ type EvidenceRow = {
   related_entity_ids: string[] | null;
   image_url: string | null;
   image_credit: string | null;
+  image_alt_text: string | null;
+  canonical_copy_url: string | null;
+  canonical_copy_host: string | null;
   sort_order: number | null;
 };
 
@@ -2027,6 +2030,10 @@ function shortDescOf(long: string | null): string {
   return firstSentence ? firstSentence.replace(/\.$/, "") + "." : "";
 }
 
+function nonEmpty(s: string | null | undefined): string | null {
+  return s && s !== "" ? s : null;
+}
+
 function evidenceRowToCard(r: EvidenceRow): PhysicalEvidenceCard {
   return {
     id: r.evidence_id,
@@ -2034,8 +2041,9 @@ function evidenceRowToCard(r: EvidenceRow): PhysicalEvidenceCard {
     shortName: r.short_name,
     href: `/evidence/${encodeURIComponent(r.evidence_id)}`,
     shortDescription: shortDescOf(r.long_description),
-    imageUrl: r.image_url && r.image_url !== "" ? r.image_url : null,
-    imageCredit: r.image_credit && r.image_credit !== "" ? r.image_credit : null,
+    imageUrl: nonEmpty(r.image_url),
+    imageCredit: nonEmpty(r.image_credit),
+    imageAlt: nonEmpty(r.image_alt_text),
   };
 }
 
@@ -2100,6 +2108,8 @@ export async function fetchPhysicalEvidenceItem(
     referencedNaids: r.referenced_naids ?? [],
     referencedWcTestimony: r.referenced_wc_testimony ?? [],
     relatedEntities,
+    canonicalCopyUrl: nonEmpty(r.canonical_copy_url),
+    canonicalCopyHost: nonEmpty(r.canonical_copy_host),
   };
 }
 

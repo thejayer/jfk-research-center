@@ -463,6 +463,8 @@ export type PhysicalEvidenceCard = {
   shortDescription: string;
   imageUrl: string | null;
   imageCredit: string | null;
+  /** Descriptive alt text for imageUrl. Required for any image we render. */
+  imageAlt: string | null;
 };
 
 export type PhysicalEvidenceDetail = PhysicalEvidenceCard & {
@@ -471,6 +473,9 @@ export type PhysicalEvidenceDetail = PhysicalEvidenceCard & {
   referencedNaids: string[];
   referencedWcTestimony: EvidenceWcTestimonyRef[];
   relatedEntities: EntityCard[];
+  /** URL of an authoritative copy hosted by NARA / LoC / a museum. */
+  canonicalCopyUrl: string | null;
+  canonicalCopyHost: string | null;
 };
 
 export type PhysicalEvidenceIndex = {

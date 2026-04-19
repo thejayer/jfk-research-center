@@ -31,6 +31,13 @@
 --   sort_order            Display order within a category.
 --
 -- Dependencies: (none — curated data)
+--
+-- IMPORTANT: After re-running this file, also re-apply
+-- `sql/17a_evidence_alt_canonical.sql`. That migration adds the
+-- image_alt_text / canonical_copy_url / canonical_copy_host columns
+-- and backfills the three items currently exposing images. Until the
+-- columns are folded into this file, the create-or-replace here drops
+-- them.
 
 create or replace table jfk_curated.physical_evidence as
 select * from unnest([
