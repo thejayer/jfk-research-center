@@ -32,6 +32,12 @@ import type {
   EstablishedFactCategory,
   EstablishedFactConfidence,
   EstablishedFactsIndex,
+  BibliographyIndex,
+  CaseTimelineCategory,
+  CaseTimelineEvent,
+  CaseTimelineIndex,
+  CitationEntry,
+  CitationType,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
   PhysicalEvidenceDetail,
@@ -1548,6 +1554,141 @@ export async function fetchOpenQuestionsTopic(
     threads,
     editorialFootnotes,
   };
+}
+
+// ---------------------------------------------------------------------------
+// CASE-WIDE TIMELINE
+// ---------------------------------------------------------------------------
+
+type CaseTimelineRow = {
+  event_id: string;
+  event_date: { value: string } | string;
+  event_time_local: string | null;
+  title: string;
+  description: string;
+  category: string;
+  related_entity_ids: string[] | null;
+  related_topic_ids: string[] | null;
+  source_external: string[] | null;
+  importance: number | null;
+};
+
+export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
+  const rows = await query<CaseTimelineRow>(
+    `SELECT event_id, event_date, event_time_local, title, description,
+            category, related_entity_ids, related_topic_ids,
+            source_external, importance
+       FROM \`${PROJECT}.${DATASET_CURATED}.timeline_events\`
+      ORDER BY event_date, event_time_local NULLS FIRST`,
+  );
+
+  const events: CaseTimelineEvent[] = rows.map((r) => {
+    const dateStr =
+      typeof r.event_date === "object" ? r.event_date.value : r.event_date;
+    return {
+      id: r.event_id,
+      date: dateStr,
+      timeLocal: r.event_time_local,
+      title: r.title,
+      description: r.description,
+      category: r.category as CaseTimelineCategory,
+      relatedEntityIds: r.related_entity_ids ?? [],
+      relatedTopicIds: r.related_topic_ids ?? [],
+      sourceExternal: r.source_external ?? [],
+      importance: r.importance ?? 3,
+    };
+  });
+
+  const categoryCounts = new Map<CaseTimelineCategory, number>();
+  for (const e of events) {
+    categoryCounts.set(e.category, (categoryCounts.get(e.category) ?? 0) + 1);
+  }
+  const CATEGORY_ORDER: CaseTimelineCategory[] = [
+    "biographical",
+    "operational",
+    "investigation",
+    "release",
+    "death",
+  ];
+  const countsByCategory = CATEGORY_ORDER.filter((c) =>
+    categoryCounts.has(c),
+  ).map((c) => ({ category: c, count: categoryCounts.get(c) ?? 0 }));
+
+  const decadeCounts = new Map<string, number>();
+  for (const e of events) {
+    const year = parseInt(e.date.slice(0, 4), 10);
+    if (!Number.isNaN(year)) {
+      const decade = `${Math.floor(year / 10) * 10}s`;
+      decadeCounts.set(decade, (decadeCounts.get(decade) ?? 0) + 1);
+    }
+  }
+  const countsByDecade = Array.from(decadeCounts.entries())
+    .map(([decade, count]) => ({ decade, count }))
+    .sort((a, b) => a.decade.localeCompare(b.decade));
+
+  return { events, countsByCategory, countsByDecade };
+}
+
+// ---------------------------------------------------------------------------
+// BIBLIOGRAPHY (citation registry)
+// ---------------------------------------------------------------------------
+
+type CitationRow = {
+  citation_id: string;
+  citation_type: string;
+  bluebook: string;
+  chicago: string;
+  apa: string;
+  url: string | null;
+  author: string | null;
+  title: string;
+  publisher: string | null;
+  year: number | null;
+  allowlisted: boolean;
+};
+
+export async function fetchBibliographyIndex(): Promise<BibliographyIndex> {
+  const rows = await query<CitationRow>(
+    `SELECT *
+       FROM \`${PROJECT}.${DATASET_CURATED}.citation_registry\`
+      WHERE allowlisted = true
+      ORDER BY sort_order`,
+  );
+
+  const citations: CitationEntry[] = rows.map((r) => ({
+    id: r.citation_id,
+    type: r.citation_type as CitationType,
+    bluebook: r.bluebook,
+    chicago: r.chicago,
+    apa: r.apa,
+    url: r.url,
+    author: r.author,
+    title: r.title,
+    publisher: r.publisher,
+    year: r.year,
+  }));
+
+  const typeCounts = new Map<CitationType, number>();
+  for (const c of citations) {
+    typeCounts.set(c.type, (typeCounts.get(c.type) ?? 0) + 1);
+  }
+  const TYPE_ORDER: CitationType[] = [
+    "WC",
+    "HSCA",
+    "ARRB",
+    "CHURCH",
+    "REPORT",
+    "NARA",
+    "BOOK",
+    "JOURNAL",
+    "NEWS",
+    "NAID",
+  ];
+  const countsByType = TYPE_ORDER.filter((t) => typeCounts.has(t)).map(
+    (t) => ({ type: t, count: typeCounts.get(t) ?? 0 }),
+  );
+
+  return { citations, countsByType };
 }
 
 // ---------------------------------------------------------------------------

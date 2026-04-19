@@ -13,6 +13,8 @@
 
 import { headers } from "next/headers";
 import type {
+  BibliographyIndex,
+  CaseTimelineIndex,
   CorpusManifest,
   DocumentResponse,
   EntityCard,
@@ -160,6 +162,22 @@ export async function fetchEstablishedFactsIndex(): Promise<EstablishedFactsInde
     revalidate: 600,
   });
   if (!data) throw new Error("Established facts index missing");
+  return data;
+}
+
+export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
+  const data = await get<CaseTimelineIndex>("/api/timeline", {
+    revalidate: 600,
+  });
+  if (!data) throw new Error("Timeline index missing");
+  return data;
+}
+
+export async function fetchBibliographyIndex(): Promise<BibliographyIndex> {
+  const data = await get<BibliographyIndex>("/api/bibliography", {
+    revalidate: 600,
+  });
+  if (!data) throw new Error("Bibliography index missing");
   return data;
 }
 

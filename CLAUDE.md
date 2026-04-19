@@ -258,7 +258,39 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (Phase 2-A Wave 1 + 2-C Established Facts)
+**Last updated:** 2026-04-19 (Phase 3 light wave)
+
+- **Phase 3 light wave (2026-04-19).** UI-over-seeded-data surfaces
+  from the gameplan Phase 3. Full zoomable D3 timeline (3-F heavy),
+  Dealey Plaza map (3-E), and corrections workflow (3-C) deferred to
+  their own sessions.
+  - **3-F `/timeline`** — vertical chronological view over all 57
+    `timeline_events`, grouped by decade → year with sticky jump-nav.
+    Each event card shows date + optional time, category tag, headline
+    marker for importance=5, description, related-entity and
+    related-topic chips linking to those pages.
+  - **3-H `/releases`** — chronological (reverse-chron) declassification
+    history filtered from `timeline_events` where
+    `category='release'` (13 events). Correlates to corpus_manifest
+    per-release counts where a year match exists.
+  - **3-I `/bibliography`** — lists all 53 allowlisted citations from
+    `citation_registry`, grouped by type (WC 27 / HSCA 13 / ARRB 1 /
+    CHURCH 1 / REPORT 7 / NARA 4). Each row renders Bluebook, Chicago,
+    APA formats.
+  - **3-J Home "What's new" strip** — 3 most recent release events
+    pulled from `timeline_events`, rendered above the Featured
+    Entities section with a link to `/releases`.
+  - **3-B `/about/editorial-policy`** — static written page covering
+    neutrality posture, OQ/EF symmetry, source allowlist, banned-word
+    list for AI content, AI disclosure requirement, corrections
+    pointer, and what the site is not. Linked from the bibliography
+    page and the footer.
+  - **Navigation restructure.** Primary header now 7 items: Search,
+    Entities, Topics, Timeline, Evidence, Open Questions, Established
+    Facts. Footer reorganized: Navigate column, Analysis column (OQ /
+    EF / Releases / Bibliography), About column (Methodology /
+    Editorial policy).
+- **Phase 2-A Wave 1 + Phase 2-C Established Facts (2026-04-19).**
 
 - **Phase 2-A Wave 1 + Phase 2-C Established Facts (2026-04-19).**
   - **2-C: Established Facts** (`sql/22a`, 37 seeded facts across Settled

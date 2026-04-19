@@ -1,16 +1,25 @@
 import Link from "next/link";
-import { fetchHome } from "@/lib/api-client";
+import { fetchCaseTimeline, fetchHome } from "@/lib/api-client";
 import { SearchBar } from "@/components/search/search-bar";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { StatPill } from "@/components/ui/stat-pill";
 import { Badge } from "@/components/ui/badge";
 import { ScopeBanner } from "@/components/layout/scope-banner";
-import { formatNumber } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const data = await fetchHome();
+  const [data, timeline] = await Promise.all([
+    fetchHome(),
+    fetchCaseTimeline().catch(() => null),
+  ]);
+
+  const recentReleases =
+    timeline?.events
+      .filter((e) => e.category === "release")
+      .sort((a, b) => (a.date < b.date ? 1 : -1))
+      .slice(0, 3) ?? [];
 
   return (
     <div>
@@ -18,6 +27,86 @@ export default async function HomePage() {
         <ScopeBanner manifest={data.corpusManifest} />
       </div>
       <Hero />
+
+      {recentReleases.length > 0 && (
+        <section
+          className="container"
+          style={{ marginTop: 48 }}
+          aria-label="What's new"
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 14,
+            }}
+          >
+            <div
+              className="eyebrow"
+              style={{ color: "var(--text-muted)" }}
+            >
+              What&rsquo;s new
+            </div>
+            <Link
+              href="/releases"
+              className="muted"
+              style={{ fontSize: "0.85rem" }}
+            >
+              All releases &rarr;
+            </Link>
+          </div>
+          <ol
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: 12,
+              listStyle: "none",
+              padding: 0,
+              margin: 0,
+            }}
+          >
+            {recentReleases.map((r) => (
+              <li key={r.id}>
+                <Link
+                  href="/releases"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                    padding: "14px 16px",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)",
+                    background: "var(--surface)",
+                    color: "var(--text)",
+                    height: "100%",
+                  }}
+                >
+                  <div
+                    className="muted num"
+                    style={{
+                      fontSize: "0.78rem",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {formatDate(r.date)}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "1rem",
+                      letterSpacing: "-0.005em",
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {r.title}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <section
         className="container"

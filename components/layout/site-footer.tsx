@@ -39,21 +39,29 @@ export function SiteFooter() {
         <FooterCol title="Navigate">
           <FooterLink href="/">Home</FooterLink>
           <FooterLink href="/search">Search</FooterLink>
-          <FooterLink href="/entity/oswald">Oswald</FooterLink>
-          <FooterLink href="/topic/warren-commission">Warren Commission</FooterLink>
+          <FooterLink href="/entities">Entities</FooterLink>
+          <FooterLink href="/topics">Topics</FooterLink>
+          <FooterLink href="/timeline">Timeline</FooterLink>
+          <FooterLink href="/evidence">Evidence</FooterLink>
         </FooterCol>
 
-        <FooterCol title="Topics">
-          <FooterLink href="/topic/cia">CIA</FooterLink>
-          <FooterLink href="/topic/fbi">FBI</FooterLink>
-          <FooterLink href="/topic/mexico-city">Mexico City</FooterLink>
-          <FooterLink href="/topic/hsca">HSCA</FooterLink>
+        <FooterCol title="Analysis">
+          <FooterLink href="/open-questions">Open Questions</FooterLink>
+          <FooterLink href="/established-facts">Established Facts</FooterLink>
+          <FooterLink href="/releases">Release history</FooterLink>
+          <FooterLink href="/bibliography">Bibliography</FooterLink>
         </FooterCol>
 
         <FooterCol title="About">
-          <div className="muted" style={{ fontSize: "0.9rem", lineHeight: 1.6 }}>
-            Records sourced from the National Archives Catalog bulk dataset.
-            Transcriptions and OCR are machine-generated and may contain errors.
+          <FooterLink href="/about/methodology">Methodology</FooterLink>
+          <FooterLink href="/about/editorial-policy">Editorial policy</FooterLink>
+          <div
+            className="muted"
+            style={{ fontSize: "0.85rem", lineHeight: 1.55, marginTop: 6 }}
+          >
+            Records sourced from the U.S. National Archives Catalog, ABBYY
+            JFK-OCR, and allowlisted primary-source reports. Transcriptions
+            and OCR are machine-generated and may contain errors.
           </div>
         </FooterCol>
       </div>

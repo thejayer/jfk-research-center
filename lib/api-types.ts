@@ -264,6 +264,75 @@ export type OpenQuestionsTopicResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Case-wide timeline — backed by sql/22 (jfk_curated.timeline_events).
+// Different from the entity-specific TimelineEvent above (which is the
+// Oswald chronology embedded in the entity response).
+// ---------------------------------------------------------------------------
+
+export type CaseTimelineCategory =
+  | "biographical"
+  | "operational"
+  | "investigation"
+  | "release"
+  | "death";
+
+export type CaseTimelineEvent = {
+  id: string;
+  date: string;
+  timeLocal: string | null;
+  title: string;
+  description: string;
+  category: CaseTimelineCategory;
+  relatedEntityIds: string[];
+  relatedTopicIds: string[];
+  sourceExternal: string[];
+  importance: number;
+};
+
+export type CaseTimelineIndex = {
+  events: CaseTimelineEvent[];
+  countsByCategory: Array<{
+    category: CaseTimelineCategory;
+    count: number;
+  }>;
+  countsByDecade: Array<{ decade: string; count: number }>;
+};
+
+// ---------------------------------------------------------------------------
+// Bibliography — backed by sql/23 (jfk_curated.citation_registry).
+// ---------------------------------------------------------------------------
+
+export type CitationType =
+  | "WC"
+  | "HSCA"
+  | "ARRB"
+  | "CHURCH"
+  | "REPORT"
+  | "NARA"
+  | "NAID"
+  | "BOOK"
+  | "JOURNAL"
+  | "NEWS";
+
+export type CitationEntry = {
+  id: string;
+  type: CitationType;
+  bluebook: string;
+  chicago: string;
+  apa: string;
+  url: string | null;
+  author: string | null;
+  title: string;
+  publisher: string | null;
+  year: number | null;
+};
+
+export type BibliographyIndex = {
+  citations: CitationEntry[];
+  countsByType: Array<{ type: CitationType; count: number }>;
+};
+
+// ---------------------------------------------------------------------------
 // Established Facts — symmetric counterweight to Open Questions. Backed by
 // sql/22a (jfk_curated.established_facts).
 // ---------------------------------------------------------------------------
