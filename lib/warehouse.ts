@@ -41,6 +41,7 @@ import type {
   CooccurrenceGraph,
   CooccurrenceLink,
   CooccurrenceNode,
+  CryptonymEntry,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
   PhysicalEvidenceDetail,
@@ -1721,7 +1722,7 @@ export async function fetchOpenQuestionsTopic(
   const catalog = TOPIC_CATALOG[slug];
   if (!catalog) return null;
 
-  const [articleRows, threadRows, footnoteRows] = await Promise.all([
+  const [articleRows, threadRows, footnoteRows, cryptonymRows] = await Promise.all([
     query<{
       topic_title: string;
       article: string | null;
@@ -1744,12 +1745,22 @@ export async function fetchOpenQuestionsTopic(
       summary: string | null;
       tension_type: string | null;
       supporting_doc_ids: string[] | null;
+      status: string | null;
+      resolution_text: string | null;
+      resolution_citation_ids: string[] | null;
     }>(
       `SELECT batch_num, question_index, question, summary, tension_type,
-              supporting_doc_ids
+              supporting_doc_ids, status, resolution_text,
+              resolution_citation_ids
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_batch_questions\`
         WHERE slug = @slug
         ORDER BY
+          CASE COALESCE(status, 'open')
+            WHEN 'open' THEN 0
+            WHEN 'partially_resolved' THEN 1
+            WHEN 'resolved' THEN 2
+            ELSE 3
+          END,
           CASE tension_type
             WHEN 'contradiction' THEN 0
             WHEN 'timing' THEN 1
@@ -1777,6 +1788,20 @@ export async function fetchOpenQuestionsTopic(
         ORDER BY sort_order`,
       { slug },
     ).catch(() => []),
+    query<{
+      cryptonym: string;
+      meaning: string;
+      status: string;
+      first_public_source: string | null;
+      source_citation_id: string | null;
+      related_entity_ids: string[] | null;
+      notes: string | null;
+    }>(
+      `SELECT cryptonym, meaning, status, first_public_source,
+              source_citation_id, related_entity_ids, notes
+         FROM \`${PROJECT}.${DATASET_CURATED}.cryptonym_glossary\`
+        ORDER BY cryptonym`,
+    ).catch(() => []),
   ]);
 
   const row = articleRows[0];
@@ -1790,13 +1815,23 @@ export async function fetchOpenQuestionsTopic(
         }
       : null;
 
-  const threads: OpenQuestionThread[] = threadRows.map((t) => ({
-    id: `q-${t.batch_num}-${t.question_index}`,
-    question: t.question,
-    summary: t.summary,
-    tensionType: t.tension_type,
-    supportingDocIds: t.supporting_doc_ids ?? [],
-  }));
+  const threads: OpenQuestionThread[] = threadRows.map((t) => {
+    const rawStatus = t.status ?? "open";
+    const status =
+      rawStatus === "resolved" || rawStatus === "partially_resolved"
+        ? rawStatus
+        : "open";
+    return {
+      id: `q-${t.batch_num}-${t.question_index}`,
+      question: t.question,
+      summary: t.summary,
+      tensionType: t.tension_type,
+      supportingDocIds: t.supporting_doc_ids ?? [],
+      status,
+      resolutionText: t.resolution_text,
+      resolutionCitationIds: t.resolution_citation_ids ?? [],
+    };
+  });
 
   // Match editorial footnotes to this topic's surface. A footnote with no
   // trigger_patterns attaches unconditionally; otherwise any pattern must
@@ -1825,6 +1860,19 @@ export async function fetchOpenQuestionsTopic(
   // the page can 404 cleanly rather than render an empty shell.
   if (!article && threads.length === 0) return null;
 
+  const cryptonyms: CryptonymEntry[] = cryptonymRows.map((c) => ({
+    cryptonym: c.cryptonym,
+    meaning: c.meaning,
+    status:
+      c.status === "declassified" || c.status === "partial"
+        ? c.status
+        : "unresolved",
+    firstPublicSource: c.first_public_source ?? null,
+    sourceCitationId: c.source_citation_id || null,
+    relatedEntityIds: c.related_entity_ids ?? [],
+    notes: c.notes || null,
+  }));
+
   return {
     slug,
     title: catalog.title,
@@ -1834,6 +1882,7 @@ export async function fetchOpenQuestionsTopic(
     questionCount: threads.length,
     threads,
     editorialFootnotes,
+    cryptonyms,
   };
 }
 

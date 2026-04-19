@@ -281,12 +281,30 @@ export type OpenQuestionsTopicCard = {
   tensionCounts: Record<string, number>;
 };
 
+export type OpenQuestionStatus =
+  | "open"
+  | "partially_resolved"
+  | "resolved";
+
 export type OpenQuestionThread = {
   id: string;
   question: string;
   summary: string | null;
   tensionType: string | null;
   supportingDocIds: string[];
+  status: OpenQuestionStatus;
+  resolutionText: string | null;
+  resolutionCitationIds: string[];
+};
+
+export type CryptonymEntry = {
+  cryptonym: string;
+  meaning: string;
+  status: "declassified" | "partial" | "unresolved";
+  firstPublicSource: string | null;
+  sourceCitationId: string | null;
+  relatedEntityIds: string[];
+  notes: string | null;
 };
 
 export type OpenQuestionsIndexResponse = {
@@ -311,6 +329,7 @@ export type OpenQuestionsTopicResponse = {
   questionCount: number;
   threads: OpenQuestionThread[];
   editorialFootnotes: EditorialFootnote[];
+  cryptonyms: CryptonymEntry[];
 };
 
 // ---------------------------------------------------------------------------

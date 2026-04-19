@@ -1,11 +1,24 @@
 import Link from "next/link";
-import type { OpenQuestionThread } from "@/lib/api-types";
+import type {
+  CryptonymEntry,
+  OpenQuestionStatus,
+  OpenQuestionThread,
+} from "@/lib/api-types";
 import { TENSION_ORDER, tensionLabel } from "./tension-labels";
+import { CryptonymMention } from "./cryptonym-mention";
+
+const STATUS_LABEL: Record<OpenQuestionStatus, string> = {
+  open: "Open",
+  partially_resolved: "Partially resolved",
+  resolved: "Resolved",
+};
 
 export function OpenQuestionsThreadList({
   threads,
+  cryptonyms = [],
 }: {
   threads: OpenQuestionThread[];
+  cryptonyms?: CryptonymEntry[];
 }) {
   if (threads.length === 0) return null;
 
@@ -27,6 +40,7 @@ export function OpenQuestionsThreadList({
     <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
       {orderedKeys.map((key) => {
         const items = buckets.get(key)!;
+        const resolvedCount = items.filter((i) => i.status === "resolved").length;
         return (
           <section key={key} aria-label={tensionLabel(key)}>
             <div
@@ -52,6 +66,11 @@ export function OpenQuestionsThreadList({
                 style={{ fontSize: "0.82rem" }}
               >
                 {items.length}
+                {resolvedCount > 0 && (
+                  <span style={{ marginLeft: 8 }}>
+                    ({resolvedCount} resolved)
+                  </span>
+                )}
               </span>
             </div>
             <ul
@@ -65,7 +84,7 @@ export function OpenQuestionsThreadList({
               }}
             >
               {items.map((t) => (
-                <ThreadItem key={t.id} thread={t} />
+                <ThreadItem key={t.id} thread={t} cryptonyms={cryptonyms} />
               ))}
             </ul>
           </section>
@@ -75,9 +94,17 @@ export function OpenQuestionsThreadList({
   );
 }
 
-function ThreadItem({ thread }: { thread: OpenQuestionThread }) {
+function ThreadItem({
+  thread,
+  cryptonyms,
+}: {
+  thread: OpenQuestionThread;
+  cryptonyms: CryptonymEntry[];
+}) {
+  const isResolved = thread.status === "resolved";
   return (
     <li
+      className={isResolved ? "oq-thread-resolved" : undefined}
       style={{
         padding: "18px 20px",
         border: "1px solid var(--border)",
@@ -87,14 +114,31 @@ function ThreadItem({ thread }: { thread: OpenQuestionThread }) {
     >
       <div
         style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "1.02rem",
-          lineHeight: 1.4,
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 10,
           marginBottom: 8,
-          color: "var(--text)",
         }}
       >
-        {thread.question}
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: "1.02rem",
+            lineHeight: 1.4,
+            color: "var(--text)",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <CryptonymMention text={thread.question} glossary={cryptonyms} />
+        </div>
+        <span
+          className={`oq-status-pill oq-status-${thread.status}`}
+          aria-label={`Status: ${STATUS_LABEL[thread.status]}`}
+        >
+          {STATUS_LABEL[thread.status]}
+        </span>
       </div>
       {thread.summary && (
         <p
@@ -105,7 +149,26 @@ function ThreadItem({ thread }: { thread: OpenQuestionThread }) {
             marginBottom: 10,
           }}
         >
-          {thread.summary}
+          <CryptonymMention text={thread.summary} glossary={cryptonyms} />
+        </p>
+      )}
+      {thread.resolutionText && (
+        <p
+          style={{
+            fontSize: "0.88rem",
+            lineHeight: 1.55,
+            color: "var(--text)",
+            marginTop: 4,
+            marginBottom: 10,
+            paddingLeft: 10,
+            borderLeft: "2px solid var(--accent)",
+          }}
+        >
+          <strong>Resolution:</strong>{" "}
+          <CryptonymMention
+            text={thread.resolutionText}
+            glossary={cryptonyms}
+          />
         </p>
       )}
       {thread.supportingDocIds.length > 0 && (

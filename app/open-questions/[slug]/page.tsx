@@ -138,7 +138,10 @@ export default async function OpenQuestionsTopicPage({
                   title="Underlying threads"
                   description="The batch-level candidate questions that the article synthesizes. Each links to the documents that grounded it."
                 />
-                <OpenQuestionsThreadList threads={data.threads} />
+                <OpenQuestionsThreadList
+                  threads={data.threads}
+                  cryptonyms={data.cryptonyms}
+                />
               </aside>
             )}
           </div>
