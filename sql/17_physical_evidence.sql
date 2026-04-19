@@ -139,18 +139,22 @@ select * from unnest([
    'Second of the two Neely Street backyard photographs. Same session as CE-133-A; the pose differs. Authenticated by the HSCA Photographic Evidence Panel in 1978.',
    cast([] as array<struct<step_order int64, date date, custodian string, action string>>), [], cast([] as array<struct<volume int64, witness string, page int64>>), ['oswald','marina-oswald'], '', '', 21),
   ('zapruder-film', 'photographic', 'Zapruder Film (8mm color film, frames 133-486)',
-   'Abraham Zapruder\'s 26-second color 8mm home movie of the motorcade on Elm Street. The film is the single most-examined piece of visual evidence in the case: frames 133 through 486 cover the motorcade\'s passage through Dealey Plaza, with frames 312-313 showing the fatal head wound. The Commission, the HSCA, and the ARRB each examined optically enhanced copies. The original film was acquired by the federal government under the ARRB\'s authority in 1997.',
+   'Abraham Zapruder\'s 26-second color 8mm home movie of the motorcade on Elm Street. The film is the single most-examined piece of visual evidence in the case: frames 133 through 486 cover the motorcade\'s passage through Dealey Plaza, with frames 312-313 showing the fatal head wound. The Commission, the HSCA, and the ARRB each examined optically enhanced copies. The federal government took the original film by eminent domain in 1998 under the JFK Records Act, with arbitration setting compensation at $16M in 2000.',
    [
      struct<step_order int64, date date, custodian string, action string>(
        1, date '1963-11-22', 'Abraham Zapruder',
        'Filmed from a concrete pergola on the north side of Elm Street.'
      ),
      (2, date '1963-11-23', 'LIFE Magazine',
-      'Time-Life Inc. purchased publication rights for $150,000.'),
-     (3, date '1975-01-01', 'Zapruder family',
-      'LIFE returned the film to the Zapruder family for $1.'),
-     (4, date '1997-04-01', 'U.S. Government (ARRB)',
-      'Original film declared an assassination record; acquired by the U.S. through the ARRB.')
+      'Time-Life Inc. purchased print rights for $50,000 (initial agreement).'),
+     (3, date '1963-11-25', 'LIFE Magazine',
+      'LIFE acquired all rights for an additional $100,000 (total $150,000, paid in installments through 1964).'),
+     (4, date '1975-01-01', 'Zapruder family',
+      'LIFE returned the original film to the Zapruder family for $1.'),
+     (5, date '1997-04-24', 'U.S. Government (ARRB)',
+      'ARRB designated the original film an "assassination record" under the JFK Records Act.'),
+     (6, date '1998-08-03', 'U.S. Government (NARA)',
+      'Federal government formally took the original film from the Zapruder family by eminent domain; an arbitration panel set compensation at $16 million in 2000.')
    ],
    [], [], ['zapruder','warren-commission','hsca','arrb'],
    'https://www.archives.gov/research/jfk/assassination-records', 'National Archives', 22),
