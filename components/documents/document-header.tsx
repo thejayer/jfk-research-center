@@ -1,6 +1,7 @@
 import type { DocumentDetail } from "@/lib/api-types";
 import { Badge } from "@/components/ui/badge";
 import { CiteButton } from "./cite-button";
+import { CopyNaidButton } from "./copy-naid-button";
 import { formatCitation } from "@/lib/citations";
 
 export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
@@ -47,8 +48,9 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
           </>
         )}
         <Dot />
-        <span>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
           NAID <span className="num">{doc.naid}</span>
+          <CopyNaidButton naid={doc.naid} />
         </span>
       </div>
 

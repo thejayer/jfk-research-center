@@ -38,7 +38,7 @@ export default async function SearchPage({
       <div
         style={{
           position: "sticky",
-          top: 64,
+          top: "var(--header-height)",
           zIndex: 30,
           background: "color-mix(in srgb, var(--bg) 92%, transparent)",
           backdropFilter: "saturate(1.2) blur(8px)",
@@ -113,7 +113,7 @@ export default async function SearchPage({
                   title="No matching records."
                   description={
                     q
-                      ? "Try broadening the phrase, dropping punctuation, or switching between the Documents and Mentions modes."
+                      ? "Try broadening the phrase, dropping punctuation, or switching between the Documents, Mentions, and Semantic modes. Semantic often finds a passage when substring search misses."
                       : "Enter a term, a name, an agency, or a phrase to begin searching the collection."
                   }
                   action={

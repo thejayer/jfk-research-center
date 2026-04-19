@@ -53,9 +53,10 @@
 }
 
 .nav {
-  display: none;
+  display: flex;
   gap: 20px;
   margin-left: 12px;
+  min-width: 0;
 }
 
 .navLink {
@@ -64,6 +65,8 @@
   padding: 4px 2px;
   border-bottom: 1px solid transparent;
   transition: color var(--motion), border-color var(--motion);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .navLink:hover {
@@ -114,10 +117,44 @@
   background: var(--bg);
 }
 
-@media (min-width: 720px) {
-  .nav {
-    display: flex;
+@media (max-width: 719.98px) {
+  /* Stack the nav onto a second row and let it scroll horizontally so all
+     seven items stay reachable on phones. Keeping the existing sticky
+     header position; /search consumers read --header-height from globals. */
+  .inner {
+    flex-wrap: wrap;
+    height: auto;
+    padding-top: 10px;
+    padding-bottom: 8px;
+    gap: 12px;
+    row-gap: 6px;
   }
+  .brand {
+    order: 1;
+  }
+  .actions {
+    order: 2;
+    margin-left: auto;
+  }
+  .nav {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    gap: 16px;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+  .nav::-webkit-scrollbar {
+    display: none;
+  }
+  .brandSub {
+    display: none;
+  }
+}
+
+@media (min-width: 720px) {
   .searchBtn span,
   .kbd {
     display: inline-flex;
