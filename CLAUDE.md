@@ -258,8 +258,23 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (Phase 5-C co-occurrence graph)
+**Last updated:** 2026-04-19 (Phase 5-E public API v1)
 
+- **Phase 5-E public API v1 (2026-04-19).** Read-only, CORS-open,
+  unauthenticated endpoints at `/api/v1/*` re-exposing the warehouse
+  data under a stable contract:
+  - `GET /api/v1/documents` (q, topic×, entity×, agency×, yearFrom,
+    yearTo, confidence×, limit 1-200)
+  - `GET /api/v1/documents/{naid}`
+  - `GET /api/v1/entities`, `GET /api/v1/entities/{id}`
+  - `GET /api/v1/topics`, `GET /api/v1/topics/{slug}`
+  - `GET /api/v1/timeline` (from, to, category×)
+  - `GET /api/v1/search/semantic` (q required, limit 1-50)
+  - `GET /api/v1/openapi.json` — OpenAPI 3.1 spec with the base URL
+    derived from request origin.
+  - `GET /api/docs` — HTML docs page with endpoint list + examples.
+  Shared helper `lib/api-v1.ts` wraps CORS + cache headers +
+  preflight. PW-5E-2 (Firestore API keys + rate limits) is deferred.
 - **Phase 5-C co-occurrence graph (2026-04-19).** `/graph` renders a
   force-directed entity network using `d3-force` + hand-rolled SVG
   (no react-force-graph-2d dep). `sql/32_entity_cooccurrence.sql`
@@ -649,6 +664,12 @@ bq query --use_legacy_sql=false \
   — mostly external coordination with Google's public-dataset program
   rather than coding work. Revisit once 5-E public API is live and
   stable so the mirror has a natural home for researchers.
+- **5-E API keys + rate limits (PW-5E-2 follow-up).** Public v1 API
+  shipped without keys or rate limits — fine for now while traffic is
+  negligible, but Vertex-hit endpoints (`/search/semantic`) could get
+  abused. When ready: Firestore-backed keys (free tier 1000 req/day,
+  no-auth below some lower public threshold), per-key counters, kill
+  switch on per-endpoint spend. See gameplan PW-5E-2.
 - **Run axe-core live audit (4-I follow-up).** Static fixes are in
   (focus trap on help modal, `:focus-visible` rings, no missing alt/
   aria-label gaps), but the full WCAG 2.2 AA audit still needs a live
