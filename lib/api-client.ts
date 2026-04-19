@@ -15,7 +15,9 @@ import { headers } from "next/headers";
 import type {
   CorpusManifest,
   DocumentResponse,
+  EntityCard,
   EntityResponse,
+  EstablishedFactsIndex,
   HomeResponse,
   OpenQuestionsIndexResponse,
   OpenQuestionsTopicResponse,
@@ -115,6 +117,13 @@ export async function fetchTopics(): Promise<TopicCard[]> {
   return data?.topics ?? [];
 }
 
+export async function fetchEntities(): Promise<EntityCard[]> {
+  const data = await get<{ entities: EntityCard[] }>("/api/entities", {
+    revalidate: 600,
+  });
+  return data?.entities ?? [];
+}
+
 export async function fetchDocument(id: string): Promise<DocumentResponse | null> {
   return get<DocumentResponse>(`/api/document/${encodeURIComponent(id)}`, {
     revalidate: 600,
@@ -143,6 +152,14 @@ export async function fetchPhysicalEvidenceIndex(): Promise<PhysicalEvidenceInde
     revalidate: 600,
   });
   if (!data) throw new Error("Physical evidence index missing");
+  return data;
+}
+
+export async function fetchEstablishedFactsIndex(): Promise<EstablishedFactsIndex> {
+  const data = await get<EstablishedFactsIndex>("/api/established-facts", {
+    revalidate: 600,
+  });
+  if (!data) throw new Error("Established facts index missing");
   return data;
 }
 

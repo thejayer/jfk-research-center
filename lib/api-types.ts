@@ -264,6 +264,51 @@ export type OpenQuestionsTopicResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Established Facts — symmetric counterweight to Open Questions. Backed by
+// sql/22a (jfk_curated.established_facts).
+// ---------------------------------------------------------------------------
+
+export type EstablishedFactConfidence =
+  | "Settled"
+  | "Well-supported"
+  | "Contested";
+
+export type EstablishedFactCategory =
+  | "ballistic"
+  | "witness"
+  | "medical"
+  | "chronology"
+  | "documentary"
+  | "operational"
+  | "legal";
+
+export type EstablishedFact = {
+  id: string;
+  topicId: string;
+  topicTitle: string | null;
+  topicHref: string;
+  claim: string;
+  longForm: string;
+  supportingNaids: string[];
+  supportingCitations: string[];
+  category: EstablishedFactCategory;
+  confidence: EstablishedFactConfidence;
+};
+
+export type EstablishedFactsIndex = {
+  facts: EstablishedFact[];
+  countsByConfidence: Array<{
+    confidence: EstablishedFactConfidence;
+    count: number;
+  }>;
+  countsByTopic: Array<{
+    topicId: string;
+    topicTitle: string | null;
+    count: number;
+  }>;
+};
+
+// ---------------------------------------------------------------------------
 // Physical evidence — catalog of ballistic, firearm, photographic, medical,
 // documentary, clothing, and environmental items from the case. Backed by
 // sql/17 (jfk_curated.physical_evidence).

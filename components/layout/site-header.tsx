@@ -4,10 +4,11 @@ import styles from "./site-header.module.css";
 
 const NAV: Array<{ label: string; href: string }> = [
   { label: "Search", href: "/search" },
-  { label: "Entities", href: "/entity/oswald" },
+  { label: "Entities", href: "/entities" },
   { label: "Topics", href: "/topics" },
   { label: "Evidence", href: "/evidence" },
   { label: "Open Questions", href: "/open-questions" },
+  { label: "Established Facts", href: "/established-facts" },
 ];
 
 export function SiteHeader() {

@@ -28,6 +28,10 @@ import type {
   EntityFact,
   EntityResponse,
   EntitySource,
+  EstablishedFact,
+  EstablishedFactCategory,
+  EstablishedFactConfidence,
+  EstablishedFactsIndex,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
   PhysicalEvidenceDetail,
@@ -566,6 +570,24 @@ export async function fetchAllTopics(): Promise<TopicCard[]> {
   return TOPIC_DISPLAY_ORDER.map((slug) =>
     topicToCard(slug, counts.get(slug) ?? 0),
   );
+}
+
+export async function fetchAllEntities(): Promise<EntityCard[]> {
+  const entities = await loadEntities();
+  const counts = await query<{ entity_id: string; n: number }>(
+    `SELECT entity_id, COUNT(*) AS n
+       FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+      GROUP BY entity_id`,
+  );
+  const countByEntity = new Map(counts.map((r) => [r.entity_id, r.n]));
+  return entities
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((e) =>
+      entityRowToCard(e, {
+        mentions: countByEntity.get(e.entity_id) ?? 0,
+        documents: countByEntity.get(e.entity_id) ?? 0,
+      }),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1526,6 +1548,65 @@ export async function fetchOpenQuestionsTopic(
     threads,
     editorialFootnotes,
   };
+}
+
+// ---------------------------------------------------------------------------
+// ESTABLISHED FACTS
+// ---------------------------------------------------------------------------
+
+type EstablishedFactRow = {
+  fact_id: string;
+  topic_id: string;
+  claim: string;
+  long_form: string;
+  supporting_naids: string[] | null;
+  supporting_citations: string[] | null;
+  category: string;
+  confidence: string;
+  sort_order: number | null;
+};
+
+export async function fetchEstablishedFactsIndex(): Promise<EstablishedFactsIndex> {
+  const rows = await query<EstablishedFactRow>(
+    `SELECT *
+       FROM \`${PROJECT}.${DATASET_CURATED}.established_facts\`
+      ORDER BY confidence, topic_id, sort_order`,
+  );
+
+  const facts: EstablishedFact[] = rows.map((r) => {
+    const topic = TOPIC_CATALOG[r.topic_id];
+    return {
+      id: r.fact_id,
+      topicId: r.topic_id,
+      topicTitle: topic?.title ?? null,
+      topicHref: `/topic/${encodeURIComponent(r.topic_id)}`,
+      claim: r.claim,
+      longForm: r.long_form,
+      supportingNaids: r.supporting_naids ?? [],
+      supportingCitations: r.supporting_citations ?? [],
+      category: r.category as EstablishedFactCategory,
+      confidence: (r.confidence as EstablishedFactConfidence) ?? "Settled",
+    };
+  });
+
+  const countsByConfidence: EstablishedFactsIndex["countsByConfidence"] = (
+    ["Settled", "Well-supported", "Contested"] as EstablishedFactConfidence[]
+  ).map((conf) => ({
+    confidence: conf,
+    count: facts.filter((f) => f.confidence === conf).length,
+  }));
+
+  const topicMap = new Map<string, { title: string | null; count: number }>();
+  for (const f of facts) {
+    const t = topicMap.get(f.topicId) ?? { title: f.topicTitle, count: 0 };
+    t.count += 1;
+    topicMap.set(f.topicId, t);
+  }
+  const countsByTopic = Array.from(topicMap.entries())
+    .map(([topicId, v]) => ({ topicId, topicTitle: v.title, count: v.count }))
+    .sort((a, b) => b.count - a.count);
+
+  return { facts, countsByConfidence, countsByTopic };
 }
 
 // ---------------------------------------------------------------------------

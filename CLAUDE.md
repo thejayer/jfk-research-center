@@ -258,7 +258,38 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (Phase 2-B: 6 new topics)
+**Last updated:** 2026-04-19 (Phase 2-A Wave 1 + 2-C Established Facts)
+
+- **Phase 2-A Wave 1 + Phase 2-C Established Facts (2026-04-19).**
+  - **2-C: Established Facts** (`sql/22a`, 37 seeded facts across Settled
+    / Well-supported / Contested tiers). Symmetric counterweight to
+    /open-questions: the findings the WC/HSCA/ARRB/Church Committee
+    agree on (single-bullet geometry, Tippit eyewitness IDs, Carcano
+    provenance, Church Committee-documented CIA-Mafia plots) plus
+    explicitly-tagged Contested facts (autopsy entry-wound location,
+    Oswald motive, CIA/FBI withholding substantive effect). Each fact
+    links to citation_registry IDs. Rendered at `/established-facts`,
+    grouped by confidence tier. Added to primary nav.
+  - **2-A Wave 1: 11 new entities** — Tippit, Zapruder, Connally, Earl
+    Warren, Dulles, Blakey, Church Committee (org), ARRB (org), Duran,
+    Phillips, Win Scott. Total roster now 20 entities. Each has:
+    - Row in `sql/12_curated_jfk_entities.sql` (aliases, summary,
+      description, born/died/active_years).
+    - 3–5 structured facts in `sql/19_entity_facts.sql` (108 total
+      facts across the roster).
+    - 1–2 primary/reference sources in `sql/16_entity_sources.sql`
+      (40 total sources).
+    - Automatic alias-based document mentions from `sql/13` rerun:
+      arrb 681, church-committee 306, duran 72, blakey 70, phillips 56,
+      dulles 51, win-scott 44, zapruder 11, earl-warren 9, connally 5,
+      tippit 1.
+  - **/entities index page** — new listing of all 20 entities,
+    separated by People / Organizations, with mention counts. Nav now
+    routes "Entities" to /entities rather than /entity/oswald.
+  - Phase 2 status: 2-A Wave 1 ✅, 2-B ✅, 2-C ✅. Wave 2-3 (de
+    Mohrenschildt, Cubela, Kostikov, mob figures, Garrison, Clay Shaw,
+    Goodpasture, Jane Roman) remain for a follow-up session.
+- **Phase 2-B — 6 new topics (2026-04-19).**
 
 - **Phase 2-B — 6 new topics (2026-04-19).** Expanded topic roster from
   6 to 12. Five new AI-driven topics go through the existing sql/25/26/
