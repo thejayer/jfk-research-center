@@ -654,11 +654,13 @@ bq query --use_legacy_sql=false \
 
 ## Open TODOs
 
-- **3-C Corrections workflow (deferred from Phase 3 light wave).** Needs
-  `jfk_curated.corrections_submissions` BQ table (schema in
-  `jfk_research_center_gameplan.md` §3-C), public form at `/corrections`,
-  and a protected admin triage view. Blocking: admin auth scheme not
-  decided yet.
+- **3-C Corrections admin triage view (deferred).** The public form +
+  BQ table (`jfk_curated.corrections_submissions`, sql/40) +
+  `/api/corrections` insert path shipped in the April 2026 hotfix
+  cycle, alongside "Report an error on this page" links on entity and
+  topic pages. The admin triage view at `/admin/corrections` remains
+  blocked on the project's admin auth scheme decision (Cloud IAM vs.
+  Identity-Aware Proxy vs. a small in-app allowlist).
 - **3-E Dealey Plaza interactive page (deferred).** Needs
   `jfk_curated.dealey_plaza_witnesses` table seeded first (schema in
   gameplan §3-E), then Leaflet or MapLibre over a historical Dealey Plaza

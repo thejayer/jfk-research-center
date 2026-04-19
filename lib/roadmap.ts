@@ -136,10 +136,19 @@ export const ROADMAP: RoadmapItem[] = [
   },
   {
     surface: "/corrections",
-    label: "Corrections workflow",
-    status: "in_progress",
+    label: "Corrections workflow (public form)",
+    status: "shipped",
     phase: "Hotfix cycle",
-    description: "Public form for flagging factual errors; admin triage view behind IAM.",
+    description:
+      "Public form for flagging factual errors; submissions queue in BigQuery (corrections_submissions).",
+  },
+  {
+    surface: "/admin/corrections",
+    label: "Corrections admin triage view",
+    status: "planned",
+    phase: "Hotfix cycle follow-up",
+    description:
+      "Cloud IAM-protected admin page for triaging corrections submissions. Blocking on the project's admin auth scheme decision.",
   },
   {
     surface: "/dealey-plaza",

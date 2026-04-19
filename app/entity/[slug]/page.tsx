@@ -11,6 +11,7 @@ import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { LinkButton } from "@/components/ui/button";
+import { ReportErrorLink } from "@/components/corrections/report-error-link";
 
 export const dynamic = "force-dynamic";
 
@@ -221,6 +222,10 @@ export default async function EntityPage({
           Open mention search →
         </LinkButton>
       </section>
+
+      <div style={{ marginTop: 28, textAlign: "right" }}>
+        <ReportErrorLink surface="entity_bio" targetId={data.entity.slug} />
+      </div>
     </div>
   );
 }

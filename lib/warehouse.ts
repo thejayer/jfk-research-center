@@ -86,6 +86,40 @@ async function query<T = Record<string, unknown>>(
 }
 
 // ---------------------------------------------------------------------------
+// Public corrections form — backed by sql/40.
+// ---------------------------------------------------------------------------
+
+export type CorrectionInsert = {
+  submissionId: string;
+  surface: string;
+  targetId: string;
+  issue: string;
+  suggestedFix: string;
+  submitterEmail: string;
+  userAgent: string;
+};
+
+export async function insertCorrection(input: CorrectionInsert): Promise<void> {
+  await bq()
+    .dataset(DATASET_CURATED)
+    .table("corrections_submissions")
+    .insert([
+      {
+        submission_id: input.submissionId,
+        submitted_at: new Date().toISOString(),
+        surface: input.surface,
+        target_id: input.targetId || null,
+        issue: input.issue,
+        suggested_fix: input.suggestedFix || null,
+        submitter_email: input.submitterEmail || null,
+        status: "new",
+        user_agent: input.userAgent || null,
+        notes: null,
+      },
+    ]);
+}
+
+// ---------------------------------------------------------------------------
 // Row adapters
 // ---------------------------------------------------------------------------
 
