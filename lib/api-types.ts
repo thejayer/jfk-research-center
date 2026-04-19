@@ -126,9 +126,17 @@ export type SearchResult =
 
 export type SearchFilters = {
   years: string[];
+  yearCounts: Record<string, number>;
   agencies: string[];
+  agencyCounts: Record<string, number>;
+  // topics/entities values are stable slugs/ids used in URLs and BQ filters;
+  // the sidebar renders labels[id] for display.
   topics: string[];
+  topicLabels: Record<string, string>;
+  topicCounts: Record<string, number>;
   entities: string[];
+  entityLabels: Record<string, string>;
+  entityCounts: Record<string, number>;
   confidence: ConfidenceLevel[];
 };
 

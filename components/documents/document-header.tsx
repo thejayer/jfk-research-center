@@ -1,7 +1,19 @@
 import type { DocumentDetail } from "@/lib/api-types";
 import { Badge } from "@/components/ui/badge";
+import { CiteButton } from "./cite-button";
+import { formatCitation } from "@/lib/citations";
 
 export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
+  const citations = formatCitation({
+    title: doc.title,
+    naid: doc.naid,
+    agency: doc.agency,
+    recordGroup: doc.recordGroup,
+    collectionName: doc.collectionName,
+    startDate: doc.startDate,
+    endDate: doc.endDate,
+    sourceUrl: doc.sourceUrl,
+  });
   return (
     <header
       style={{
@@ -95,6 +107,8 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
           ))}
         </div>
       )}
+
+      <CiteButton citations={citations} />
     </header>
   );
 }

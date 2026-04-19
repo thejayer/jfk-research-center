@@ -1477,22 +1477,32 @@ export function buildSearchResponse({
 }): SearchResponse {
   const q = query.trim().toLowerCase();
 
+  const mockYears = ["1959", "1960", "1963", "1964", "1968", "1978", "1979", "1998"];
+  const mockAgencies = [
+    "CIA",
+    "FBI",
+    "Warren Commission",
+    "HSCA",
+    "ARRB",
+    "Secret Service",
+    "Department of State",
+    "Department of Defense",
+  ];
   const filters = {
-    years: ["1959", "1960", "1963", "1964", "1968", "1978", "1979", "1998"],
-    agencies: [
-      "CIA",
-      "FBI",
-      "Warren Commission",
-      "HSCA",
-      "ARRB",
-      "Secret Service",
-      "Department of State",
-      "Department of Defense",
-    ],
-    topics: Object.keys(TOPIC_TABLE).map(
-      (s) => TOPIC_TABLE[s].title,
+    years: mockYears,
+    yearCounts: Object.fromEntries(mockYears.map((y) => [y, 0])),
+    agencies: mockAgencies,
+    agencyCounts: Object.fromEntries(mockAgencies.map((a) => [a, 0])),
+    topics: Object.keys(TOPIC_TABLE),
+    topicLabels: Object.fromEntries(
+      Object.entries(TOPIC_TABLE).map(([slug, t]) => [slug, t.title]),
     ),
-    entities: Object.values(ENTITY_TABLE).map((e) => e.name),
+    topicCounts: Object.fromEntries(Object.keys(TOPIC_TABLE).map((s) => [s, 0])),
+    entities: Object.keys(ENTITY_TABLE),
+    entityLabels: Object.fromEntries(
+      Object.entries(ENTITY_TABLE).map(([id, e]) => [id, e.name]),
+    ),
+    entityCounts: Object.fromEntries(Object.keys(ENTITY_TABLE).map((id) => [id, 0])),
     confidence: ["high", "medium", "low"] as ConfidenceLevel[],
   };
 

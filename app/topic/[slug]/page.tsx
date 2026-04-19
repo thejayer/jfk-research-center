@@ -83,7 +83,7 @@ export default async function TopicPage({
         }}
       >
         <LinkButton
-          href={`/search?q=${encodeURIComponent(data.topic.title)}&mode=document`}
+          href={`/search?topic=${encodeURIComponent(data.topic.slug)}`}
           variant="primary"
         >
           Search within topic →

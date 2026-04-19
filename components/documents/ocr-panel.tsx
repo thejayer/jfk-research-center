@@ -105,9 +105,11 @@ export function OcrPanel({
             {mentions.map((m) => (
               <div
                 key={m.id}
+                id={`chunk-${m.id}`}
                 style={{
                   paddingLeft: 14,
                   borderLeft: "1px solid var(--border)",
+                  scrollMarginTop: 80,
                 }}
               >
                 <p

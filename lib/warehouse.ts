@@ -1127,10 +1127,10 @@ export async function fetchSearch({
   }
   if (filters.topics?.length) {
     const unionSql = filters.topics
-      .filter((t) => TOPIC_CATALOG[t])
+      .filter((slug) => TOPIC_CATALOG[slug])
       .map(
-        (t) =>
-          `SELECT document_id FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[t]!.mvpTable}\``,
+        (slug) =>
+          `SELECT document_id FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
       )
       .join(" UNION ALL ");
     if (unionSql) where.push(`document_id IN (${unionSql})`);
@@ -1278,31 +1278,70 @@ export async function fetchSearch({
 }
 
 async function loadSearchFacets() {
-  const [years, agencies, entities] = await Promise.all([
-    query<{ y: string }>(
-      `SELECT CAST(EXTRACT(YEAR FROM start_date) AS STRING) AS y
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
-        WHERE start_date IS NOT NULL
-          AND EXTRACT(YEAR FROM start_date) BETWEEN 1950 AND 2005
-        GROUP BY y
-        ORDER BY y DESC`,
-    ),
-    query<{ agency: string }>(
-      `SELECT agency
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
-        WHERE agency IS NOT NULL
-        GROUP BY agency
-        ORDER BY COUNT(*) DESC
-        LIMIT 14`,
-    ),
-    loadEntities(),
-  ]);
+  // physical-evidence has no per-document MVP list (it redirects to /evidence
+  // and is a catalog, not a classification). Exclude it from the search facet.
+  const searchableTopicSlugs = TOPIC_DISPLAY_ORDER.filter(
+    (s) => s !== "physical-evidence",
+  );
+  const topicCountsUnion = searchableTopicSlugs
+    .map(
+      (slug) =>
+        `SELECT '${slug}' AS slug, COUNT(*) AS n
+         FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
+    )
+    .join(" UNION ALL ");
+
+  const [years, agencies, entityMeta, entityCountRows, topicCountRows] =
+    await Promise.all([
+      query<{ y: string; n: number }>(
+        `SELECT CAST(EXTRACT(YEAR FROM start_date) AS STRING) AS y,
+                COUNT(*) AS n
+           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
+          WHERE start_date IS NOT NULL
+            AND EXTRACT(YEAR FROM start_date) BETWEEN 1950 AND 2005
+          GROUP BY y
+          ORDER BY y DESC`,
+      ),
+      query<{ agency: string; n: number }>(
+        `SELECT agency, COUNT(*) AS n
+           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
+          WHERE agency IS NOT NULL
+          GROUP BY agency
+         HAVING n >= 2
+          ORDER BY n DESC`,
+      ),
+      loadEntities(),
+      query<{ entity_id: string; n: number }>(
+        `SELECT entity_id, COUNT(DISTINCT document_id) AS n
+           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+          GROUP BY entity_id`,
+      ),
+      query<{ slug: string; n: number }>(topicCountsUnion),
+    ]);
+
+  const entityCountMap = Object.fromEntries(
+    entityCountRows.map((r) => [r.entity_id, r.n]),
+  );
+  const entityIds = [...entityMeta].sort(
+    (a, b) =>
+      (entityCountMap[b.entity_id] ?? 0) - (entityCountMap[a.entity_id] ?? 0),
+  );
 
   return {
     years: years.map((r) => r.y),
+    yearCounts: Object.fromEntries(years.map((r) => [r.y, r.n])),
     agencies: agencies.map((r) => r.agency),
-    topics: TOPIC_DISPLAY_ORDER.map((slug) => TOPIC_CATALOG[slug]!.title),
-    entities: entities.map((e) => e.entity_name),
+    agencyCounts: Object.fromEntries(agencies.map((r) => [r.agency, r.n])),
+    topics: searchableTopicSlugs,
+    topicLabels: Object.fromEntries(
+      searchableTopicSlugs.map((slug) => [slug, TOPIC_CATALOG[slug]!.title]),
+    ),
+    topicCounts: Object.fromEntries(topicCountRows.map((r) => [r.slug, r.n])),
+    entities: entityIds.map((e) => e.entity_id),
+    entityLabels: Object.fromEntries(
+      entityIds.map((e) => [e.entity_id, e.entity_name]),
+    ),
+    entityCounts: entityCountMap,
     confidence: ["high", "medium", "low"] as ConfidenceLevel[],
   };
 }

@@ -90,11 +90,19 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
       {FILTER_GROUPS.map((g) => {
         const values = g.fromFilters(filters);
         const activeCount = params?.getAll(g.key).length ?? 0;
+        const renderValue = g.renderValue
+          ? (v: string) => g.renderValue!(v, filters)
+          : (v: string) => v;
+        const countFor = g.countFor
+          ? (v: string) => g.countFor!(v, filters)
+          : () => undefined;
         return (
           <FilterGroup
             key={g.key}
             label={g.label}
             values={values}
+            renderValue={renderValue}
+            countFor={countFor}
             isActive={(v) => isActive(g.key, v)}
             onToggle={(v) => toggleParam(g.key, v)}
             activeCount={activeCount}
@@ -124,13 +132,37 @@ type Group = {
   key: FilterKey;
   label: string;
   fromFilters: (f: FacetData) => string[];
+  renderValue?: (v: string, f: FacetData) => string;
+  countFor?: (v: string, f: FacetData) => number | undefined;
 };
 
 const FILTER_GROUPS: Group[] = [
-  { key: "agency", label: "Agency", fromFilters: (f) => f.agencies },
-  { key: "year", label: "Year", fromFilters: (f) => f.years },
-  { key: "entity", label: "Entity", fromFilters: (f) => f.entities },
-  { key: "topic", label: "Topic", fromFilters: (f) => f.topics },
+  {
+    key: "agency",
+    label: "Agency",
+    fromFilters: (f) => f.agencies,
+    countFor: (v, f) => f.agencyCounts[v],
+  },
+  {
+    key: "year",
+    label: "Year",
+    fromFilters: (f) => f.years,
+    countFor: (v, f) => f.yearCounts[v],
+  },
+  {
+    key: "entity",
+    label: "Entity",
+    fromFilters: (f) => f.entities,
+    renderValue: (v, f) => f.entityLabels[v] ?? v,
+    countFor: (v, f) => f.entityCounts[v],
+  },
+  {
+    key: "topic",
+    label: "Topic",
+    fromFilters: (f) => f.topics,
+    renderValue: (v, f) => f.topicLabels[v] ?? v,
+    countFor: (v, f) => f.topicCounts[v],
+  },
   {
     key: "confidence",
     label: "Confidence",
@@ -141,6 +173,8 @@ const FILTER_GROUPS: Group[] = [
 function FilterGroup({
   label,
   values,
+  renderValue,
+  countFor,
   isActive,
   onToggle,
   activeCount,
@@ -150,6 +184,8 @@ function FilterGroup({
 }: {
   label: string;
   values: string[];
+  renderValue: (v: string) => string;
+  countFor: (v: string) => number | undefined;
   isActive: (v: string) => boolean;
   onToggle: (v: string) => void;
   activeCount: number;
@@ -157,8 +193,6 @@ function FilterGroup({
   open: boolean;
   onToggleOpen: () => void;
 }) {
-  const [showAll, setShowAll] = useState(false);
-  const shown = showAll ? values : values.slice(0, 8);
 
   return (
     <div style={{ borderTop: "1px solid var(--border)" }}>
@@ -229,46 +263,56 @@ function FilterGroup({
               Clear
             </button>
           )}
-          {shown.map((v) => {
-            const active = isActive(v);
-            return (
-              <label
-                key={v}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: "0.88rem",
-                  color: active ? "var(--text)" : "var(--text-muted)",
-                  cursor: "pointer",
-                  padding: "2px 0",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={active}
-                  onChange={() => onToggle(v)}
-                  style={{ accentColor: "var(--accent)" }}
-                  aria-label={`${label}: ${v}`}
-                />
-                <span>{v}</span>
-              </label>
-            );
-          })}
-          {!showAll && values.length > 8 && (
-            <button
-              type="button"
-              onClick={() => setShowAll(true)}
-              style={{
-                alignSelf: "flex-start",
-                fontSize: "0.78rem",
-                color: "var(--text-muted)",
-                padding: "2px 0",
-              }}
-            >
-              Show {values.length - 8} more
-            </button>
-          )}
+          <div
+            style={{
+              maxHeight: values.length > 14 ? 280 : undefined,
+              overflowY: values.length > 14 ? "auto" : undefined,
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
+            {values.map((v) => {
+              const active = isActive(v);
+              const display = renderValue(v);
+              const n = countFor(v);
+              return (
+                <label
+                  key={v}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: "0.88rem",
+                    color: active ? "var(--text)" : "var(--text-muted)",
+                    cursor: "pointer",
+                    padding: "2px 0",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={() => onToggle(v)}
+                    style={{ accentColor: "var(--accent)" }}
+                    aria-label={`${label}: ${display}`}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>{display}</span>
+                  {typeof n === "number" && (
+                    <span
+                      className="num muted"
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "var(--text-muted)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {n.toLocaleString()}
+                    </span>
+                  )}
+                </label>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

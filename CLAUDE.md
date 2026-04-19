@@ -585,6 +585,20 @@ bq query --use_legacy_sql=false \
 
 ## Open TODOs
 
+- **3-C Corrections workflow (deferred from Phase 3 light wave).** Needs
+  `jfk_curated.corrections_submissions` BQ table (schema in
+  `jfk_research_center_gameplan.md` §3-C), public form at `/corrections`,
+  and a protected admin triage view. Blocking: admin auth scheme not
+  decided yet.
+- **3-E Dealey Plaza interactive page (deferred).** Needs
+  `jfk_curated.dealey_plaza_witnesses` table seeded first (schema in
+  gameplan §3-E), then Leaflet or MapLibre over a historical Dealey Plaza
+  tileset (or SVG schematic). Overlays: motorcade route, Book Depository
+  6th floor, Triple Underpass, grassy knoll, Zapruder position.
+- **3-F heavy: zoomable D3 timeline (deferred).** Current `/timeline` is
+  a vertical chronological view. Spec wants horizontal zoomable timeline
+  with decade → year → day → hour zoom levels; the Nov 22–24 1963
+  hour-level view is the marquee.
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.
