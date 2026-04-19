@@ -705,6 +705,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
   const ocrExcerpts = await query<{
     document_id: string;
     chunk_id: string;
+    chunk_order: number;
     chunk_text: string;
     page_label: string | null;
   }>(
@@ -718,13 +719,13 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
      ),
      ranked AS (
        SELECT
-         c.document_id, c.chunk_id, c.chunk_text, c.page_label,
+         c.document_id, c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
          ROW_NUMBER() OVER (PARTITION BY c.document_id ORDER BY c.chunk_order) AS rn
        FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c, alias_regex
        WHERE c.source_type = 'abbyy_ocr'
          AND REGEXP_CONTAINS(LOWER(c.chunk_text), CONCAT(r'\\b(', alternation, r')\\b'))
      )
-     SELECT document_id, chunk_id, chunk_text, page_label
+     SELECT document_id, chunk_id, chunk_order, chunk_text, page_label
        FROM ranked WHERE rn = 1
       LIMIT 12`,
     { slug },
@@ -738,12 +739,13 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
         id: `m-ocr-${r.document_id}`,
         documentId: r.document_id,
         documentTitle: r.title,
-        documentHref: `/document/${encodeURIComponent(r.document_id)}`,
+        documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-${ocr.chunk_order}`,
         excerpt: truncateAround(ocr.chunk_text, entity.aliases, 260),
         matchedTerms: entity.aliases.slice(0, 3),
         confidence: (r.confidence as ConfidenceLevel) ?? "low",
         source: "ocr",
         pageLabel: ocr.page_label,
+        chunkOrder: ocr.chunk_order,
       };
     }
     return {
@@ -1006,12 +1008,13 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
           id: `m-${m.entity_id}-${hit.chunk_id}`,
           documentId: id,
           documentTitle: doc.title,
-          documentHref: `/document/${encodeURIComponent(id)}`,
+          documentHref: `/document/${encodeURIComponent(id)}#chunk-${hit.chunk_order}`,
           excerpt: truncateAround(hit.chunk_text, aliases, 280),
           matchedTerms: aliases.slice(0, 3),
           confidence: m.confidence,
           source: "ocr",
           pageLabel: hit.page_label,
+          chunkOrder: hit.chunk_order,
         });
       } else {
         mentions.push({
@@ -1220,11 +1223,12 @@ export async function fetchSearch({
       naid: string;
       title: string;
       chunk_id: string;
+      chunk_order: number;
       chunk_text: string;
       page_label: string | null;
     }>(
       `SELECT r.document_id, r.naid, r.title,
-              c.chunk_id, c.chunk_text, c.page_label
+              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
          JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
            USING (document_id)
@@ -1240,12 +1244,13 @@ export async function fetchSearch({
         id: `mx-${r.chunk_id}`,
         documentId: r.document_id,
         documentTitle: r.title,
-        documentHref: `/document/${encodeURIComponent(r.document_id)}`,
+        documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-${r.chunk_order}`,
         excerpt: truncateAround(r.chunk_text, [qNorm], 280),
         matchedTerms: [qNorm],
         confidence: "low",
         source: "ocr",
         pageLabel: r.page_label,
+        chunkOrder: r.chunk_order,
       },
     }));
 
@@ -1303,6 +1308,7 @@ export async function fetchSearch({
 
 type SemanticHitRow = {
   chunk_id: string;
+  chunk_order: number;
   document_id: string;
   naid: string;
   page_label: string | null;
@@ -1357,6 +1363,7 @@ async function fetchSemanticSearch({
     )
     SELECT
       h.chunk_id,
+      c.chunk_order,
       h.document_id,
       h.naid,
       h.page_label,
@@ -1377,12 +1384,13 @@ async function fetchSemanticSearch({
       id: `sem-${r.chunk_id}`,
       documentId: r.document_id,
       documentTitle: r.title,
-      documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-sem-${r.chunk_id}`,
+      documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-${r.chunk_order}`,
       excerpt: truncateAround(r.chunk_text, [qNorm], 280),
       matchedTerms: [qNorm],
       confidence: "medium" as ConfidenceLevel,
       source: "semantic",
       pageLabel: r.page_label,
+      chunkOrder: r.chunk_order,
       score: Math.max(0, Math.min(1, 1 - r.distance)),
     },
   }));
