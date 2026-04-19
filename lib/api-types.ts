@@ -118,6 +118,8 @@ export type MentionExcerpt = {
   confidence: ConfidenceLevel;
   source: "title" | "description" | "ocr" | "authority" | "semantic";
   pageLabel?: string | null;
+  /** 1-based per-document chunk ordinal; backs the #chunk-N anchor. */
+  chunkOrder?: number | null;
   /** Semantic similarity score in [0, 1]; higher is more relevant. */
   score?: number | null;
 };

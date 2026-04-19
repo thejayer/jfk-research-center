@@ -1,5 +1,7 @@
 import type { DocumentDetail, MentionExcerpt } from "@/lib/api-types";
 import { highlightHTML } from "@/lib/format";
+import { ChunkActions } from "./chunk-actions";
+import { ChunkHashHandler } from "./chunk-hash-handler";
 
 export function OcrPanel({
   doc,
@@ -95,6 +97,7 @@ export function OcrPanel({
 
       {mentions.length > 0 && (
         <div>
+          <ChunkHashHandler />
           <div
             className="eyebrow"
             style={{ marginBottom: 12 }}
@@ -102,36 +105,70 @@ export function OcrPanel({
             Matched passages in this record
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {mentions.map((m) => (
-              <div
-                key={m.id}
-                id={`chunk-${m.id}`}
-                style={{
-                  paddingLeft: 14,
-                  borderLeft: "1px solid var(--border)",
-                  scrollMarginTop: 80,
-                }}
-              >
-                <p
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "1rem",
-                    lineHeight: 1.55,
-                    color: "var(--text)",
-                    maxWidth: "66ch",
-                  }}
-                  dangerouslySetInnerHTML={{
-                    __html: `“${highlightHTML(m.excerpt, m.matchedTerms)}”`,
-                  }}
-                />
+            {mentions.map((m) => {
+              const anchorId =
+                m.chunkOrder != null ? `chunk-${m.chunkOrder}` : `chunk-${m.id}`;
+              return (
                 <div
-                  className="muted"
-                  style={{ fontSize: "0.78rem", marginTop: 6 }}
+                  key={m.id}
+                  id={anchorId}
+                  className="ocr-chunk"
+                  style={{
+                    paddingLeft: 14,
+                    paddingRight: 8,
+                    paddingTop: 4,
+                    paddingBottom: 4,
+                    borderLeft: "1px solid var(--border)",
+                    scrollMarginTop: 80,
+                  }}
                 >
-                  {m.pageLabel ? `${m.pageLabel} · ` : ""}source: {m.source}
+                  <p
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "1rem",
+                      lineHeight: 1.55,
+                      color: "var(--text)",
+                      maxWidth: "66ch",
+                    }}
+                    dangerouslySetInnerHTML={{
+                      __html: `“${highlightHTML(m.excerpt, m.matchedTerms)}”`,
+                    }}
+                  />
+                  <div
+                    className="muted"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      fontSize: "0.78rem",
+                      marginTop: 6,
+                    }}
+                  >
+                    <span>
+                      {m.chunkOrder != null ? `chunk ${m.chunkOrder} · ` : ""}
+                      {m.pageLabel ? `${m.pageLabel} · ` : ""}source:{" "}
+                      {m.source}
+                    </span>
+                    {m.chunkOrder != null && (
+                      <ChunkActions
+                        naid={doc.naid}
+                        chunkOrder={m.chunkOrder}
+                        citationInput={{
+                          title: doc.title,
+                          naid: doc.naid,
+                          agency: doc.agency,
+                          recordGroup: doc.recordGroup,
+                          collectionName: doc.collectionName,
+                          startDate: doc.startDate,
+                          endDate: doc.endDate,
+                          sourceUrl: doc.sourceUrl,
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

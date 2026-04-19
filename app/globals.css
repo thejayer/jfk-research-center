@@ -358,3 +358,66 @@ hr {
     animation: none;
   }
 }
+
+/* ----- Per-chunk anchor affordances (ChunkActions, ChunkHashHandler) ----- */
+.ocr-chunk {
+  position: relative;
+  border-radius: 6px;
+  transition: background-color 240ms ease;
+}
+.chunk-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+.ocr-chunk:hover .chunk-actions,
+.ocr-chunk:focus-within .chunk-actions {
+  opacity: 1;
+}
+.chunk-action-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.78rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.chunk-action-btn:hover,
+.chunk-action-btn:focus-visible {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text);
+  outline: none;
+}
+.chunk-cite-popover {
+  display: block;
+  position: absolute;
+  z-index: 5;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow-md, 0 6px 24px rgba(0,0,0,0.12));
+  max-width: 60ch;
+}
+.chunk-highlight {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: chunk-pulse 2.4s ease-out;
+}
+@keyframes chunk-pulse {
+  0%   { background: color-mix(in srgb, var(--accent) 32%, transparent); }
+  100% { background: color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chunk-highlight {
+    animation: none;
+  }
+}
