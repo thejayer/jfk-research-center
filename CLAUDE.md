@@ -258,8 +258,19 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (Phase 5-A vector search)
+**Last updated:** 2026-04-19 (Phase 5-C co-occurrence graph)
 
+- **Phase 5-C co-occurrence graph (2026-04-19).** `/graph` renders a
+  force-directed entity network using `d3-force` + hand-rolled SVG
+  (no react-force-graph-2d dep). `sql/32_entity_cooccurrence.sql`
+  aggregates (entity_a, entity_b, year) pair counts from
+  `jfk_document_entity_map` at medium+ confidence into
+  `jfk_curated.entity_cooccurrence`. `fetchEntityCooccurrence` sums
+  counts over a selected year window and drops edges with count<2
+  plus nodes with no remaining peers. Year range slider refetches
+  `/api/graph` on commit; node click → entity page, edge click →
+  `/search?entity=a&entity=b`. Nav: new "Network" item between
+  Timeline and Evidence.
 - **Phase 5-A vector search (2026-04-19).** Semantic mode live on
   `/search`. `sql/31_chunk_embeddings.sql` registers the
   `jfk_curated.text_embedding` remote model (Vertex `text-embedding-005`,

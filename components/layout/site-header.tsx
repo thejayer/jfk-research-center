@@ -7,6 +7,7 @@ const NAV: Array<{ label: string; href: string }> = [
   { label: "Entities", href: "/entities" },
   { label: "Topics", href: "/topics" },
   { label: "Timeline", href: "/timeline" },
+  { label: "Network", href: "/graph" },
   { label: "Evidence", href: "/evidence" },
   { label: "Open Questions", href: "/open-questions" },
   { label: "Established Facts", href: "/established-facts" },

@@ -38,6 +38,9 @@ import type {
   CaseTimelineIndex,
   CitationEntry,
   CitationType,
+  CooccurrenceGraph,
+  CooccurrenceLink,
+  CooccurrenceNode,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
   PhysicalEvidenceDetail,
@@ -1382,6 +1385,74 @@ async function fetchSemanticSearch({
     total: results.length,
     filters: facets,
     results,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// ENTITY CO-OCCURRENCE — Phase 5-C. Reads sql/32 entity_cooccurrence and
+// sums counts over the requested [yearFrom, yearTo] window. Pairs below
+// minCount are dropped; isolated nodes (no remaining peers) are dropped too.
+// ---------------------------------------------------------------------------
+
+const COOC_YEAR_MIN = 1950;
+const COOC_YEAR_MAX = 2005;
+
+type CooccurrenceRow = {
+  entity_a: string;
+  entity_b: string;
+  n: number;
+};
+
+export async function fetchEntityCooccurrence({
+  yearFrom = COOC_YEAR_MIN,
+  yearTo = COOC_YEAR_MAX,
+  minCount = 2,
+}: {
+  yearFrom?: number;
+  yearTo?: number;
+  minCount?: number;
+} = {}): Promise<CooccurrenceGraph> {
+  const lo = Math.max(COOC_YEAR_MIN, Math.min(yearFrom, yearTo));
+  const hi = Math.min(COOC_YEAR_MAX, Math.max(yearFrom, yearTo));
+
+  const [pairRows, entities] = await Promise.all([
+    query<CooccurrenceRow>(
+      `SELECT entity_a, entity_b, SUM(cooccurrence_count) AS n
+         FROM \`${PROJECT}.${DATASET_CURATED}.entity_cooccurrence\`
+        WHERE year BETWEEN @lo AND @hi
+        GROUP BY entity_a, entity_b
+        HAVING n >= @minCount
+        ORDER BY n DESC`,
+      { lo, hi, minCount },
+    ),
+    loadEntities(),
+  ]);
+
+  const connectedIds = new Set<string>();
+  const degreeById = new Map<string, number>();
+  const links: CooccurrenceLink[] = pairRows.map((r) => {
+    connectedIds.add(r.entity_a);
+    connectedIds.add(r.entity_b);
+    degreeById.set(r.entity_a, (degreeById.get(r.entity_a) ?? 0) + 1);
+    degreeById.set(r.entity_b, (degreeById.get(r.entity_b) ?? 0) + 1);
+    return { source: r.entity_a, target: r.entity_b, count: r.n };
+  });
+
+  const nodes: CooccurrenceNode[] = entities
+    .filter((e) => connectedIds.has(e.entity_id))
+    .map((e) => ({
+      id: e.entity_id,
+      name: e.entity_name,
+      type: e.entity_type,
+      degree: degreeById.get(e.entity_id) ?? 0,
+    }))
+    .sort((a, b) => b.degree - a.degree);
+
+  return {
+    nodes,
+    links,
+    yearBounds: { min: COOC_YEAR_MIN, max: COOC_YEAR_MAX },
+    appliedRange: { yearFrom: lo, yearTo: hi },
   };
 }
 

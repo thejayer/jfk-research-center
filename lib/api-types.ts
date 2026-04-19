@@ -155,6 +155,30 @@ export type SearchFilterInput = {
   confidence?: ConfidenceLevel[];
 };
 
+// ---------------------------------------------------------------------------
+// Entity co-occurrence graph — Phase 5-C.
+// ---------------------------------------------------------------------------
+
+export type CooccurrenceNode = {
+  id: string; // entity_id / slug
+  name: string;
+  type: "person" | "org" | "place" | "concept";
+  degree: number; // count of distinct peers this node connects to in range
+};
+
+export type CooccurrenceLink = {
+  source: string;
+  target: string;
+  count: number; // total co-occurring documents within year range
+};
+
+export type CooccurrenceGraph = {
+  nodes: CooccurrenceNode[];
+  links: CooccurrenceLink[];
+  yearBounds: { min: number; max: number };
+  appliedRange: { yearFrom: number; yearTo: number };
+};
+
 export type CorpusManifest = {
   totalRecords: number;
   recordsWithOcr: number;

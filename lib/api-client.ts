@@ -15,6 +15,7 @@ import { headers } from "next/headers";
 import type {
   BibliographyIndex,
   CaseTimelineIndex,
+  CooccurrenceGraph,
   CorpusManifest,
   DocumentResponse,
   EntityCard,
@@ -181,6 +182,19 @@ export async function fetchBibliographyIndex(): Promise<BibliographyIndex> {
     revalidate: 600,
   });
   if (!data) throw new Error("Bibliography index missing");
+  return data;
+}
+
+export async function fetchEntityCooccurrence(
+  params: { yearFrom?: number; yearTo?: number; minCount?: number } = {},
+): Promise<CooccurrenceGraph> {
+  const qs = new URLSearchParams();
+  if (params.yearFrom != null) qs.set("yearFrom", String(params.yearFrom));
+  if (params.yearTo != null) qs.set("yearTo", String(params.yearTo));
+  if (params.minCount != null) qs.set("minCount", String(params.minCount));
+  const path = qs.toString() ? `/api/graph?${qs}` : "/api/graph";
+  const data = await get<CooccurrenceGraph>(path, { revalidate: 600 });
+  if (!data) throw new Error("Graph payload missing");
   return data;
 }
 
