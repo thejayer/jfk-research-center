@@ -10,6 +10,7 @@ import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { LinkButton } from "@/components/ui/button";
+import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import layout from "@/components/ui/two-column.module.css";
 
 export const dynamic = "force-dynamic";
@@ -201,6 +202,10 @@ export default async function TopicPage({
           Search across archive →
         </LinkButton>
       </section>
+
+      <div style={{ marginTop: 28, textAlign: "right" }}>
+        <ReportErrorLink surface="topic_summary" targetId={data.topic.slug} />
+      </div>
     </div>
   );
 }

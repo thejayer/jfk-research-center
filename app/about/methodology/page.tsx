@@ -124,7 +124,8 @@ export default async function MethodologyPage() {
           <p>
             Entity bios and timeline entries are curated from Warren
             Commission, HSCA, and ARRB materials. Factual errors should be
-            reported via the corrections workflow (forthcoming).
+            reported via the <Link href="/corrections">corrections
+            form</Link>.
           </p>
         </Section>
 

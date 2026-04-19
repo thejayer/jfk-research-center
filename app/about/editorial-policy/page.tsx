@@ -106,12 +106,14 @@ export default async function EditorialPolicyPage() {
 
         <Section title="Corrections">
           <p>
-            Factual errors in entity bios, timeline entries, or AI
-            summaries can be reported. A public corrections workflow is
-            planned; in the interim, readers can flag issues via the
-            project&rsquo;s GitHub repository. Each entity page and topic
-            page also shows its sources; cross-checking against those
-            sources is the strongest correction mechanism.
+            Factual errors in entity bios, timeline entries, AI
+            summaries, or document metadata can be reported via the{" "}
+            <Link href="/corrections">corrections form</Link>. Each
+            entity page and topic page also carries a small &ldquo;Report
+            an error on this page&rdquo; link that pre-fills the form
+            with the surface and target id. Submissions queue for
+            editorial review; cross-checking against the linked sources
+            is the strongest correction mechanism.
           </p>
         </Section>
 
