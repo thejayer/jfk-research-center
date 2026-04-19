@@ -40,7 +40,9 @@ export default async function MethodologyPage() {
             <em>JFK Assassination Records Collection</em> held at the U.S.
             National Archives. Of those,{" "}
             <strong>{formatNumber(manifest.recordsWithOcr)}</strong> have
-            full-text OCR attached; the remainder are metadata-only.
+            full-text OCR attached, producing{" "}
+            <strong>{formatNumber(manifest.ocrPassages)}</strong> indexed OCR
+            passages. The remainder are metadata-only.
           </p>
           <p>
             Latest indexed release date:{" "}

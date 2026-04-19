@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { fetchCorpusManifest } from "@/lib/api-client";
+import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +11,8 @@ export const metadata: Metadata = {
     "The editorial posture of the JFK Research Center — neutrality, source allowlist, banned language in AI-generated content, and corrections process.",
 };
 
-export default function EditorialPolicyPage() {
+export default async function EditorialPolicyPage() {
+  const manifest = await fetchCorpusManifest();
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 96 }}>
       <div style={{ maxWidth: "72ch" }}>
@@ -115,8 +118,9 @@ export default function EditorialPolicyPage() {
         <Section title="What this site is not">
           <p>
             It is not a complete mirror of the JFK Assassination Records
-            Collection; it is a curated subset with full-text OCR on
-            approximately 2,162 of its ~37,000 records. The{" "}
+            Collection; it is a curated subset of{" "}
+            {formatNumber(manifest.totalRecords)} records, with full-text OCR on{" "}
+            {formatNumber(manifest.recordsWithOcr)} of them. The{" "}
             <Link href="/about/methodology">methodology page</Link>{" "}
             details scope, pipeline, and known limitations. It is not a
             conspiracy site, and it is not a defense of orthodoxy;
