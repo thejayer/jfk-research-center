@@ -263,13 +263,13 @@ export default async function HomePage() {
         >
           <StatPill
             label="Records indexed"
-            value={formatNumber(data.stats.documentCount)}
-            hint="Bulk-mirrored from RG 59, 65, 87, 127, 233, 263, 272, 541"
+            value={formatNumber(data.corpusManifest.totalRecords)}
+            hint={`${formatNumber(data.corpusManifest.recordsWithOcr)} have full-text OCR; the rest are metadata-only`}
           />
           <StatPill
             label="OCR passages"
-            value={formatNumber(data.stats.mentionCount)}
-            hint="Chunked at 1,200 characters"
+            value={formatNumber(data.corpusManifest.ocrPassages)}
+            hint="ABBYY OCR text chunked at 1,200 characters"
           />
           <StatPill
             label="Entities"

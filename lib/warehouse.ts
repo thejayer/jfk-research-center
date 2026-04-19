@@ -489,6 +489,7 @@ export async function fetchHome(): Promise<HomeResponse> {
 type ManifestRow = {
   total_records: number;
   records_with_ocr: number;
+  ocr_passages: number;
   latest_indexed_release_date: { value: string } | string | null;
   has_2017_2018_release: boolean;
   has_2021_release: boolean;
@@ -514,6 +515,7 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
     return {
       totalRecords: 0,
       recordsWithOcr: 0,
+      ocrPassages: 0,
       latestIndexedReleaseDate: null,
       releasesIndexed: [],
       releasesPending: [],
@@ -538,6 +540,7 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
   return {
     totalRecords: Number(r.total_records ?? 0),
     recordsWithOcr: Number(r.records_with_ocr ?? 0),
+    ocrPassages: Number(r.ocr_passages ?? 0),
     latestIndexedReleaseDate: latestStr ?? null,
     releasesIndexed: knownReleases.filter((k) => k.flag).map((k) => k.set),
     releasesPending: knownReleases.filter((k) => !k.flag).map((k) => k.set),

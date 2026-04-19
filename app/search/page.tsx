@@ -106,7 +106,7 @@ export default async function SearchPage({
             </div>
 
             <div className="search-main">
-              <ResultHeading q={q} mode={mode} total={response.total} />
+              <ResultHeading q={q} mode={mode} total={response.total} manifest={manifest} />
 
               {response.total === 0 ? (
                 <EmptyState
@@ -252,10 +252,12 @@ function ResultHeading({
   q,
   mode,
   total,
+  manifest,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
   total: number;
+  manifest: import("@/lib/api-types").CorpusManifest;
 }) {
   if (!q) {
     return (
@@ -279,8 +281,11 @@ function ResultHeading({
             letterSpacing: "-0.01em",
           }}
         >
-          The archive is keyword-searchable across {formatNumber(14302)} records
-          and {formatNumber(186421)} indexed passages.
+          Full-text search covers{" "}
+          {formatNumber(manifest.recordsWithOcr)} records and{" "}
+          {formatNumber(manifest.ocrPassages)} OCR passages. The remaining{" "}
+          {formatNumber(manifest.totalRecords - manifest.recordsWithOcr)}{" "}
+          metadata-only records are searchable by title, agency, and NAID.
         </h1>
       </div>
     );

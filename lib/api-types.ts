@@ -182,6 +182,8 @@ export type CooccurrenceGraph = {
 export type CorpusManifest = {
   totalRecords: number;
   recordsWithOcr: number;
+  /** Total OCR passages (abbyy_ocr chunks) across the corpus. */
+  ocrPassages: number;
   latestIndexedReleaseDate: string | null;
   releasesIndexed: string[];
   releasesPending: string[];

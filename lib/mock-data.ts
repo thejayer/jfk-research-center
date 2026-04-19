@@ -1338,6 +1338,7 @@ export function buildHomeResponse(): HomeResponse {
     corpusManifest: {
       totalRecords: totalDocs,
       recordsWithOcr: 2162,
+      ocrPassages: 112445,
       latestIndexedReleaseDate: "2025-03-18",
       releasesIndexed: ["2017-2018", "2021", "2022", "2023", "2025"],
       releasesPending: ["2026"],
