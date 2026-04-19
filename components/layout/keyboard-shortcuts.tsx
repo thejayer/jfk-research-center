@@ -11,6 +11,11 @@ export function KeyboardShortcuts() {
   const [helpOpen, setHelpOpen] = useState(false);
   const pendingChordRef = useRef<number | null>(null);
   const resultIndexRef = useRef(-1);
+  const triggerElRef = useRef<HTMLElement | null>(null);
+  const helpOpenRef = useRef(false);
+  useEffect(() => {
+    helpOpenRef.current = helpOpen;
+  }, [helpOpen]);
 
   useEffect(() => {
     function isTypingContext(el: Element | null): boolean {
@@ -47,7 +52,10 @@ export function KeyboardShortcuts() {
 
       if (e.key === "Escape") {
         clearChord();
-        setHelpOpen(false);
+        if (helpOpenRef.current) {
+          setHelpOpen(false);
+          triggerElRef.current?.focus();
+        }
         return;
       }
 
@@ -89,6 +97,7 @@ export function KeyboardShortcuts() {
       }
       if (e.key === "?") {
         e.preventDefault();
+        triggerElRef.current = (document.activeElement as HTMLElement) ?? null;
         setHelpOpen((v) => !v);
         return;
       }
@@ -119,10 +128,48 @@ export function KeyboardShortcuts() {
   }, [pathname]);
 
   if (!helpOpen) return null;
-  return <HelpModal onClose={() => setHelpOpen(false)} />;
+  return (
+    <HelpModal
+      onClose={() => {
+        setHelpOpen(false);
+        triggerElRef.current?.focus();
+      }}
+    />
+  );
 }
 
 function HelpModal({ onClose }: { onClose: () => void }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    closeBtnRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusable = panel.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   return (
     <div
       role="dialog"
@@ -143,6 +190,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
       }}
     >
       <div
+        ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(440px, 100%)",
@@ -176,6 +224,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
             </h2>
           </div>
           <button
+            ref={closeBtnRef}
             type="button"
             onClick={onClose}
             aria-label="Close"

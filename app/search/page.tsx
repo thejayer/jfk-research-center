@@ -5,6 +5,7 @@ import { parseSearchParams, buildSearchUrl } from "@/lib/search";
 import { SearchBar } from "@/components/search/search-bar";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SavedSearches } from "@/components/search/saved-searches";
+import { SearchSidebar } from "@/components/search/search-sidebar";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -89,16 +90,19 @@ export default async function SearchPage({
             }}
             className="search-layout"
           >
-            <div
-              className="search-aside"
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 18,
-              }}
-            >
-              <SearchFilters filters={response.filters} />
-              <SavedSearches />
+            <div className="search-aside">
+              <SearchSidebar>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 18,
+                  }}
+                >
+                  <SearchFilters filters={response.filters} />
+                  <SavedSearches />
+                </div>
+              </SearchSidebar>
             </div>
 
             <div className="search-main">

@@ -599,6 +599,17 @@ bq query --use_legacy_sql=false \
   a vertical chronological view. Spec wants horizontal zoomable timeline
   with decade → year → day → hour zoom levels; the Nov 22–24 1963
   hour-level view is the marquee.
+- **Run axe-core live audit (4-I follow-up).** Static fixes are in
+  (focus trap on help modal, `:focus-visible` rings, no missing alt/
+  aria-label gaps), but the full WCAG 2.2 AA audit still needs a live
+  run. Easiest: install the axe DevTools browser extension and run it
+  on /, /search (with filters open + drawer open on mobile), /topic/*,
+  /document/*, /timeline. Fix any serious/critical issues it surfaces.
+- **Mobile primary nav (4-J follow-up).** The 7-item header nav is
+  hidden below 720px with no mobile replacement — users on phones
+  have to go to the footer to navigate. Not in 4-J scope (which was
+  filters + doc viewer), but worth addressing: horizontal-scroll
+  nav strip or a hamburger drawer.
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.

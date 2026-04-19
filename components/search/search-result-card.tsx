@@ -20,11 +20,11 @@ export function SearchResultCard({
     <article
       data-search-result="true"
       tabIndex={-1}
+      className="search-result-focusable"
       style={{
         padding: "22px 0",
         borderTop: "1px solid var(--border)",
         scrollMarginTop: 120,
-        outline: "none",
       }}
     >
       <div
