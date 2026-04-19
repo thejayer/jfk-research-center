@@ -68,7 +68,25 @@ export function MentionSnippet({
         )}
         <span aria-hidden>·</span>
         <span>source: {mention.source}</span>
-        <ConfidenceBadge level={mention.confidence} />
+        {typeof mention.score === "number" ? (
+          <span
+            className="num"
+            style={{
+              padding: "1px 7px",
+              borderRadius: 999,
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              fontSize: "0.74rem",
+              fontWeight: 500,
+              fontVariantNumeric: "tabular-nums",
+            }}
+            title="Semantic similarity"
+          >
+            {Math.round(mention.score * 100)}%
+          </span>
+        ) : (
+          <ConfidenceBadge level={mention.confidence} />
+        )}
         {mention.matchedTerms.length > 0 && layout === "default" && (
           <div
             style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}

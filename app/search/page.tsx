@@ -181,7 +181,7 @@ function ModeTabs({
   total,
 }: {
   q: string;
-  mode: "document" | "mention";
+  mode: "document" | "mention" | "semantic";
   filters: import("@/lib/search").ParsedSearch["filters"];
   total: number;
 }) {
@@ -200,6 +200,11 @@ function ModeTabs({
         label="Mentions"
         active={mode === "mention"}
         href={buildSearchUrl(q, "mention", filters)}
+      />
+      <TabLink
+        label="Semantic"
+        active={mode === "semantic"}
+        href={buildSearchUrl(q, "semantic", filters)}
       />
       {q && (
         <span
@@ -249,7 +254,7 @@ function ResultHeading({
   total,
 }: {
   q: string;
-  mode: "document" | "mention";
+  mode: "document" | "mention" | "semantic";
   total: number;
 }) {
   if (!q) {
@@ -292,7 +297,12 @@ function ResultHeading({
         className="eyebrow"
         style={{ marginBottom: 6 }}
       >
-        {mode === "document" ? "Document matches" : "Mention matches"} · {formatNumber(total)}
+        {mode === "document"
+          ? "Document matches"
+          : mode === "semantic"
+            ? "Semantic matches"
+            : "Mention matches"}{" "}
+        · {formatNumber(total)}
       </div>
       <h1
         style={{

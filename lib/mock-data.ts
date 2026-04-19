@@ -1473,7 +1473,7 @@ export function buildSearchResponse({
   mode,
 }: {
   query: string;
-  mode: "document" | "mention";
+  mode: "document" | "mention" | "semantic";
 }): SearchResponse {
   const q = query.trim().toLowerCase();
 

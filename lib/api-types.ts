@@ -116,8 +116,10 @@ export type MentionExcerpt = {
   excerpt: string;
   matchedTerms: string[];
   confidence: ConfidenceLevel;
-  source: "title" | "description" | "ocr" | "authority";
+  source: "title" | "description" | "ocr" | "authority" | "semantic";
   pageLabel?: string | null;
+  /** Semantic similarity score in [0, 1]; higher is more relevant. */
+  score?: number | null;
 };
 
 export type SearchResult =
@@ -181,7 +183,7 @@ export type HomeResponse = {
 
 export type SearchResponse = {
   query: string;
-  mode: "document" | "mention";
+  mode: "document" | "mention" | "semantic";
   total: number;
   filters: SearchFilters;
   results: SearchResult[];

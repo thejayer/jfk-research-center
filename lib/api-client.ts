@@ -78,7 +78,7 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
 
 export async function fetchSearch(
   query: string,
-  mode: "document" | "mention" = "document",
+  mode: "document" | "mention" | "semantic" = "document",
   filters: {
     agency?: string[];
     yearFrom?: number | null;

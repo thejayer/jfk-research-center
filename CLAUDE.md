@@ -258,8 +258,30 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (Phase 3 light wave)
+**Last updated:** 2026-04-19 (Phase 5-A vector search)
 
+- **Phase 5-A vector search (2026-04-19).** Semantic mode live on
+  `/search`. `sql/31_chunk_embeddings.sql` registers the
+  `jfk_curated.text_embedding` remote model (Vertex `text-embedding-005`,
+  768 dims) and materializes `jfk_curated.chunk_embeddings` from the
+  112,445 eligible ABBYY OCR chunks (≥40 chars), with a cosine IVF
+  vector index. Runtime path: `lib/warehouse.ts fetchSemanticSearch`
+  embeds the query with `RETRIEVAL_QUERY` task type, runs
+  `VECTOR_SEARCH` top-20, and maps hits into MentionExcerpt shape with
+  a `score` field (1 − cosine distance) that the sidebar renders as a
+  percentage pill. Search UI gets a third "Semantic" tab alongside
+  Documents/Mentions. Regeneration cost is ~$1.40, ~10 minutes — don't
+  wire into `rebuild_warehouse.sh`.
+- **Phase 4 Wave 1/2 (2026-04-19).** Search polish + mobile drawer.
+  Topic/entity filters fixed (values now stable slugs/ids with
+  `topicLabels`/`entityLabels` maps). Per-facet counts in the sidebar.
+  Event-date range slider replacing the Year checkbox list.
+  Cite button on document pages generating Bluebook/Chicago/APA from
+  NAID metadata. Chunk anchors (`#chunk-*`) on OCR mention cards.
+  Keyboard shortcuts (`/`, `j`/`k`, `g e/t/s` chord, `?` help modal).
+  Local-storage saved searches (no email alerts). Focus trap + restore
+  on keyboard help modal. Mobile bottom-sheet drawer for filters at
+  <920px. Live axe-core run and mobile primary nav logged as follow-ups.
 - **Phase 3 light wave (2026-04-19).** UI-over-seeded-data surfaces
   from the gameplan Phase 3. Full zoomable D3 timeline (3-F heavy),
   Dealey Plaza map (3-E), and corrections workflow (3-C) deferred to
@@ -599,6 +621,23 @@ bq query --use_legacy_sql=false \
   a vertical chronological view. Spec wants horizontal zoomable timeline
   with decade → year → day → hour zoom levels; the Nov 22–24 1963
   hour-level view is the marquee.
+- **5-B Redaction diff viewer (deferred from Phase 5).** Needs
+  per-release OCR text bodies that do not exist in the warehouse:
+  `document_versions` carries metadata only, and `jfk_text_chunks`
+  holds just the 2025 ABBYY re-OCR per NAID. Building 5-B requires
+  downloading per-release PDFs from NARA for every NAID, OCR'ing
+  each, and persisting a `release_text_versions` table keyed by
+  (naid, release_set) before any diff UI work. ~1–2 weeks of ingest
+  work; revisit after 5-A/5-C/5-E.
+- **5-D Grounded chatbot (deferred from Phase 5).** Depends on 5-A
+  vector retrieval being live. Spec-flagged as highest-risk addition
+  (hard citation guardrails, Gemini audit logging, 50-pair gold eval
+  set, regression runs). Scope is a wave of its own; do not bolt on.
+- **5-F BigQuery public dataset mirror (deferred from Phase 5).**
+  Mirror curated tables to `bigquery-public-data:jfk_research_center.*`
+  — mostly external coordination with Google's public-dataset program
+  rather than coding work. Revisit once 5-E public API is live and
+  stable so the mirror has a natural home for researchers.
 - **Run axe-core live audit (4-I follow-up).** Static fixes are in
   (focus trap on help modal, `:focus-visible` rings, no missing alt/
   aria-label gaps), but the full WCAG 2.2 AA audit still needs a live

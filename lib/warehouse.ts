@@ -1089,10 +1089,13 @@ export async function fetchSearch({
   limit = 50,
 }: {
   query: string;
-  mode: "document" | "mention";
+  mode: "document" | "mention" | "semantic";
   filters?: SearchFilters;
   limit?: number;
 }): Promise<SearchResponse> {
+  if (mode === "semantic") {
+    return fetchSemanticSearch({ query: q, limit });
+  }
   const qNorm = q.trim();
   const params: Record<string, unknown> = {
     qNorm,
@@ -1276,6 +1279,109 @@ export async function fetchSearch({
     total: mode === "mention" ? mentionResults.length : (total[0]?.n ?? 0),
     filters: filterData,
     results: mode === "mention" ? mentionResults : docResults,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// SEMANTIC SEARCH — Phase 5-A. Embeds the query with RETRIEVAL_QUERY task
+// type and runs VECTOR_SEARCH against the chunk_embeddings table built by
+// sql/31. Returns MentionExcerpt-shaped results so the existing search UI
+// can render them without a new card component; the `score` field carries
+// the cosine-based relevance (1 - distance), higher = better.
+// ---------------------------------------------------------------------------
+
+type SemanticHitRow = {
+  chunk_id: string;
+  document_id: string;
+  naid: string;
+  page_label: string | null;
+  distance: number;
+  title: string;
+  chunk_text: string;
+};
+
+async function fetchSemanticSearch({
+  query: q,
+  limit,
+}: {
+  query: string;
+  limit: number;
+}): Promise<SearchResponse> {
+  const facets = await loadSearchFacets();
+  const qNorm = q.trim();
+  if (!qNorm) {
+    return {
+      query: "",
+      mode: "semantic",
+      total: 0,
+      filters: facets,
+      results: [],
+    };
+  }
+
+  const rows = await query<SemanticHitRow>(
+    `
+    WITH query_emb AS (
+      SELECT ml_generate_embedding_result AS embedding
+      FROM ML.GENERATE_EMBEDDING(
+        MODEL \`${PROJECT}.${DATASET_CURATED}.text_embedding\`,
+        (SELECT @q AS content),
+        STRUCT(TRUE AS flatten_json_output, 'RETRIEVAL_QUERY' AS task_type)
+      )
+    ),
+    hits AS (
+      SELECT
+        base.chunk_id,
+        base.document_id,
+        base.naid,
+        base.page_label,
+        distance
+      FROM VECTOR_SEARCH(
+        TABLE \`${PROJECT}.${DATASET_CURATED}.chunk_embeddings\`,
+        'embedding',
+        (SELECT embedding FROM query_emb),
+        top_k => @limit,
+        distance_type => 'COSINE'
+      )
+    )
+    SELECT
+      h.chunk_id,
+      h.document_id,
+      h.naid,
+      h.page_label,
+      h.distance,
+      r.title,
+      c.chunk_text
+    FROM hits h
+    JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r USING (document_id)
+    JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c USING (chunk_id)
+    ORDER BY h.distance ASC
+    `,
+    { q: qNorm, limit },
+  );
+
+  const results: SearchResult[] = rows.map((r) => ({
+    kind: "mention",
+    mention: {
+      id: `sem-${r.chunk_id}`,
+      documentId: r.document_id,
+      documentTitle: r.title,
+      documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-sem-${r.chunk_id}`,
+      excerpt: truncateAround(r.chunk_text, [qNorm], 280),
+      matchedTerms: [qNorm],
+      confidence: "medium" as ConfidenceLevel,
+      source: "semantic",
+      pageLabel: r.page_label,
+      score: Math.max(0, Math.min(1, 1 - r.distance)),
+    },
+  }));
+
+  return {
+    query: qNorm,
+    mode: "semantic",
+    total: results.length,
+    filters: facets,
+    results,
   };
 }
 

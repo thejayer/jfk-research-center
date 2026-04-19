@@ -18,7 +18,12 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q") ?? "";
   const modeRaw = url.searchParams.get("mode");
-  const mode = modeRaw === "mention" ? "mention" : "document";
+  const mode =
+    modeRaw === "mention"
+      ? "mention"
+      : modeRaw === "semantic"
+        ? "semantic"
+        : "document";
 
   const filters = {
     agencies: multi(url, "agency"),

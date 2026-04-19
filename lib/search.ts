@@ -7,7 +7,7 @@
 
 import type { ConfidenceLevel } from "./api-types";
 
-export type SearchMode = "document" | "mention";
+export type SearchMode = "document" | "mention" | "semantic";
 
 export type ParsedSearch = {
   q: string;
@@ -48,10 +48,13 @@ export function parseSearchParams(
   const modeRaw = searchParams.mode;
 
   const q = Array.isArray(qRaw) ? (qRaw[0] ?? "") : (qRaw ?? "");
+  const modeStr = Array.isArray(modeRaw) ? modeRaw[0] : modeRaw;
   const mode: SearchMode =
-    (Array.isArray(modeRaw) ? modeRaw[0] : modeRaw) === "mention"
+    modeStr === "mention"
       ? "mention"
-      : "document";
+      : modeStr === "semantic"
+        ? "semantic"
+        : "document";
 
   return {
     q,
