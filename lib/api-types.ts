@@ -307,6 +307,40 @@ export type CryptonymEntry = {
   notes: string | null;
 };
 
+export type DealeyPlazaWitness = {
+  witnessId: string;
+  name: string;
+  positionLat: number;
+  positionLng: number;
+  positionDescription: string;
+  statementSummary: string;
+  heardShots: number | null;
+  /**
+   * Free-text per-witness perception. Common values include
+   * 'Texas School Book Depository', 'Grassy knoll / stockade fence',
+   * 'Triple underpass area', 'Could not determine'.
+   */
+  shotOriginPerceived: string | null;
+  wcTestimonyVolume: number | null;
+  wcTestimonyPage: number | null;
+  sourceNaids: string[];
+  role: string | null;
+};
+
+export type DealeyPlazaResponse = {
+  witnesses: DealeyPlazaWitness[];
+  /**
+   * Bounding box of all witness positions, used by the SVG renderer
+   * to normalize lat/lng into viewBox coordinates.
+   */
+  bounds: {
+    minLat: number;
+    maxLat: number;
+    minLng: number;
+    maxLng: number;
+  };
+};
+
 export type OpenQuestionsIndexResponse = {
   global: OpenQuestionsArticle | null;
   topics: OpenQuestionsTopicCard[];

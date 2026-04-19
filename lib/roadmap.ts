@@ -153,10 +153,10 @@ export const ROADMAP: RoadmapItem[] = [
   {
     surface: "/dealey-plaza",
     label: "Dealey Plaza interactive map",
-    status: "in_progress",
+    status: "shipped",
     phase: "Hotfix cycle",
     description:
-      "SVG schematic with witness pins, motorcade overlay, and toggleable shot-origin perceptions.",
+      "SVG schematic of 1963 Dealey Plaza with 20 witness positions plotted from sworn testimony; toggleable shot-origin filter, click-to-read side panel, and a neutrality disclaimer.",
   },
 
   // ---- Phase 5 deferred ----

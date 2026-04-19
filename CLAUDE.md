@@ -661,11 +661,14 @@ bq query --use_legacy_sql=false \
   topic pages. The admin triage view at `/admin/corrections` remains
   blocked on the project's admin auth scheme decision (Cloud IAM vs.
   Identity-Aware Proxy vs. a small in-app allowlist).
-- **3-E Dealey Plaza interactive page (deferred).** Needs
-  `jfk_curated.dealey_plaza_witnesses` table seeded first (schema in
-  gameplan §3-E), then Leaflet or MapLibre over a historical Dealey Plaza
-  tileset (or SVG schematic). Overlays: motorcade route, Book Depository
-  6th floor, Triple Underpass, grassy knoll, Zapruder position.
+- **3-E Dealey Plaza interactive page (shipped April 2026, follow-ups).**
+  `/dealey-plaza` ships an SVG schematic of 1963 Dealey Plaza with 20
+  witnesses plotted from sworn WC testimony, a toggleable shot-origin
+  filter, and a click-to-read side panel. Backed by `sql/43_dealey_plaza_witnesses`.
+  Future follow-ups (deferred): a satellite-tile MapLibre layer behind
+  the schematic for users who want geographic context, a motorcade
+  Z-frame scrubber, and per-witness links into the relevant Warren
+  Commission Hearings volumes once those are individually NAID-addressable.
 - **3-F heavy: zoomable D3 timeline (deferred).** Current `/timeline` is
   a vertical chronological view. Spec wants horizontal zoomable timeline
   with decade → year → day → hour zoom levels; the Nov 22–24 1963

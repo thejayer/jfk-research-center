@@ -17,6 +17,7 @@ import type {
   CaseTimelineIndex,
   CooccurrenceGraph,
   CorpusManifest,
+  DealeyPlazaResponse,
   DocumentResponse,
   EntityCard,
   EntityResponse,
@@ -205,4 +206,12 @@ export async function fetchPhysicalEvidenceItem(
     `/api/evidence/${encodeURIComponent(id)}`,
     { revalidate: 600 },
   );
+}
+
+export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> {
+  const data = await get<DealeyPlazaResponse>("/api/dealey-plaza", {
+    revalidate: 3600,
+  });
+  if (!data) throw new Error("Dealey Plaza payload missing");
+  return data;
 }
