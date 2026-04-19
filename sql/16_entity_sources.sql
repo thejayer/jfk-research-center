@@ -332,5 +332,124 @@ select * from unnest([
     'https://www.archives.gov/research/jfk/select-committee-report',
     'HSCA',
     'Re-examination of the AMLASH operation and the Paris meeting timing.'
+  ),
+
+  -- Wave 3 (April 2026)
+
+  ('specter', 1,
+    'Warren Commission Report, Chapter III (1964)',
+    'https://www.archives.gov/research/jfk/warren-commission-report/chapter-3.html',
+    'WC',
+    'Chapter Specter drafted; presents the single-bullet conclusion and the motorcade shot-sequence analysis.'
+  ),
+  ('specter', 2,
+    'HSCA Final Report, §I.B (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Acoustic and ballistic re-examination that contested portions of the single-bullet conclusion.'
+  ),
+
+  ('marcello', 1,
+    'HSCA Volume IX, §III — Carlos Marcello',
+    'https://history-matters.com/archive/jfk/hsca/reportvols/vol9/pdf/HSCA_Vol9_3_Marcello.pdf',
+    'HSCA',
+    'HSCA\'s full examination of Marcello, including the Becker allegation and the "motive, means, opportunity" finding.'
+  ),
+  ('marcello', 2,
+    'HSCA Final Report, §I.C.2 (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Final-report language on Marcello and the Kennedy assassination.'
+  ),
+
+  ('trafficante', 1,
+    'HSCA Volume V, pp. 345–416 (September 28, 1978 testimony)',
+    'http://aarclibrary.org/publib/jfk/hsca/reportvols/vol5/pdf/HSCA_Vol5_0928_1_Traffican.pdf',
+    'HSCA',
+    'Public hearing testimony under court-ordered grant of immunity.'
+  ),
+  ('trafficante', 2,
+    'Church Committee Interim Report (1975), pp. 74–82',
+    'https://www.intelligence.senate.gov/sites/default/files/94465.pdf',
+    'CHURCH',
+    'CIA-Mafia Castro plots; the three-figure recruitment via Robert Maheu.'
+  ),
+
+  ('giancana', 1,
+    'Church Committee Interim Report (1975), pp. 74–82',
+    'https://www.intelligence.senate.gov/sites/default/files/94465.pdf',
+    'CHURCH',
+    'Giancana\'s role in the CIA-Mafia Castro plots, pre-murder.'
+  ),
+  ('giancana', 2,
+    'FBI Top Hoodlum Program file (declassified, partial)',
+    'https://vault.fbi.gov/Sam%20Giancana%20',
+    'REFERENCE',
+    'Allowlisted FBI Vault release covering the Chicago Outfit leadership period.'
+  ),
+
+  ('roselli', 1,
+    'Church Committee Interim Report (1975), pp. 74–85',
+    'https://www.intelligence.senate.gov/sites/default/files/94465.pdf',
+    'CHURCH',
+    'Roselli\'s role in the CIA-Mafia Castro plots; transcripts referenced in both 1975 testimonies.'
+  ),
+  ('roselli', 2,
+    'New York Times, "Rosselli Called a Victim of Mafia Because of His Senate Testimony" (Feb 25, 1977)',
+    'https://www.nytimes.com/1977/02/25/archives/rosselli-called-a-victim-of-mafia-because-of-his-senate-testimony.html',
+    'REFERENCE',
+    'Contemporary investigation identifying Trafficante as the likely source of the 1976 killing.'
+  ),
+
+  ('garrison', 1,
+    'Clay Shaw Trial Transcripts (History Matters archive)',
+    'https://www.history-matters.com/archive/contents/garr/contents_garr_trial.htm',
+    'REFERENCE',
+    'Full trial transcripts of State v. Clay Shaw (1969), the Garrison prosecution.'
+  ),
+  ('garrison', 2,
+    'CIA "GARRISON INVESTIGATION" document (CIA FOIA)',
+    'https://www.cia.gov/readingroom/docs/CIA-RDP79-00632A000100100007-2.pdf',
+    'REFERENCE',
+    'CIA internal file on the Garrison investigation; documents agency monitoring and counter-messaging.'
+  ),
+
+  ('clay-shaw', 1,
+    'Clay Shaw Trial Transcripts (History Matters archive)',
+    'https://www.history-matters.com/archive/contents/garr/contents_garr_trial.htm',
+    'REFERENCE',
+    'Full trial transcripts; Shaw\'s own testimony and the one-hour acquittal verdict.'
+  ),
+  ('clay-shaw', 2,
+    'HSCA Final Report, §I.C (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Helms Congressional testimony confirming Shaw\'s Domestic Contact Service role.'
+  ),
+
+  ('goodpasture', 1,
+    'ARRB Deposition of Anne Goodpasture, December 15, 1995',
+    'https://aarclibrary.org/publib/jfk/arrb/cia_testimony/pdf/Goodpasture_12-15-95.pdf',
+    'ARRB',
+    'First ARRB deposition; Mexico City station operations and the handling of Oswald-related cable traffic.'
+  ),
+  ('goodpasture', 2,
+    'ARRB Deposition of Anne Goodpasture, April 23, 1998',
+    'http://aarclibrary.org/publib/jfk/arrb/cia_testimony/pdf/Goodpasture_4-23-98.pdf',
+    'ARRB',
+    'Follow-up deposition addressing gaps in the 1995 session; contains the Phillips "lazy Soviet desk officer" rebuttal.'
+  ),
+
+  ('jane-roman', 1,
+    'History Matters — "What Jane Roman Said" (Newman interview)',
+    'https://www.history-matters.com/essays/frameup/WhatJaneRomanSaid/WhatJaneRomanSaid_2.htm',
+    'REFERENCE',
+    'John M. Newman\'s 1994–95 interviews; Roman\'s own account of the October 10, 1963 cable.'
+  ),
+  ('jane-roman', 2,
+    'ARRB records on the October 10, 1963 Mexico City cable',
+    'https://www.archives.gov/research/jfk/review-board',
+    'ARRB',
+    'Full declassification of the cable (2002 release) and surrounding CI/Liaison routing materials.'
   )
 ]);

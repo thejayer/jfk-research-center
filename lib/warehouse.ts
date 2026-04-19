@@ -36,6 +36,7 @@ import type {
   CaseTimelineCategory,
   CaseTimelineEvent,
   CaseTimelineIndex,
+  TimelineEvent,
   CitationEntry,
   CitationType,
   CooccurrenceGraph,
@@ -653,7 +654,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
   const entity = entities.find((e) => e.entity_id === slug);
   if (!entity) return null;
 
-  const [docRows, entityDocCount, coOccurrence, sourceRows, factRows] = await Promise.all([
+  const [docRows, entityDocCount, coOccurrence, sourceRows, factRows, timelineRows] = await Promise.all([
     query<RecordRow & { confidence: ConfidenceLevel; match_source: string; score: number }>(
       `SELECT r.*, m.confidence, m.match_source, m.score
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
@@ -712,6 +713,19 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
         ORDER BY sort_order`,
       { slug },
     ).catch(() => []),
+    query<{
+      event_id: string;
+      event_date: { value: string } | string;
+      event_time_local: string | null;
+      title: string;
+      description: string;
+    }>(
+      `SELECT event_id, event_date, event_time_local, title, description
+         FROM \`${PROJECT}.${DATASET_CURATED}.timeline_events\`
+        WHERE @slug IN UNNEST(related_entity_ids)
+        ORDER BY event_date, event_time_local NULLS FIRST`,
+      { slug },
+    ).catch(() => []),
   ]);
 
   const sources: EntitySource[] = sourceRows.map((s) => ({
@@ -720,6 +734,22 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
     kind: s.kind,
     note: s.note,
   }));
+
+  const timelineEvents: TimelineEvent[] = timelineRows.map((r) => {
+    const dateStr =
+      typeof r.event_date === "object" ? r.event_date.value : r.event_date;
+    const base = formatDate(dateStr) ?? dateStr;
+    const dateLabel = r.event_time_local
+      ? `${base} (${r.event_time_local})`
+      : base;
+    return {
+      id: r.event_id,
+      date: dateStr,
+      dateLabel,
+      title: r.title,
+      description: r.description,
+    };
+  });
 
   const facts: EntityFact[] = factRows.map((f) => ({
     key: f.fact_key,
@@ -833,7 +863,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
 
   return {
     entity: entityRowToDetail(entity, { documents: docCount, mentions: docCount }),
-    timeline: slug === "oswald" ? oswaldTimeline() : [],
+    timeline: timelineEvents,
     relatedTopics,
     relatedEntities,
     topDocuments: docRows.slice(0, 10).map((r) => rowToCard(r)),
@@ -2199,87 +2229,6 @@ export async function fetchPhysicalEvidenceItem(
     canonicalCopyUrl: nonEmpty(r.canonical_copy_url),
     canonicalCopyHost: nonEmpty(r.canonical_copy_host),
   };
-}
-
-// ---------------------------------------------------------------------------
-// Oswald timeline — static, authored
-// ---------------------------------------------------------------------------
-
-function oswaldTimeline() {
-  return [
-    {
-      id: "t-oswald-birth",
-      date: "1939-10-18",
-      dateLabel: "October 18, 1939",
-      title: "Born in New Orleans, Louisiana",
-      description:
-        "Lee Harvey Oswald is born at Old French Hospital, New Orleans, to Marguerite Claverie Oswald.",
-    },
-    {
-      id: "t-oswald-marines",
-      date: "1956-10-24",
-      dateLabel: "October 24, 1956",
-      title: "Enlists in the U.S. Marine Corps",
-      description:
-        "Enlists in Dallas at age 17; reports to the Marine Corps Recruit Depot, San Diego, on October 26, 1956. Trains in aviation electronics and is later assigned as a radar operator at MCAS Atsugi, Japan.",
-    },
-    {
-      id: "t-oswald-defection",
-      date: "1959-10-31",
-      dateLabel: "October 31, 1959",
-      title: "Renounces U.S. citizenship in Moscow",
-      description:
-        "Appears at the U.S. Embassy in Moscow and declares his intent to renounce U.S. citizenship. The CIA opens a 201 personality file on Oswald in December 1960.",
-    },
-    {
-      id: "t-oswald-return",
-      date: "1962-06-13",
-      dateLabel: "June 13, 1962",
-      title: "Returns to the United States",
-      description:
-        "Arrives in New York with Marina and infant daughter June; interviewed at Idlewild Airport by FBI. Settles first in Fort Worth, then Dallas.",
-    },
-    {
-      id: "t-oswald-walker",
-      date: "1963-04-10",
-      dateLabel: "April 10, 1963",
-      title: "Alleged shooting at General Walker's residence",
-      description:
-        "A rifle shot is fired through the dining-room window of Major General Edwin A. Walker's Dallas home. Warren Commission and ARRB records attribute the shot to Oswald.",
-    },
-    {
-      id: "t-oswald-mexico",
-      date: "1963-09-27",
-      dateLabel: "September 27 – October 2, 1963",
-      title: "Visits Mexico City",
-      description:
-        "Travels to Mexico City and visits the Cuban consulate and the Soviet embassy. CIA station cables record the contact; no visa is issued.",
-    },
-    {
-      id: "t-oswald-assassination",
-      date: "1963-11-22",
-      dateLabel: "November 22, 1963",
-      title: "Assassination of President Kennedy",
-      description:
-        "President Kennedy is fatally shot in Dealey Plaza, Dallas, at 12:30 p.m. local time. Oswald is arrested at the Texas Theatre at 1:50 p.m.",
-    },
-    {
-      id: "t-oswald-tippit",
-      date: "1963-11-22",
-      dateLabel: "November 22, 1963 (1:15 p.m.)",
-      title: "Murder of Officer J. D. Tippit",
-      description:
-        "Dallas Police Officer J. D. Tippit is shot and killed at East 10th Street and Patton Avenue in Oak Cliff. Nine eyewitnesses later identify Oswald as the gunman in lineups or photo arrays; Oswald is charged the same day with both the Tippit and Kennedy murders.",
-    },
-    {
-      id: "t-oswald-killed",
-      date: "1963-11-24",
-      dateLabel: "November 24, 1963",
-      title: "Shot and killed by Jack Ruby",
-      description:
-        "During a jail transfer in the basement of Dallas Police Headquarters, Oswald is shot by Jack Ruby, a Dallas nightclub owner. He is pronounced dead at Parkland Hospital.",
-    },
-  ];
 }
 
 // ---------------------------------------------------------------------------

@@ -351,5 +351,151 @@ select * from unnest([
   ('cubela', 'released', '1979 — released from Cuban prison; relocated to Spain',
     date '1979-01-01', 'REFERENCE', 'Cuban government records; later press accounts', 'Medium', 6),
   ('cubela', 'category', 'Adjacent — CIA asset cited by Church Committee in the Castro assassination plots',
-    null, 'REFERENCE', 'Church Committee Interim Report (1975)', 'Medium', 7)
+    null, 'REFERENCE', 'Church Committee Interim Report (1975)', 'Medium', 7),
+
+  -- ============================================================
+  -- SPECTER (Wave 3, April 2026)
+  -- ============================================================
+  ('specter', 'role', 'Assistant Counsel, Warren Commission Area I (Basic Facts of the Assassination)',
+    null, 'WC', 'Warren Commission Report, Foreword and Staff Roster', 'High', 1),
+  ('specter', 'key_output', 'Principal author of the single-bullet conclusion (CE 399); drafted Chapter III of the Warren Report',
+    null, 'WC', 'Warren Commission Report, Ch. III', 'High', 2),
+  ('specter', 'autopsy_depositions', 'Conducted the Warren Commission depositions of Drs. Humes, Boswell, and Finck on the Bethesda autopsy (April 21, 1964)',
+    date '1964-04-21', 'WC', 'Warren Commission Hearings, Vol. 2', 'High', 3),
+  ('specter', 'later_career', 'U.S. Senator from Pennsylvania, five terms (1981–2011)',
+    null, 'REFERENCE', 'U.S. Senate Historical Office biography', 'High', 4),
+  ('specter', 'critical_response', 'Single-bullet conclusion contested by HSCA acoustic analysis and subsequent independent ballistic studies',
+    null, 'HSCA', 'HSCA Final Report (1979), §I.B', 'Medium', 5),
+  ('specter', 'self_defense', 'Reaffirmed single-bullet conclusion in "Passion for Truth" (2000)',
+    date '2000-04-01', 'REFERENCE', 'Specter, Passion for Truth (2000), Ch. 5', 'High', 6),
+  ('specter', 'died', 'October 14, 2012 — Philadelphia, Pennsylvania',
+    date '2012-10-14', 'REFERENCE', 'U.S. Senate Historical Office biography', 'High', 7),
+
+  -- ============================================================
+  -- MARCELLO (Wave 3, April 2026)
+  -- ============================================================
+  ('marcello', 'role', 'Head of the New Orleans Mafia family, 1947 until 1980s incarceration',
+    null, 'HSCA', 'HSCA Vol. IX, §III', 'High', 1),
+  ('marcello', 'kennedy_target', 'Primary RFK organized-crime task-force target; summarily deported to Guatemala April 4, 1961',
+    date '1961-04-04', 'HSCA', 'HSCA Vol. IX, ¶343', 'High', 2),
+  ('marcello', 'hsca_finding', 'HSCA concluded Marcello had "motive, means, and opportunity"; no direct evidence of participation',
+    null, 'HSCA', 'HSCA Final Report (1979), §I.C.2', 'High', 3),
+  ('marcello', 'alleged_threat', 'Becker allegation of a 1962 threat against the Kennedys; FBI and HSCA investigated, could not corroborate',
+    null, 'HSCA', 'HSCA Vol. IX, ¶¶370–419', 'Medium', 4),
+  ('marcello', 'hsca_testimony', 'Testified under oath in HSCA executive session, January 11, 1978; denied involvement',
+    date '1978-01-11', 'HSCA', 'HSCA Vol. V, executive session', 'High', 5),
+  ('marcello', 'died', 'March 2, 1993 — Metairie, Louisiana',
+    date '1993-03-02', 'REFERENCE', 'Louisiana state vital records', 'High', 6),
+
+  -- ============================================================
+  -- TRAFFICANTE (Wave 3, April 2026)
+  -- ============================================================
+  ('trafficante', 'role', 'Boss of the Trafficante crime family, Tampa, Florida',
+    null, 'HSCA', 'HSCA Vol. V, pp. 345–416', 'High', 1),
+  ('trafficante', 'castro_plots', 'One of three Mafia figures recruited by CIA via Robert Maheu to assassinate Fidel Castro, 1960–1963',
+    null, 'CHURCH', 'Church Committee Interim Report (1975), pp. 74–82', 'High', 2),
+  ('trafficante', 'cuba_pre_revolution', 'Operated Sans Souci and other Havana casinos under Batista; briefly detained by Castro government 1959',
+    null, 'HSCA', 'HSCA Vol. V testimony', 'High', 3),
+  ('trafficante', 'hsca_testimony', 'Testified under court-ordered grant of immunity at HSCA public hearing, September 28, 1978',
+    date '1978-09-28', 'HSCA', 'HSCA Vol. V, pp. 345–416', 'High', 4),
+  ('trafficante', 'roselli_hit', 'Named by FBI investigators as the most likely figure to have ordered the July 1976 murder of Johnny Roselli',
+    null, 'REFERENCE', 'New York Times, February 25, 1977', 'Medium', 5),
+  ('trafficante', 'died', 'March 17, 1987 — Houston, Texas',
+    date '1987-03-17', 'REFERENCE', 'Florida vital records', 'High', 6),
+
+  -- ============================================================
+  -- GIANCANA (Wave 3, April 2026)
+  -- ============================================================
+  ('giancana', 'role', 'Boss of the Chicago Outfit, approximately 1957–1966',
+    null, 'REFERENCE', 'FBI Top Hoodlum Program file (declassified)', 'High', 1),
+  ('giancana', 'castro_plots', 'One of three Mafia figures recruited by CIA via Robert Maheu in the 1960–1963 Castro assassination plots',
+    null, 'CHURCH', 'Church Committee Interim Report (1975), pp. 74–82', 'High', 2),
+  ('giancana', 'exner_link', 'Connected to President Kennedy through Judith Campbell Exner during 1961; documented by FBI and reviewed by Church Committee',
+    null, 'CHURCH', 'Church Committee Interim Report (1975); FBI files released 1977', 'Medium', 3),
+  ('giancana', 'murder', 'Shot seven times with a silenced .22 caliber pistol in the basement kitchen of his Oak Park, Illinois home, June 19, 1975',
+    date '1975-06-19', 'REFERENCE', 'Cook County coroner report; FBI investigation', 'High', 4),
+  ('giancana', 'timing_relative_to_church', 'Murder occurred five days before Johnny Roselli\'s scheduled Church Committee testimony; remains officially unsolved',
+    date '1975-06-19', 'CHURCH', 'Church Committee records', 'High', 5),
+
+  -- ============================================================
+  -- ROSELLI (Wave 3, April 2026)
+  -- ============================================================
+  ('roselli', 'role', 'CIA-mob intermediary in the Castro assassination plots, 1960–1963',
+    null, 'CHURCH', 'Church Committee Interim Report (1975)', 'High', 1),
+  ('roselli', 'church_testimony_1', 'Testified before the Church Committee, June 24, 1975',
+    date '1975-06-24', 'CHURCH', 'Church Committee records', 'High', 2),
+  ('roselli', 'church_testimony_2', 'Additional Church Committee testimony, September 22, 1975',
+    date '1975-09-22', 'CHURCH', 'Church Committee records', 'High', 3),
+  ('roselli', 'hsca_testimony', 'Appeared before the HSCA in 1976 on the CIA-mob plots and the Kennedy assassination',
+    null, 'HSCA', 'HSCA records', 'High', 4),
+  ('roselli', 'disappearance', 'Disappeared July 28, 1976; body found August 7, 1976 in a 55-gallon oil drum in Dumfoundling Bay, Florida',
+    date '1976-07-28', 'REFERENCE', 'Dade County medical examiner; FBI', 'High', 5),
+  ('roselli', 'birth_name', 'Born Filippo Sacco, July 4, 1905 — Esperia, Italy',
+    date '1905-07-04', 'REFERENCE', 'INS/immigration records', 'High', 6),
+
+  -- ============================================================
+  -- GARRISON (Wave 3, April 2026)
+  -- ============================================================
+  ('garrison', 'role', 'District Attorney, Orleans Parish, Louisiana, 1962–1973',
+    null, 'REFERENCE', 'Louisiana state records', 'High', 1),
+  ('garrison', 'investigation', 'Opened the only DA-led criminal investigation into the JFK assassination in U.S. history (1966–1969)',
+    date '1966-11-01', 'REFERENCE', 'State v. Shaw, Orleans Parish Criminal Court record', 'High', 2),
+  ('garrison', 'shaw_arrest', 'Arrested Clay Shaw on a charge of conspiracy to assassinate the President, March 1, 1967',
+    date '1967-03-01', 'REFERENCE', 'Orleans Parish Criminal Court record', 'High', 3),
+  ('garrison', 'shaw_acquittal', 'Clay Shaw acquitted by jury in under one hour, March 1, 1969',
+    date '1969-03-01', 'REFERENCE', 'State v. Shaw verdict; New York Times, March 16, 1969', 'High', 4),
+  ('garrison', 'cia_scrutiny', 'CIA internal files document agency monitoring of the Garrison investigation',
+    null, 'REFERENCE', 'CIA "GARRISON INVESTIGATION" file (FOIA, CIA-RDP79-00632A000100100007-2)', 'Medium', 5),
+  ('garrison', 'hsca_review', 'HSCA reviewed Garrison\'s evidence and did not find it substantiated a conspiracy finding against Shaw',
+    null, 'HSCA', 'HSCA Final Report (1979)', 'High', 6),
+  ('garrison', 'died', 'October 21, 1992 — New Orleans, Louisiana',
+    date '1992-10-21', 'REFERENCE', 'Louisiana state vital records', 'High', 7),
+
+  -- ============================================================
+  -- CLAY SHAW (Wave 3, April 2026)
+  -- ============================================================
+  ('clay-shaw', 'role', 'Founder and managing director, International Trade Mart, New Orleans',
+    null, 'REFERENCE', 'New Orleans business records', 'High', 1),
+  ('clay-shaw', 'arrest', 'Arrested by DA Jim Garrison on conspiracy charge, March 1, 1967',
+    date '1967-03-01', 'REFERENCE', 'Orleans Parish Criminal Court record', 'High', 2),
+  ('clay-shaw', 'trial', 'Tried January 31 – March 1, 1969 before Judge Edward A. Haggerty Jr.',
+    date '1969-01-31', 'REFERENCE', 'Clay Shaw Trial Transcripts (History Matters archive)', 'High', 3),
+  ('clay-shaw', 'verdict', 'Acquitted by jury in under one hour deliberation, March 1, 1969',
+    date '1969-03-01', 'REFERENCE', 'State v. Shaw verdict', 'High', 4),
+  ('clay-shaw', 'cia_contact', 'Served as a CIA Domestic Contact Service contact in the 1950s–early 1960s; confirmed in 1979 by former DCI Richard Helms',
+    null, 'REFERENCE', 'Helms Congressional testimony (1979); post-JFK Records Act CIA releases', 'Medium', 5),
+  ('clay-shaw', 'died', 'August 15, 1974 — New Orleans, Louisiana',
+    date '1974-08-15', 'REFERENCE', 'Louisiana state vital records', 'High', 6),
+
+  -- ============================================================
+  -- GOODPASTURE (Wave 3, April 2026)
+  -- ============================================================
+  ('goodpasture', 'role', 'Senior case officer, CIA Mexico City station; deputy to station chief Win Scott',
+    null, 'ARRB', 'ARRB Goodpasture deposition (December 15, 1995)', 'High', 1),
+  ('goodpasture', 'programs_handled', 'Handled LIENVOY telephone-intercept and photo-surveillance product at the station',
+    null, 'ARRB', 'ARRB deposition; HSCA Lopez Report (1978)', 'High', 2),
+  ('goodpasture', 'oswald_role', 'Coordinated Mexico City station cable traffic about Oswald visits in September–October 1963',
+    null, 'ARRB', 'ARRB deposition (December 15, 1995), pp. 50–120', 'High', 3),
+  ('goodpasture', 'phillips_rebuttal', 'Contradicted David Atlee Phillips\'s "lazy Soviet desk officer" explanation for why Oswald\'s name checked out routinely',
+    null, 'ARRB', 'ARRB deposition (April 23, 1998)', 'Medium', 4),
+  ('goodpasture', 'arrb_depositions', 'Deposed by ARRB twice — December 15, 1995 and April 23, 1998 (classified at the time)',
+    date '1995-12-15', 'ARRB', 'ARRB deposition records', 'High', 5),
+  ('goodpasture', 'died', 'December 4, 2011',
+    date '2011-12-04', 'REFERENCE', 'AFIO obituary', 'High', 6),
+
+  -- ============================================================
+  -- JANE ROMAN (Wave 3, April 2026)
+  -- ============================================================
+  ('jane-roman', 'role', 'Senior liaison officer, CIA Counterintelligence Staff (CI/Liaison) under James Angleton',
+    null, 'REFERENCE', 'CIA personnel records; Newman interviews', 'High', 1),
+  ('jane-roman', 'oct10_cable', 'Signed the October 10, 1963 CIA HQ-to-Mexico-City cable responding to the station\'s report on Oswald\'s Cuban/Soviet embassy visits',
+    date '1963-10-10', 'ARRB', 'NARA 2002 declassification of the October 10, 1963 cable', 'High', 2),
+  ('jane-roman', 'omission', 'The cable stated CIA had last reported on Oswald in May 1962 — omitting multiple FBI reports on his September 1963 FPCC activities in New Orleans routed through CIA in the weeks prior',
+    null, 'REFERENCE', 'Newman, Oswald and the CIA (1995); ARRB records', 'Medium', 3),
+  ('jane-roman', 'newman_interview_1', 'Interviewed by historian John M. Newman at her home in Washington, November 1994',
+    date '1994-11-01', 'REFERENCE', 'History Matters — "What Jane Roman Said"', 'High', 4),
+  ('jane-roman', 'newman_interview_2', 'Follow-up Newman interview (1995); characterized the October 10 cable as "indicative of a keen interest in Oswald held on a need-to-know basis"',
+    date '1995-03-01', 'REFERENCE', 'History Matters — "What Jane Roman Said"', 'Medium', 5),
+  ('jane-roman', 'died', '2008',
+    date '2008-01-01', 'REFERENCE', 'AFIO obituary (approximate)', 'Medium', 6)
 ]);
