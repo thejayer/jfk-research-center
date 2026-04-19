@@ -1146,8 +1146,11 @@ export async function fetchSearch({
     params.entities = filters.entities;
   }
   if (filters.topics?.length) {
+    // physical-evidence has no jfk_mvp.* table — it redirects to /evidence
+    // and is not a documentary topic. Silently drop it from the filter
+    // (a user could only land here by hand-crafting the URL).
     const unionSql = filters.topics
-      .filter((slug) => TOPIC_CATALOG[slug])
+      .filter((slug) => TOPIC_CATALOG[slug] && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug))
       .map(
         (slug) =>
           `SELECT document_id FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
