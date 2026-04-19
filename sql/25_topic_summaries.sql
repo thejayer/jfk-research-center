@@ -41,6 +41,16 @@ with topic_meta as (
          'Bureau files comprising the Oswald HQ and Dallas Field Office investigations and the Ruby case.'
   union all select 'cuba', 'Cuba & Cuban Exiles',
          'Records concerning Cuba, Fidel Castro, anti-Castro exile activity, and related Agency operations.'
+  union all select 'tippit-murder', 'Tippit Murder',
+         'Records examining the murder of Dallas Police Officer J. D. Tippit at East 10th Street and Patton Avenue on November 22, 1963, approximately 45 minutes after the assassination of President Kennedy.'
+  union all select 'dealey-plaza', 'Dealey Plaza',
+         'Records concerning the motorcade, Dealey Plaza geography, the Texas School Book Depository, the Zapruder film, the grassy knoll, the triple underpass, and eyewitness accounts of the shooting scene.'
+  union all select 'church-committee', 'Church Committee',
+         'The 1975-76 Senate Select Committee to Study Governmental Operations with Respect to Intelligence Activities, which examined CIA and FBI conduct in the JFK investigation and published Book V of its final report on the subject.'
+  union all select 'arrb-releases', 'ARRB & Declassification',
+         'The Assassination Records Review Board (1994-98) and the ongoing declassification history of the JFK Assassination Records Collection — the meta-story of how the federal government has released these records over time.'
+  union all select 'mob-castro-plots', 'Organized Crime & Castro Plots',
+         'CIA operations against Fidel Castro and their organized-crime-intermediary angle: AMLASH (Rolando Cubela), ZRRIFLE, Operation Mongoose, and the mob figures Santo Trafficante Jr., Carlos Marcello, Sam Giancana, and Johnny Roselli.'
 ),
 all_docs as (
   select 'warren-commission' as slug, r.document_id, r.title as doc_title,
@@ -61,6 +71,21 @@ all_docs as (
   union all
   select 'cuba', r.document_id, r.title, r.description, r.agency, r.start_date, r.pages_released
     from `jfk-vault.jfk_mvp.cuba_docs` r where r.title is not null
+  union all
+  select 'tippit-murder', r.document_id, r.title, r.description, r.agency, r.start_date, r.pages_released
+    from `jfk-vault.jfk_mvp.tippit_murder_docs` r where r.title is not null
+  union all
+  select 'dealey-plaza', r.document_id, r.title, r.description, r.agency, r.start_date, r.pages_released
+    from `jfk-vault.jfk_mvp.dealey_plaza_docs` r where r.title is not null
+  union all
+  select 'church-committee', r.document_id, r.title, r.description, r.agency, r.start_date, r.pages_released
+    from `jfk-vault.jfk_mvp.church_committee_docs` r where r.title is not null
+  union all
+  select 'arrb-releases', r.document_id, r.title, r.description, r.agency, r.start_date, r.pages_released
+    from `jfk-vault.jfk_mvp.arrb_releases_docs` r where r.title is not null
+  union all
+  select 'mob-castro-plots', r.document_id, r.title, r.description, r.agency, r.start_date, r.pages_released
+    from `jfk-vault.jfk_mvp.mob_castro_plots_docs` r where r.title is not null
 ),
 ranked as (
   select *,

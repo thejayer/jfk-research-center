@@ -66,6 +66,7 @@ FILES=(
   "18_primary_sources.sql"
   "20_mvp_oswald_mentions.sql"
   "21_mvp_topic_views.sql"
+  "21b_mvp_new_topic_views.sql"
   "90_dq_reports.sql"
 )
 
@@ -74,10 +75,15 @@ if [[ $SKIP_INDEXES -ne 1 ]]; then
 fi
 
 if [[ $SKIP_SUMMARIES -ne 1 ]]; then
-  FILES+=("24_remote_models.sql" "25_topic_summaries.sql" "26_topic_articles.sql")
+  FILES+=("24_remote_models.sql" "25_topic_summaries.sql" "26_topic_articles.sql" "26b_wc_rebalance.sql")
   if [[ $SKIP_OPEN_QUESTIONS -ne 1 ]]; then
+    # sql/27 regenerates MAP for all 6 ORIGINAL topics (~$25). sql/27b
+    # appends ONLY the 5 new Phase 2-B topics (~$3). Running both gives
+    # a clean full rebuild; drop sql/27b if you want to skip the new
+    # topics.
     FILES+=(
       "27_topic_batch_analyses.sql"
+      "27b_new_topics_batch_analyses.sql"
       "28_topic_open_questions.sql"
       "29_global_open_questions.sql"
     )
