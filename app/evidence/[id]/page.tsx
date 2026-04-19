@@ -96,20 +96,36 @@ export default async function EvidenceItemPage({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={data.imageUrl}
-            alt={data.shortName}
+            alt={data.imageAlt ?? data.shortName}
             style={{ display: "block", width: "100%", height: "auto" }}
           />
-          {data.imageCredit && (
+          {(data.imageCredit ||
+            (data.canonicalCopyUrl && data.canonicalCopyHost)) && (
             <figcaption
               className="muted"
               style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
                 fontSize: "0.78rem",
                 padding: "8px 14px",
                 background: "var(--surface)",
                 borderTop: "1px solid var(--border)",
               }}
             >
-              {data.imageCredit}
+              <span>{data.imageCredit ?? ""}</span>
+              {data.canonicalCopyUrl && data.canonicalCopyHost && (
+                <a
+                  href={data.canonicalCopyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  View canonical copy at {data.canonicalCopyHost} &rarr;
+                </a>
+              )}
             </figcaption>
           )}
         </figure>
