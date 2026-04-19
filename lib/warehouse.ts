@@ -417,6 +417,14 @@ const TOPIC_DISPLAY_ORDER = [
   "physical-evidence",
 ];
 
+// physical-evidence is a redirect-only topic — its counts come from
+// jfk_curated.physical_evidence, not a jfk_mvp.* table. Any code that
+// joins topic docs against the MVP layer MUST iterate this list
+// instead of TOPIC_DISPLAY_ORDER to avoid querying a non-existent table.
+const MVP_QUERYABLE_TOPIC_SLUGS = TOPIC_DISPLAY_ORDER.filter(
+  (s) => s !== "physical-evidence",
+);
+
 // ---------------------------------------------------------------------------
 // HOME
 // ---------------------------------------------------------------------------
@@ -540,12 +548,9 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
 }
 
 async function topicCountsMap(): Promise<Map<string, number>> {
-  // The physical-evidence topic is a special-case: its "documents" live
-  // in jfk_curated.physical_evidence (curated catalog, not an MVP view
-  // over jfk_records). Count it separately and skip it in the UNION over
-  // MVP tables.
-  const mvpSlugs = TOPIC_DISPLAY_ORDER.filter((s) => s !== "physical-evidence");
-  const qs = mvpSlugs
+  // physical-evidence is the only non-MVP-backed topic — count it separately
+  // from jfk_curated.physical_evidence (see MVP_QUERYABLE_TOPIC_SLUGS).
+  const qs = MVP_QUERYABLE_TOPIC_SLUGS
     .map(
       (slug) =>
         `SELECT '${slug}' AS slug, COUNT(*) AS n FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
@@ -763,9 +768,9 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
     })
     .filter((e): e is EntityCard => !!e);
 
-  // Topic relation: count topic-table membership for this entity's documents
+  // Topic relation: count topic-table membership for this entity's documents.
   const topicCoOccurrence = await Promise.all(
-    TOPIC_DISPLAY_ORDER.map(async (topicSlug) => {
+    MVP_QUERYABLE_TOPIC_SLUGS.map(async (topicSlug) => {
       const t = TOPIC_CATALOG[topicSlug]!;
       const rows = await query<{ n: number }>(
         `SELECT COUNT(*) AS n
@@ -1457,12 +1462,7 @@ export async function fetchEntityCooccurrence({
 }
 
 async function loadSearchFacets() {
-  // physical-evidence has no per-document MVP list (it redirects to /evidence
-  // and is a catalog, not a classification). Exclude it from the search facet.
-  const searchableTopicSlugs = TOPIC_DISPLAY_ORDER.filter(
-    (s) => s !== "physical-evidence",
-  );
-  const topicCountsUnion = searchableTopicSlugs
+  const topicCountsUnion = MVP_QUERYABLE_TOPIC_SLUGS
     .map(
       (slug) =>
         `SELECT '${slug}' AS slug, COUNT(*) AS n
@@ -1526,9 +1526,9 @@ async function loadSearchFacets() {
     yearBounds: { min: yearMin, max: yearMax },
     agencies: agencies.map((r) => r.agency),
     agencyCounts: Object.fromEntries(agencies.map((r) => [r.agency, r.n])),
-    topics: searchableTopicSlugs,
+    topics: MVP_QUERYABLE_TOPIC_SLUGS,
     topicLabels: Object.fromEntries(
-      searchableTopicSlugs.map((slug) => [slug, TOPIC_CATALOG[slug]!.title]),
+      MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => [slug, TOPIC_CATALOG[slug]!.title]),
     ),
     topicCounts: Object.fromEntries(topicCountRows.map((r) => [r.slug, r.n])),
     entities: entityIds.map((e) => e.entity_id),
