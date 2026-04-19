@@ -258,8 +258,29 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (Phase 5-E public API v1)
+**Last updated:** 2026-04-19 (small wins polish — mobile nav, copy-NAID, empty state)
 
+- **Polish follow-ups (2026-04-19).** Three loose ends closed after
+  Phase 5-E:
+  - **Mobile primary nav.** Site header's 7-item nav used to vanish
+    below 720px. `.inner` now wraps to two rows on mobile; the nav
+    gets `overflow-x: auto` with the scrollbar hidden so every item
+    stays reachable by horizontal swipe. Brand subtitle hidden on
+    mobile. New `--header-height` CSS var (64px desktop / 100px
+    mobile) keeps the `/search` sticky band flush under the now-
+    taller mobile header. 4-J's "Mobile primary nav" follow-up is
+    closed.
+  - **Copy-NAID button** next to the NAID display in document
+    headers. navigator.clipboard.writeText + brief "✓ copied" state.
+  - **Search empty-state copy** now mentions Semantic mode alongside
+    Documents and Mentions.
+  - Entity "also appears with" (originally planned) skipped —
+    already implemented as the "Connected people & organizations"
+    section on `/entity/[slug]`, computed per-request from
+    `jfk_document_entity_map`. A future alignment pass could swap it
+    to the aggregated `entity_cooccurrence` table + medium+ filter
+    for consistency with `/graph`, but that would regress peer
+    coverage for entities with only low-confidence mappings.
 - **Phase 5-E public API v1 (2026-04-19).** Read-only, CORS-open,
   unauthenticated endpoints at `/api/v1/*` re-exposing the warehouse
   data under a stable contract:
@@ -676,11 +697,6 @@ bq query --use_legacy_sql=false \
   run. Easiest: install the axe DevTools browser extension and run it
   on /, /search (with filters open + drawer open on mobile), /topic/*,
   /document/*, /timeline. Fix any serious/critical issues it surfaces.
-- **Mobile primary nav (4-J follow-up).** The 7-item header nav is
-  hidden below 720px with no mobile replacement — users on phones
-  have to go to the footer to navigate. Not in 4-J scope (which was
-  filters + doc viewer), but worth addressing: horizontal-scroll
-  nav strip or a hamburger drawer.
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.
@@ -700,9 +716,29 @@ bq query --use_legacy_sql=false \
 - **Mock vs. warehouse**: API routes import from `@/lib/warehouse.ts`.
   `@/lib/mock-data.ts` is not imported anywhere in production code; it
   exists for local demos or tests.
+- **Public API v1 conventions.** Every route under `/api/v1/*` uses
+  `lib/api-v1.ts` for `jsonResponse` / `errorResponse` / `preflight`
+  so CORS and cache headers stay uniform. Each route also exports
+  `OPTIONS = preflight`. The OpenAPI spec at `/api/v1/openapi.json`
+  must be updated when endpoints are added or their params change.
+- **Embeddings are a fixed asset, not a rebuild step.**
+  `jfk_curated.chunk_embeddings` (Phase 5-A) and the cosine IVF
+  vector index cost ~$1.40 and ~10 minutes of Vertex calls to
+  regenerate. Do not add `sql/31` to `rebuild_warehouse.sh`. When
+  re-embedding is truly needed, run it manually via
+  `bq query < sql/31_chunk_embeddings.sql`. The co-occurrence
+  aggregation in `sql/32` is cheap and can be rebuilt freely.
+- **Semantic asymmetry.** Vertex retrieval embeddings are
+  task-type asymmetric: corpus side uses `RETRIEVAL_DOCUMENT` (in
+  sql/31), query side uses `RETRIEVAL_QUERY` (in
+  `fetchSemanticSearch`). Using the wrong task type on either side
+  silently tanks recall without surfacing as an error.
 - **No Tailwind, no CSS framework.** Design tokens in
   `app/globals.css`; most component styling is inline React `style` on
   server components so it renders server-side without runtime CSS-in-JS.
+  Heavy viz libs (`react-force-graph-2d` etc.) are intentionally
+  avoided — `/graph` uses `d3-force` for physics only and hand-rolls
+  the SVG render.
 - **Confidence semantics** (in UI and DB): `high` = entity name in
   title, `medium` = in description, `low` = in OCR text only. Never
   guess — always reflect where the match landed.
