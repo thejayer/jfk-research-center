@@ -79,6 +79,11 @@ export function KeyboardShortcuts() {
           router.push("/search");
           return;
         }
+        if (e.key === "h") {
+          e.preventDefault();
+          router.push("/");
+          return;
+        }
         return;
       }
 
@@ -254,6 +259,7 @@ function HelpModal({ onClose }: { onClose: () => void }) {
           <Row keys={["/"]}>Focus search</Row>
           <Row keys={["j"]}>Next result</Row>
           <Row keys={["k"]}>Previous result</Row>
+          <Row keys={["g", "h"]}>Go home</Row>
           <Row keys={["g", "s"]}>Go to search</Row>
           <Row keys={["g", "e"]}>Go to entities</Row>
           <Row keys={["g", "t"]}>Go to topics</Row>
