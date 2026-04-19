@@ -327,6 +327,66 @@ const TOPIC_CATALOG: Record<
     mvpTable: "cuba_docs",
     relatedSlugs: ["cia", "mexico-city"],
   },
+  "tippit-murder": {
+    title: "Tippit Murder",
+    eyebrow: "November 22, 1963",
+    summary:
+      "Records examining the murder of Dallas Police Officer J. D. Tippit approximately 45 minutes after the assassination of President Kennedy.",
+    description:
+      "Dallas Police Officer J. D. Tippit was shot and killed at East 10th Street and Patton Avenue in Oak Cliff on November 22, 1963. Nine eyewitnesses later identified Lee Harvey Oswald as the gunman in lineups or photo arrays; Oswald was charged the same day with both the Tippit and Kennedy murders. The documentary record of the shooting is primarily examined in the Warren Commission, the HSCA, and the ARRB reports.",
+    mvpTable: "tippit_murder_docs",
+    relatedSlugs: ["warren-commission", "fbi", "dealey-plaza"],
+  },
+  "dealey-plaza": {
+    title: "Dealey Plaza",
+    eyebrow: "The scene",
+    summary:
+      "Records concerning the motorcade, Dealey Plaza geography, the Texas School Book Depository, the Zapruder film, and eyewitness accounts of the shooting scene.",
+    description:
+      "Dealey Plaza is the triangular plaza at the west end of downtown Dallas where President Kennedy was fatally shot on November 22, 1963. The principal shooting scene — the Texas School Book Depository, the grassy knoll, the triple underpass, and the surrounding witness positions — is documented across Warren Commission exhibits, HSCA photographic analysis, and the primary visual records (the Zapruder, Nix, Muchmore, and Moorman films and photographs).",
+    mvpTable: "dealey_plaza_docs",
+    relatedSlugs: ["warren-commission", "hsca", "physical-evidence"],
+  },
+  "church-committee": {
+    title: "Church Committee",
+    eyebrow: "1975 – 1976",
+    summary:
+      "The 1975–76 Senate Select Committee that examined CIA and FBI conduct in the JFK investigation and published Book V on the subject.",
+    description:
+      "The Senate Select Committee to Study Governmental Operations with Respect to Intelligence Activities, chaired by Senator Frank Church, published six books of its final report (S. Rep. No. 94-755) in April 1976. Book V, subtitled \"The Investigation of the Assassination of President John F. Kennedy: Performance of the Intelligence Agencies,\" is indexed as a primary-source report on this site.",
+    mvpTable: "church_committee_docs",
+    relatedSlugs: ["cia", "fbi", "hsca"],
+  },
+  "arrb-releases": {
+    title: "ARRB & Declassification",
+    eyebrow: "1992 – present",
+    summary:
+      "The Assassination Records Review Board (1994–98) and the ongoing declassification history of the JFK Assassination Records Collection.",
+    description:
+      "The JFK Records Act of 1992 established the JFK Assassination Records Collection at the National Archives and created the Assassination Records Review Board (ARRB), a five-member independent panel that oversaw declassification between 1994 and 1998. The collection has continued to open in tranches: 2017–18, 2021, 2022, 2023, the March and April 2025 EO 14176 drops, and the January 2026 release.",
+    mvpTable: "arrb_releases_docs",
+    relatedSlugs: ["warren-commission", "cia", "fbi"],
+  },
+  "mob-castro-plots": {
+    title: "Organized Crime & Castro Plots",
+    eyebrow: "AMLASH · ZRRIFLE · Mongoose",
+    summary:
+      "CIA operations against Fidel Castro and their organized-crime-intermediary angle — AMLASH, ZRRIFLE, Mongoose, and the mob figures Trafficante, Marcello, Giancana, and Roselli.",
+    description:
+      "The CIA's anti-Castro operations between 1960 and 1965 included direct assassination planning (AMLASH, ZRRIFLE) and the use of organized-crime intermediaries (Santo Trafficante Jr., Carlos Marcello, Sam Giancana, Johnny Roselli). The Church Committee examined this conduct in 1975–76; the HSCA revisited it in 1978–79. The records span CIA cable traffic, FBI surveillance files, and congressional testimony.",
+    mvpTable: "mob_castro_plots_docs",
+    relatedSlugs: ["cia", "cuba", "church-committee"],
+  },
+  "physical-evidence": {
+    title: "Physical Evidence",
+    eyebrow: "Ballistics · Firearms · Photographic · Medical",
+    summary:
+      "Hand-curated catalog of the physical evidence in the case — CE-399, the Carcano rifle, backyard photos, Zapruder film, Tippit shell casings, motorcade map, and more.",
+    description:
+      "The physical evidentiary record — the bullets, the rifle, the photographs, the clothing, and the scene itself — is cataloged in a dedicated surface at /evidence, with references to the Warren Commission exhibits, the HSCA medical and photographic panels, and the ARRB findings that examine each item.",
+    mvpTable: "physical_evidence",
+    relatedSlugs: ["dealey-plaza", "warren-commission", "hsca"],
+  },
 };
 
 const TOPIC_DISPLAY_ORDER = [
@@ -336,6 +396,12 @@ const TOPIC_DISPLAY_ORDER = [
   "cia",
   "fbi",
   "cuba",
+  "tippit-murder",
+  "dealey-plaza",
+  "church-committee",
+  "arrb-releases",
+  "mob-castro-plots",
+  "physical-evidence",
 ];
 
 // ---------------------------------------------------------------------------
@@ -461,12 +527,26 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
 }
 
 async function topicCountsMap(): Promise<Map<string, number>> {
-  const qs = TOPIC_DISPLAY_ORDER.map(
-    (slug) =>
-      `SELECT '${slug}' AS slug, COUNT(*) AS n FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
-  ).join(" UNION ALL ");
+  // The physical-evidence topic is a special-case: its "documents" live
+  // in jfk_curated.physical_evidence (curated catalog, not an MVP view
+  // over jfk_records). Count it separately and skip it in the UNION over
+  // MVP tables.
+  const mvpSlugs = TOPIC_DISPLAY_ORDER.filter((s) => s !== "physical-evidence");
+  const qs = mvpSlugs
+    .map(
+      (slug) =>
+        `SELECT '${slug}' AS slug, COUNT(*) AS n FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
+    )
+    .join(" UNION ALL ");
   const rows = await query<{ slug: string; n: number }>(qs);
-  return new Map(rows.map((r) => [r.slug, r.n]));
+  const out = new Map(rows.map((r) => [r.slug, r.n]));
+  if (TOPIC_DISPLAY_ORDER.includes("physical-evidence")) {
+    const peRows = await query<{ n: number }>(
+      `SELECT COUNT(*) AS n FROM \`${PROJECT}.${DATASET_CURATED}.physical_evidence\``,
+    ).catch(() => []);
+    out.set("physical-evidence", peRows[0]?.n ?? 0);
+  }
+  return out;
 }
 
 function topicToCard(slug: string, count: number): TopicCard {

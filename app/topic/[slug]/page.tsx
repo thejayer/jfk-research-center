@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { TopicDetail } from "@/lib/api-types";
 import { fetchTopic } from "@/lib/api-client";
 import { TopicHero } from "@/components/topics/topic-hero";
@@ -24,6 +24,13 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  if (slug === "physical-evidence") {
+    return {
+      title: "Physical Evidence",
+      description:
+        "Curated catalog of physical evidence in the JFK assassination case — see /evidence.",
+    };
+  }
   const data = await fetchTopic(slug);
   if (!data) return { title: "Topic not found" };
   return {
@@ -38,6 +45,12 @@ export default async function TopicPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  // The physical-evidence topic is a special-case: its dedicated UI lives
+  // at /evidence. Redirect so the /topics index entry still points somewhere
+  // useful, without duplicating the grid.
+  if (slug === "physical-evidence") {
+    redirect("/evidence");
+  }
   const data = await fetchTopic(slug);
   if (!data) notFound();
 

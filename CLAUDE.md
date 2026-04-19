@@ -258,8 +258,38 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-18 (entity facts + timeline + citation registry)
+**Last updated:** 2026-04-19 (Phase 2-B: 6 new topics)
 
+- **Phase 2-B — 6 new topics (2026-04-19).** Expanded topic roster from
+  6 to 12. Five new AI-driven topics go through the existing sql/25/26/
+  27-29 pipeline; the sixth (physical-evidence) is a special-case topic
+  that redirects to /evidence rather than generating AI content over the
+  curated catalog.
+  - New AI topics with full pipeline (summary + article + Open Questions):
+    `tippit-murder` (4 docs), `dealey-plaza` (20 docs), `church-committee`
+    (290 docs), `arrb-releases` (551 docs), `mob-castro-plots` (2,023
+    docs). Each has MVP view in `sql/21b_mvp_new_topic_views.sql` with
+    REGEXP_CONTAINS matching over title + description + OCR chunks (the
+    last crucial for tippit-murder and dealey-plaza since the NARA
+    metadata corpus is overwhelmingly pre-assassination intelligence
+    files, not post-shooting DPD/FBI investigation records).
+  - AI generation cost for this wave: ~$4 total (sql/27b MAP = $2.20 for
+    22 new batches; sql/28 REDUCE = $1 for 10 topics' articles; sql/25/
+    26/29 = ~$1). Existing 6 topics\' MAP stage was NOT re-run — sql/27b
+    appends to jfk_topic_batch_questions rather than CREATE OR REPLACE,
+    avoiding the ~$25 regeneration of CIA/FBI batches. tippit-murder
+    generated 0 open questions (Gemini found nothing noteworthy in 4
+    docs); the other 4 topics produced 4 to 70 questions each.
+  - Special case: physical-evidence is in TOPIC_CATALOG and
+    TOPIC_DISPLAY_ORDER (so /topics index lists it) but `/topic/
+    physical-evidence` `redirect()`s to `/evidence`. Count in topics
+    grid comes from jfk_curated.physical_evidence (33 items), not from
+    a jfk_mvp view — handled via a branch in `topicCountsMap()`.
+  - `rebuild_warehouse.sh` now runs `21b_mvp_new_topic_views.sql` after
+    sql/21, and `27b_new_topics_batch_analyses.sql` after sql/27 (plus
+    `26b_wc_rebalance.sql` after sql/26 — was missing before).
+  - sql/26b WC rebalance was preserved across this session\'s full
+    sql/26 regeneration by re-running it after sql/26.
 - **Entity facts, timeline events, citation registry (2026-04-18).**
   Phases 1-F, 1-G, 1-H from the gameplan — first wave. Schemas + seed
   data for all three; minimal UI exposure (entity Quick Facts).
