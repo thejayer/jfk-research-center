@@ -42,6 +42,8 @@ import type {
   CooccurrenceLink,
   CooccurrenceNode,
   CryptonymEntry,
+  DealeyPlazaResponse,
+  DealeyPlazaWitness,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
   PhysicalEvidenceDetail,
@@ -2278,4 +2280,70 @@ function oswaldTimeline() {
         "During a jail transfer in the basement of Dallas Police Headquarters, Oswald is shot by Jack Ruby, a Dallas nightclub owner. He is pronounced dead at Parkland Hospital.",
     },
   ];
+}
+
+// ---------------------------------------------------------------------------
+// DEALEY PLAZA WITNESSES — sql/43.
+// ---------------------------------------------------------------------------
+
+export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> {
+  const rows = await query<{
+    witness_id: string;
+    name: string;
+    position_lat: number;
+    position_lng: number;
+    position_description: string;
+    statement_summary: string;
+    heard_shots: number | null;
+    shot_origin_perceived: string | null;
+    wc_testimony_volume: number | null;
+    wc_testimony_page: number | null;
+    source_naids: string[] | null;
+    role: string | null;
+  }>(
+    `SELECT witness_id, name, position_lat, position_lng,
+            position_description, statement_summary, heard_shots,
+            shot_origin_perceived, wc_testimony_volume,
+            wc_testimony_page, source_naids, role
+       FROM \`${PROJECT}.${DATASET_CURATED}.dealey_plaza_witnesses\`
+      ORDER BY witness_id`,
+  );
+  const witnesses: DealeyPlazaWitness[] = rows.map((r) => ({
+    witnessId: r.witness_id,
+    name: r.name,
+    positionLat: r.position_lat,
+    positionLng: r.position_lng,
+    positionDescription: r.position_description,
+    statementSummary: r.statement_summary,
+    heardShots: r.heard_shots,
+    shotOriginPerceived: r.shot_origin_perceived,
+    wcTestimonyVolume: r.wc_testimony_volume,
+    wcTestimonyPage: r.wc_testimony_page,
+    sourceNaids: r.source_naids ?? [],
+    role: r.role,
+  }));
+
+  // Compute the bounding box with a small pad so witnesses near the
+  // edge aren't visually pinned against the SVG border.
+  let minLat = Infinity,
+    maxLat = -Infinity,
+    minLng = Infinity,
+    maxLng = -Infinity;
+  for (const w of witnesses) {
+    if (w.positionLat < minLat) minLat = w.positionLat;
+    if (w.positionLat > maxLat) maxLat = w.positionLat;
+    if (w.positionLng < minLng) minLng = w.positionLng;
+    if (w.positionLng > maxLng) maxLng = w.positionLng;
+  }
+  const padLat = (maxLat - minLat) * 0.08 || 0.0005;
+  const padLng = (maxLng - minLng) * 0.08 || 0.0005;
+  return {
+    witnesses,
+    bounds: {
+      minLat: minLat - padLat,
+      maxLat: maxLat + padLat,
+      minLng: minLng - padLng,
+      maxLng: maxLng + padLng,
+    },
+  };
 }
