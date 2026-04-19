@@ -142,5 +142,27 @@ select * from unnest([
     ['Win Scott','Winston Scott','Winston M. Scott','Winston MacKinley Scott'],
     'CIA Chief of Station in Mexico City from 1956 to 1969, including the period of Oswald\'s September–October 1963 visit.',
     'Winston "Win" Scott ran one of the CIA\'s most active stations for 13 years. His office supervised the LIENVOY telephone intercepts, LIEMPTY Soviet-embassy photo surveillance, and LIHUFF/LIONION Cuban-target operations. Scott died in 1971; Jim Angleton personally traveled to Mexico to retrieve his safe contents and manuscript materials, a matter later examined by the HSCA and ARRB.',
-    null,'1909-03-30','1971-04-26','1956–1969', 20)
+    null,'1909-03-30','1971-04-26','1956–1969', 20),
+
+  -- ============================================================
+  -- Wave 2 — Mexico City + AMLASH narrative (added April 2026)
+  -- ============================================================
+
+  ('kostikov','Valeriy Kostikov','person',
+    ['Valeriy Kostikov','Valery Kostikov','V. V. Kostikov','Valeriy Vladimirovich Kostikov'],
+    'KGB officer assigned to the Soviet Embassy in Mexico City; cited in CIA cables as a member of the KGB\'s Department 13 (Executive Action). Met with Oswald during the September 28, 1963 contact at the Soviet consulate.',
+    'Valeriy Kostikov was a Soviet diplomat under cover at the Soviet Embassy in Mexico City from 1961 to 1965. CIA Mexico City station cables and the Lopez Report (1978) identify him as KGB and place him in the Department 13 (Executive Action) line of the residency. CIA monitoring captured a documented contact between Oswald and Kostikov on September 28, 1963 at the Soviet consulate. The contact, and the agency\'s subsequent handling of cables describing it, was a central topic of the HSCA\'s investigation of CIA pre-assassination knowledge of Oswald.',
+    null,null,null,'1961–1965', 21),
+
+  ('de-mohrenschildt','George de Mohrenschildt','person',
+    ['George de Mohrenschildt','Jerzy Sergius von Mohrenschildt','George S. de Mohrenschildt','de Mohrenschildt'],
+    'Russian-born petroleum geologist in the Dallas-Fort Worth émigré circle who befriended Lee and Marina Oswald in 1962-1963. Testified before the Warren Commission in April 1964; died by suicide on March 29, 1977, hours after being contacted by an HSCA investigator.',
+    'George de Mohrenschildt was born in 1911 in what is now Belarus to a noble Russian family that emigrated after the Bolshevik Revolution. He arrived in the United States in 1938, served in the OSS during WWII, and worked as a petroleum geologist on consulting assignments across Europe, Africa, and Latin America. He and his wife Jeanne were active in the Russian-speaking émigré community in Dallas-Fort Worth and became close to Lee and Marina Oswald between October 1962 and April 1963. He testified to the Warren Commission on April 22-23, 1964 (WC Vol. 9). On March 29, 1977 — hours after HSCA investigator Gaeton Fonzi delivered a request for an interview at his daughter\'s residence in Manalapan, Florida — de Mohrenschildt was found dead of a self-inflicted shotgun wound. The HSCA included his death in its final review of the chronology of witness mortality.',
+    null,'1911-04-17','1977-03-29','1962–1963', 22),
+
+  ('cubela','Rolando Cubela Secades','person',
+    ['Rolando Cubela','Rolando Cubela Secades','Cubela','AMLASH-1','AMLASH/1'],
+    'Cuban Army officer and former July 26 Movement comandante recruited by the CIA under the cryptonym AMLASH-1 in 1961-1965 to assassinate Fidel Castro. Met with his CIA case officer in Paris on November 22, 1963, the day President Kennedy was killed.',
+    'Rolando Cubela Secades was a Cuban revolutionary who fought in the Sierra Maestra alongside Fidel Castro and held senior roles in the post-revolution Cuban government. The CIA designated him AMLASH-1 in the program of the same name, beginning operational contacts in 1961. On November 22, 1963, Cubela met with his CIA case officer in Paris; the meeting and timing are documented in the Church Committee\'s 1975 Interim Report on Alleged Assassination Plots Involving Foreign Leaders. Cuban authorities arrested Cubela in 1966 along with co-conspirators; he was sentenced to 25 years in the same year and released in 1979. He spent the remainder of his life in Spain.',
+    null,'1932-09-09',null,'1957–1979', 23)
 ]);

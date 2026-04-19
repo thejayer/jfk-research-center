@@ -303,5 +303,53 @@ select * from unnest([
   ('win-scott', 'died', 'April 26, 1971 — Mexico City',
     date '1971-04-26', 'REFERENCE', 'ARRB-era CIA records', 'High', 4),
   ('win-scott', 'posthumous_manuscript', 'James Angleton traveled to Mexico City following Scott\'s death to retrieve his safe contents and an unpublished memoir manuscript',
-    date '1971-05-01', 'ARRB', 'ARRB Final Report, Ch. 6', 'High', 5)
+    date '1971-05-01', 'ARRB', 'ARRB Final Report, Ch. 6', 'High', 5),
+
+  -- ============================================================
+  -- KOSTIKOV (Wave 2, April 2026)
+  -- ============================================================
+  ('kostikov', 'role_1963', 'KGB officer under diplomatic cover at the Soviet Embassy in Mexico City; identified by CIA as Department 13 (Executive Action)',
+    null, 'HSCA', 'HSCA Vol. III, pp. 565-571', 'High', 1),
+  ('kostikov', 'mexico_city_tour', 'Posted to Mexico City circa 1961-1965',
+    null, 'ARRB', 'Lopez Report (1978)', 'High', 2),
+  ('kostikov', 'oswald_contact', 'September 28, 1963 — documented contact with Oswald at the Soviet consulate in Mexico City',
+    date '1963-09-28', 'ARRB', 'Lopez Report (1978); CIA Mexico City station cables', 'High', 3),
+  ('kostikov', 'kgb_line', 'CIA cables identified Kostikov as a member of KGB Department 13 (Executive Action), the line responsible for sabotage and assassination operations against foreign opponents',
+    null, 'HSCA', 'HSCA Vol. III, pp. 565-571', 'High', 4),
+  ('kostikov', 'category', 'Adjacent — appears in pre-assassination Mexico City surveillance product but not investigated as a participant',
+    null, 'REFERENCE', 'Lopez Report (1978) summary', 'Medium', 5),
+
+  -- ============================================================
+  -- DE MOHRENSCHILDT (Wave 2, April 2026)
+  -- ============================================================
+  ('de-mohrenschildt', 'born', 'April 17, 1911 — Mozyr, then Russian Empire (now Belarus)',
+    date '1911-04-17', 'REFERENCE', 'WC Vol. 9 — biographical statement', 'High', 1),
+  ('de-mohrenschildt', 'profession', 'Petroleum geologist; international consulting in petroleum exploration',
+    null, 'WC', 'WC Vol. 9 (de Mohrenschildt testimony, April 22-23, 1964)', 'High', 2),
+  ('de-mohrenschildt', 'oswald_contact_period', 'October 1962 – April 1963 — close social contact with Lee and Marina Oswald in the Dallas-Fort Worth Russian-speaking émigré circle',
+    date '1962-10-01', 'WC', 'WC Vol. 9', 'High', 3),
+  ('de-mohrenschildt', 'wc_testimony', 'Testified before the Warren Commission on April 22-23, 1964 (WC Vol. 9)',
+    date '1964-04-22', 'WC', 'Warren Commission Hearings, Vol. 9', 'High', 4),
+  ('de-mohrenschildt', 'died', 'March 29, 1977 — found dead of self-inflicted shotgun wound in Manalapan, Florida, hours after HSCA investigator Gaeton Fonzi delivered an interview request',
+    date '1977-03-29', 'HSCA', 'HSCA Final Report (1979), witness-mortality review', 'High', 5),
+  ('de-mohrenschildt', 'category', 'Adjacent — social contact of the Oswalds; not investigated as a participant',
+    null, 'REFERENCE', 'WC Final Report and HSCA Final Report', 'Medium', 6),
+
+  -- ============================================================
+  -- CUBELA (Wave 2, April 2026)
+  -- ============================================================
+  ('cubela', 'born', 'September 9, 1932 — Cuba',
+    date '1932-09-09', 'CHURCH', 'Church Committee Interim Report (1975), pp. 86-89', 'High', 1),
+  ('cubela', 'role_revolutionary', 'Cuban Army officer; July 26 Movement comandante during the Cuban Revolution; held senior post-revolution roles',
+    null, 'CHURCH', 'Church Committee Interim Report (1975)', 'High', 2),
+  ('cubela', 'cia_cryptonym', 'CIA cryptonym AMLASH-1; the broader operation to recruit a Cuban government insider against Fidel Castro carried the cryptonym AMLASH',
+    null, 'CHURCH', 'Church Committee Interim Report (1975), pp. 86-89', 'High', 3),
+  ('cubela', 'paris_meeting', 'November 22, 1963 — met with his CIA case officer in Paris on the day President Kennedy was assassinated',
+    date '1963-11-22', 'CHURCH', 'Church Committee Interim Report (1975)', 'High', 4),
+  ('cubela', 'convicted', '1966 — Cuban authorities arrested Cubela and co-conspirators; sentenced to 25 years',
+    date '1966-03-01', 'REFERENCE', 'Cuban government press releases (1966)', 'High', 5),
+  ('cubela', 'released', '1979 — released from Cuban prison; relocated to Spain',
+    date '1979-01-01', 'REFERENCE', 'Cuban government records; later press accounts', 'Medium', 6),
+  ('cubela', 'category', 'Adjacent — CIA asset cited by Church Committee in the Castro assassination plots',
+    null, 'REFERENCE', 'Church Committee Interim Report (1975)', 'Medium', 7)
 ]);
