@@ -53,8 +53,10 @@ export function SiteFooter() {
         </FooterCol>
 
         <FooterCol title="About">
+          <FooterLink href="/about">Overview</FooterLink>
           <FooterLink href="/about/methodology">Methodology</FooterLink>
           <FooterLink href="/about/editorial-policy">Editorial policy</FooterLink>
+          <FooterLink href="/about/roadmap">Roadmap</FooterLink>
           <div
             className="muted"
             style={{ fontSize: "0.85rem", lineHeight: 1.55, marginTop: 6 }}
