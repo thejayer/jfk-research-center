@@ -291,5 +291,46 @@ select * from unnest([
     'https://www.archives.gov/research/jfk/select-committee-report',
     'HSCA',
     'Examination of post-mortem handling of Scott\'s safe contents and manuscript.'
+  ),
+
+  -- Wave 2 (April 2026)
+
+  ('kostikov', 1,
+    'HSCA Final Report, Vol. III, pp. 565-571',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Identification of Kostikov as KGB and the Department 13 attribution.'
+  ),
+  ('kostikov', 2,
+    'Lopez Report (1978)',
+    'https://www.archives.gov/research/jfk/select-committee-report/part-2.html',
+    'HSCA',
+    'HSCA staff analysis of CIA Mexico City station product on the September 1963 Oswald contacts.'
+  ),
+
+  ('de-mohrenschildt', 1,
+    'Warren Commission Hearings, Vol. 9 (de Mohrenschildt testimony, April 22-23, 1964)',
+    'https://www.archives.gov/research/jfk/warren-commission-hearings',
+    'WC',
+    'Sworn testimony covering background, Oswald contact period, and travels.'
+  ),
+  ('de-mohrenschildt', 2,
+    'HSCA Final Report (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Witness-mortality review including the March 29, 1977 death.'
+  ),
+
+  ('cubela', 1,
+    'Church Committee Interim Report on Alleged Assassination Plots Involving Foreign Leaders (1975), pp. 86-89',
+    'https://www.intelligence.senate.gov/sites/default/files/94465.pdf',
+    'CHURCH',
+    'Identification of Cubela as AMLASH-1 and the November 22, 1963 Paris meeting.'
+  ),
+  ('cubela', 2,
+    'HSCA Final Report (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Re-examination of the AMLASH operation and the Paris meeting timing.'
   )
 ]);
