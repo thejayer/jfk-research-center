@@ -73,5 +73,74 @@ select * from unnest([
     ['HSCA','House Select Committee on Assassinations','Select Committee on Assassinations'],
     '1976–1979 congressional inquiry that re-examined the Kennedy and King assassinations and published a 12-volume appendix of evidence.',
     'The House Select Committee on Assassinations reviewed the forensic, acoustic, medical, and intelligence record surrounding the Kennedy and King assassinations. Its final report concluded that President Kennedy was "probably assassinated as a result of a conspiracy" and recommended further investigation by the Department of Justice; its working files were transferred to the National Archives in the 1990s.',
-    null,null,null,'1976–1979', 9)
+    null,null,null,'1976–1979', 9),
+
+  -- ============================================================
+  -- Phase 2-A Wave 1: 11 new entities (2026-04-19)
+  -- ============================================================
+  ('tippit','J. D. Tippit','person',
+    ['J. D. Tippit','J.D. Tippit','J. D. "Jefferson Davis" Tippit','Officer Tippit','Tippit'],
+    'Dallas Police Officer shot and killed in Oak Cliff on November 22, 1963, approximately 45 minutes after the assassination of President Kennedy.',
+    'J. D. Tippit was an 11-year veteran of the Dallas Police Department assigned to patrol District 78 on November 22, 1963. He was shot at approximately 1:15 p.m. CST at East 10th Street and Patton Avenue after stopping a suspect matching the description broadcast in the assassination alert. Nine eyewitnesses later identified Lee Harvey Oswald as the gunman; ballistics matched the four recovered cartridge cases to the revolver Oswald was carrying when arrested at the Texas Theatre 35 minutes later.',
+    null,'1924-09-18','1963-11-22','1952–1963', 10),
+
+  ('zapruder','Abraham Zapruder','person',
+    ['Abraham Zapruder','Abe Zapruder','Zapruder'],
+    'Dallas dressmaker whose 26-second 8mm color home movie of the motorcade captured the assassination and became the single most-examined piece of visual evidence in the case.',
+    'Abraham Zapruder filmed the motorcade from a concrete pergola on the north side of Elm Street using a Bell & Howell Zoomatic camera. The resulting film, covering frames 133 through 486 of the Dealey Plaza passage, was examined by the Warren Commission, the HSCA Photographic Evidence Panel, and the ARRB. Zapruder sold publication rights to Time-Life in 1963; the original film was declared an assassination record by the ARRB in 1997 and acquired by the federal government in 1999.',
+    null,'1905-05-15','1970-08-30','1963–1970', 11),
+
+  ('connally','John Connally','person',
+    ['John Connally','John B. Connally','Governor Connally','John Bowden Connally Jr.'],
+    'Governor of Texas wounded alongside President Kennedy in the motorcade; a central witness to the single-bullet analysis.',
+    'John Connally served as Governor of Texas from 1963 to 1969 and was riding in the jump seat of the presidential limousine on November 22, 1963. He sustained wounds to the back, chest, right wrist, and left thigh — wounds central to the Warren Commission\'s single-bullet analysis. Connally survived, testified before the Warren Commission in 1964, and appeared again before the HSCA in 1978.',
+    null,'1917-02-27','1993-06-15','1949–1993', 12),
+
+  ('earl-warren','Earl Warren','person',
+    ['Earl Warren','Chief Justice Warren','Chief Justice Earl Warren'],
+    'Chief Justice of the United States who chaired the 1963–1964 Presidential Commission on the Assassination of President Kennedy.',
+    'Earl Warren served as Chief Justice from 1953 to 1969. On November 29, 1963, President Lyndon Johnson named him to chair the Presidential Commission on the Assassination of President Kennedy, which is universally known by his name. Warren initially declined citing court obligations and was persuaded by Johnson to accept. The Commission delivered its 888-page final report on September 24, 1964.',
+    null,'1891-03-19','1974-07-09','1925–1969', 13),
+
+  ('dulles','Allen Dulles','person',
+    ['Allen Dulles','Allen W. Dulles','Allen Welsh Dulles'],
+    'Former Director of Central Intelligence (1953–1961) who served as a member of the Warren Commission.',
+    'Allen Dulles directed the CIA through the Bay of Pigs operation and was dismissed by President Kennedy in November 1961. Two years later he was appointed by Johnson to the Warren Commission. Dulles\'s presence on the Commission — a panel investigating in part the conduct of the agency he had led — has been the subject of conflict-of-interest analysis in the Church Committee and ARRB records.',
+    null,'1893-04-07','1969-01-29','1916–1961', 14),
+
+  ('blakey','G. Robert Blakey','person',
+    ['G. Robert Blakey','Robert Blakey','George Robert Blakey'],
+    'Chief Counsel and Staff Director of the House Select Committee on Assassinations, 1977–1979.',
+    'G. Robert Blakey, a professor of law at Cornell and later Notre Dame, was appointed Chief Counsel of the HSCA in June 1977. Under his direction the Committee commissioned the forensic pathology panel, the photographic evidence panel, and the acoustic analysis that grounded the Committee\'s 1979 "probable conspiracy" conclusion. Blakey later wrote extensively on the investigation and on the subsequent scholarly record.',
+    null,'1936-01-07',null,'1960–present', 15),
+
+  ('church-committee','Church Committee (SSCIA)','org',
+    ['Church Committee','Senate Select Committee on Intelligence','SSCIA','Senate Select Committee to Study Governmental Operations','Frank Church Committee'],
+    '1975–76 Senate Select Committee to Study Governmental Operations with Respect to Intelligence Activities, chaired by Frank Church.',
+    'The Church Committee conducted the first sustained congressional review of CIA, FBI, NSA, and IRS intelligence operations. Its six-book final report (April 1976) includes Book V, "The Investigation of the Assassination of President John F. Kennedy: Performance of the Intelligence Agencies." The Committee\'s work is foundational to public knowledge of the CIA-Mafia Castro plots (AMLASH, ZRRIFLE), MHCHAOS, and the Oswald 201 file handling.',
+    null,null,null,'1975–1976', 16),
+
+  ('arrb','Assassination Records Review Board','org',
+    ['ARRB','Assassination Records Review Board','Review Board'],
+    'Five-member independent panel (1994–1998) that oversaw declassification of the JFK Assassination Records Collection under the JFK Records Act of 1992.',
+    'The ARRB was established by the JFK Records Act (P.L. 102-526) and operated from 1994 through 1998. It reviewed approximately 4 million pages, designated materials as assassination records (including the Zapruder film), and resolved agency postponement requests. Its 1998 Final Report concluded the Board\'s work; the Collection at NARA continues to receive tranches, most recently the 2025 EO 14176 drops and the January 2026 release.',
+    null,null,null,'1994–1998', 17),
+
+  ('duran','Silvia Duran','person',
+    ['Silvia Duran','Sylvia Duran','Silvia Tirado Duran','Silvia Tirado de Duran'],
+    'Mexican national employed at the Cuban Consulate in Mexico City who spoke directly with Lee Harvey Oswald during his September–October 1963 visit.',
+    'Silvia Duran was a receptionist at the Cuban Consulate in Mexico City when Oswald applied for a transit visa to Cuba via the Soviet Union in late September 1963. She processed the unsuccessful application and spoke with Oswald over several visits. The Mexican government detained and interrogated her at U.S. request on November 23, 1963. Her testimony across multiple interviews — to Mexican authorities, to the Warren Commission, and to the HSCA in 1978 — is a central thread in the Mexico City record.',
+    null,'1937-02-01',null,'1963–present', 18),
+
+  ('phillips','David Atlee Phillips','person',
+    ['David Atlee Phillips','David Phillips','D. A. Phillips','Maurice Bishop'],
+    'CIA Chief of Cuban Operations at Mexico City station during Oswald\'s October 1963 visit; later Chief of the Western Hemisphere Division.',
+    'David Atlee Phillips joined the CIA in 1950 and served in Havana, Beirut, Mexico City, and Washington. At the time of Oswald\'s Mexico City visit, Phillips ran propaganda and anti-Castro operations from the Mexico City station. HSCA testimony from Antonio Veciana identified Phillips as the man Veciana knew as "Maurice Bishop," an allegation Phillips denied and the HSCA did not conclusively resolve. Phillips retired from the CIA in 1975 and founded the Association of Former Intelligence Officers.',
+    null,'1922-10-31','1988-07-07','1950–1975', 19),
+
+  ('win-scott','Winston "Win" Scott','person',
+    ['Win Scott','Winston Scott','Winston M. Scott','Winston MacKinley Scott'],
+    'CIA Chief of Station in Mexico City from 1956 to 1969, including the period of Oswald\'s September–October 1963 visit.',
+    'Winston "Win" Scott ran one of the CIA\'s most active stations for 13 years. His office supervised the LIENVOY telephone intercepts, LIEMPTY Soviet-embassy photo surveillance, and LIHUFF/LIONION Cuban-target operations. Scott died in 1971; Jim Angleton personally traveled to Mexico to retrieve his safe contents and manuscript materials, a matter later examined by the HSCA and ARRB.',
+    null,'1909-03-30','1971-04-26','1956–1969', 20)
 ]);

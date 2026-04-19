@@ -153,5 +153,143 @@ select * from unnest([
     'https://www.archives.gov/research/jfk/select-committee-report',
     'REFERENCE',
     'DOJ declines to reopen investigation, citing the NAS findings.'
+  ),
+
+  -- Phase 2-A Wave 1 entity sources (2026-04-19)
+  ('tippit', 1,
+    'Warren Commission Report, Ch. 4: The Assassin',
+    'https://www.archives.gov/research/jfk/warren-commission-report/chapter-4.html',
+    'WC',
+    'Primary account of the Tippit shooting, witness identifications, and lineup procedures.'
+  ),
+  ('tippit', 2,
+    'Warren Commission Hearings, Vol. III — Cortlandt Cunningham (FBI) ballistics testimony',
+    'https://www.archives.gov/research/jfk/warren-commission-hearings',
+    'WC',
+    'FBI Laboratory ballistic comparison of the four shell cases to CE-143.'
+  ),
+
+  ('zapruder', 1,
+    'Abraham Zapruder testimony, Warren Commission Hearings, Vol. VII',
+    'https://www.archives.gov/research/jfk/warren-commission-hearings',
+    'WC',
+    'Zapruder\'s own account of filming the motorcade on November 22, 1963.'
+  ),
+  ('zapruder', 2,
+    'ARRB Final Report, Ch. 2 (1998)',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'Formal designation of the original film as an assassination record and acquisition record.'
+  ),
+
+  ('connally', 1,
+    'John Connally testimony, Warren Commission Hearings, Vol. IV (April 21, 1964)',
+    'https://www.archives.gov/research/jfk/warren-commission-hearings',
+    'WC',
+    'Primary testimony on wounds and in-limousine sequence.'
+  ),
+  ('connally', 2,
+    'HSCA Final Report, Sec. I (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'HSCA re-interview and forensic re-examination of Connally wound trajectory.'
+  ),
+
+  ('earl-warren', 1,
+    'Executive Order 11130 (Nov 29, 1963)',
+    'https://www.archives.gov/research/jfk/warren-commission-report',
+    'REFERENCE',
+    'Establishment of the Commission and appointment of Warren as chair.'
+  ),
+  ('earl-warren', 2,
+    'Warren Commission Report, Foreword (1964)',
+    'https://www.archives.gov/research/jfk/warren-commission-report',
+    'WC',
+    'Commission\'s own account of its formation, members, methodology.'
+  ),
+
+  ('dulles', 1,
+    'Church Committee Book IV — Supplementary Staff Reports',
+    'https://www.intelligence.senate.gov/resources/intelligence-related-commissions',
+    'CHURCH',
+    'Dulles-era CIA operations and Bay of Pigs context.'
+  ),
+  ('dulles', 2,
+    'ARRB Final Report (1998)',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'WC membership, conflict-of-interest analysis, and declassified post-WC correspondence.'
+  ),
+
+  ('blakey', 1,
+    'HSCA Final Report (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Blakey\'s direction of the Committee is recorded in the Final Report and staff list.'
+  ),
+
+  ('church-committee', 1,
+    'Church Committee Final Report, Books I-VI (1976)',
+    'https://www.intelligence.senate.gov/resources/intelligence-related-commissions',
+    'CHURCH',
+    'Full six-book Senate Select Committee final report (S. Rep. No. 94-755).'
+  ),
+  ('church-committee', 2,
+    'Church Committee Book V: The Investigation of the Assassination of President John F. Kennedy',
+    'https://www.intelligence.senate.gov/wp-content/uploads/2024/08/sites-default-files-94755-v.pdf',
+    'CHURCH',
+    'Book V — indexed in this site as a primary-source report.'
+  ),
+
+  ('arrb', 1,
+    'ARRB Final Report of the Assassination Records Review Board (1998)',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'Board\'s own final report describing its mandate, methodology, and outcomes.'
+  ),
+  ('arrb', 2,
+    'President John F. Kennedy Assassination Records Collection Act of 1992',
+    'https://www.archives.gov/research/jfk/jfk-act',
+    'REFERENCE',
+    'Enabling legislation (P.L. 102-526).'
+  ),
+
+  ('duran', 1,
+    'HSCA Final Report, Vol. III (Lopez Report), 1978',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Lopez Report staff analysis of Oswald\'s Mexico City visit, including Duran\'s interactions.'
+  ),
+  ('duran', 2,
+    'ARRB Final Report, Ch. 6 (1998)',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'Declassified CIA Mexico City cables on Duran\'s detention and interrogation.'
+  ),
+
+  ('phillips', 1,
+    'HSCA Final Report, Vol. X (Mexico City Station) and Sec. I-C, 1978-79',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Phillips\' role at Mexico City station; Veciana "Maurice Bishop" identification and Phillips\'s denial.'
+  ),
+  ('phillips', 2,
+    'Church Committee Book V (1976)',
+    'https://www.intelligence.senate.gov/wp-content/uploads/2024/08/sites-default-files-94755-v.pdf',
+    'CHURCH',
+    'CIA Cuban operations context in which Phillips operated.'
+  ),
+
+  ('win-scott', 1,
+    'ARRB Final Report, Ch. 6 (1998)',
+    'https://www.archives.gov/research/jfk/review-board/report',
+    'ARRB',
+    'Scott\'s 13-year tenure as Mexico City Chief of Station; LIENVOY / LIEMPTY / LIHUFF / LIONION operations.'
+  ),
+  ('win-scott', 2,
+    'HSCA Final Report, Vol. X (1979)',
+    'https://www.archives.gov/research/jfk/select-committee-report',
+    'HSCA',
+    'Examination of post-mortem handling of Scott\'s safe contents and manuscript.'
   )
 ]);
