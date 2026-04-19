@@ -22,18 +22,6 @@ export function SearchBar({
     if (autoFocus) inputRef.current?.focus();
   }, [autoFocus]);
 
-  // Global "/" shortcut
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
-        e.preventDefault();
-        inputRef.current?.focus();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const q = value.trim();
@@ -77,6 +65,7 @@ export function SearchBar({
       <SearchIcon />
       <input
         ref={inputRef}
+        data-search-input="true"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder={placeholder}

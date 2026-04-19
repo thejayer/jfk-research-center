@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
+import { KeyboardShortcuts } from "./keyboard-shortcuts";
 
 export function Shell({ children }: { children: ReactNode }) {
   return (
@@ -15,6 +16,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <SiteHeader />
       <main style={{ flex: 1 }}>{children}</main>
       <SiteFooter />
+      <KeyboardShortcuts />
     </div>
   );
 }

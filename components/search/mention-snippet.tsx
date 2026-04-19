@@ -19,11 +19,15 @@ export function MentionSnippet({
 
   return (
     <article
+      data-search-result="true"
+      tabIndex={-1}
       style={{
         borderLeft: "2px solid var(--accent)",
         paddingLeft: layout === "compact" ? 14 : 18,
         paddingTop: layout === "compact" ? 4 : 6,
         paddingBottom: layout === "compact" ? 6 : 10,
+        scrollMarginTop: 120,
+        outline: "none",
       }}
     >
       <p
