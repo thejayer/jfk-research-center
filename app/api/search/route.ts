@@ -34,8 +34,13 @@ export async function GET(req: NextRequest) {
     confidence: multi(url, "confidence") as ConfidenceLevel[],
   };
 
+  const offsetRaw = parseIntOrNull(url.searchParams.get("offset"));
+  const offset = offsetRaw && offsetRaw > 0 ? offsetRaw : 0;
+  const limitRaw = parseIntOrNull(url.searchParams.get("limit"));
+  const limit = limitRaw && limitRaw > 0 && limitRaw <= 200 ? limitRaw : undefined;
+
   try {
-    const data = await fetchSearch({ query: q, mode, filters });
+    const data = await fetchSearch({ query: q, mode, filters, limit, offset });
     return NextResponse.json(data);
   } catch (err) {
     console.error("[api/search] failed:", err);

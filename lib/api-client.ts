@@ -89,6 +89,7 @@ export async function fetchSearch(
     topic?: string[];
     confidence?: string[];
   } = {},
+  offset = 0,
 ): Promise<SearchResponse> {
   const params = new URLSearchParams();
   if (query) params.set("q", query);
@@ -98,6 +99,7 @@ export async function fetchSearch(
   }
   if (filters.yearFrom != null) params.set("yearFrom", String(filters.yearFrom));
   if (filters.yearTo != null) params.set("yearTo", String(filters.yearTo));
+  if (offset > 0) params.set("offset", String(offset));
   const qs = params.toString();
   const path = qs ? `/api/search?${qs}` : "/api/search";
   const data = await get<SearchResponse>(path, { noStore: true });
