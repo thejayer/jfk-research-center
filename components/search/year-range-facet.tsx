@@ -177,7 +177,7 @@ export function YearRangeFacet({
             })}
           </div>
 
-          <div className="year-range" style={{ position: "relative", height: 22 }}>
+          <div className="year-range" style={{ position: "relative", height: 24 }}>
             <div
               aria-hidden
               style={{
@@ -250,7 +250,7 @@ export function YearRangeFacet({
           position: absolute;
           inset: 0;
           width: 100%;
-          height: 22px;
+          height: 24px;
           background: transparent;
           appearance: none;
           -webkit-appearance: none;
@@ -260,8 +260,8 @@ export function YearRangeFacet({
         .year-range input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 16px;
-          height: 16px;
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           background: var(--bg);
           border: 2px solid var(--accent);
@@ -273,8 +273,8 @@ export function YearRangeFacet({
           cursor: grabbing;
         }
         .year-range input[type="range"]::-moz-range-thumb {
-          width: 14px;
-          height: 14px;
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           background: var(--bg);
           border: 2px solid var(--accent);
@@ -282,11 +282,11 @@ export function YearRangeFacet({
           pointer-events: auto;
         }
         .year-range input[type="range"]::-webkit-slider-runnable-track {
-          height: 22px;
+          height: 24px;
           background: transparent;
         }
         .year-range input[type="range"]::-moz-range-track {
-          height: 22px;
+          height: 24px;
           background: transparent;
         }
       `}</style>

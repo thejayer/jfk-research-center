@@ -108,6 +108,20 @@ a:hover {
   text-underline-offset: 2px;
 }
 
+/* Prose contexts: WCAG 2.2 requires a non-color affordance that
+   distinguishes links from surrounding text. Paragraphs, note boxes,
+   muted descriptive rows, list items, and the dealey disclaimer all
+   inherit muted text colors where accent contrast is below 3:1, so
+   underline them. */
+p a,
+li a,
+.muted a,
+[role="note"] a,
+.dp-disclaimer a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 h1,
 h2,
 h3,

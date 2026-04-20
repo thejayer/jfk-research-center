@@ -271,8 +271,8 @@ export function DealeyPlazaMap({ data }: Props) {
         <svg
           ref={svgRef}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
-          role="img"
-          aria-label="Schematic map of Dealey Plaza with witness positions"
+          role="group"
+          aria-label="Schematic map of Dealey Plaza with interactive witness pins"
           className="dp-svg"
           onWheel={onWheel}
           onPointerDown={onPointerDown}
