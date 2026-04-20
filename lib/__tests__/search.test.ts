@@ -52,6 +52,17 @@ describe("parseSearchParams", () => {
     const r = parseSearchParams({ q: ["first", "second"] });
     expect(r.q).toBe("first");
   });
+
+  it("defaults page to 1 and parses page as int", () => {
+    expect(parseSearchParams({}).page).toBe(1);
+    expect(parseSearchParams({ page: "3" }).page).toBe(3);
+  });
+
+  it("clamps page=0 / negative / garbage to 1", () => {
+    expect(parseSearchParams({ page: "0" }).page).toBe(1);
+    expect(parseSearchParams({ page: "-2" }).page).toBe(1);
+    expect(parseSearchParams({ page: "garbage" }).page).toBe(1);
+  });
 });
 
 describe("buildSearchUrl", () => {
@@ -102,6 +113,15 @@ describe("buildSearchUrl", () => {
     const url = buildSearchUrl("x", "document", emptyFilters);
     expect(url).not.toContain("yearFrom");
     expect(url).not.toContain("yearTo");
+  });
+
+  it("omits page=1 but serializes page>1", () => {
+    expect(buildSearchUrl("x", "document", emptyFilters, 1)).not.toContain(
+      "page=",
+    );
+    expect(buildSearchUrl("x", "document", emptyFilters, 3)).toContain(
+      "page=3",
+    );
   });
 
   it("round-trips through parseSearchParams", () => {

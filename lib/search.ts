@@ -12,6 +12,8 @@ export type SearchMode = "document" | "mention" | "semantic";
 export type ParsedSearch = {
   q: string;
   mode: SearchMode;
+  /** 1-indexed, for buildSearchUrl + pagination UI. */
+  page: number;
   filters: {
     agency: string[];
     /** Event-date range (inclusive, from start_date); null means unbounded. */
@@ -22,6 +24,8 @@ export type ParsedSearch = {
     confidence: ConfidenceLevel[];
   };
 };
+
+export const SEARCH_PAGE_SIZE = 50;
 
 type ListFilterKey = "agency" | "entity" | "topic" | "confidence";
 
@@ -56,9 +60,13 @@ export function parseSearchParams(
         ? "semantic"
         : "document";
 
+  const pageRaw = singleInt(searchParams.page);
+  const page = pageRaw && pageRaw > 0 ? pageRaw : 1;
+
   return {
     q,
     mode,
+    page,
     filters: {
       agency: multi(searchParams.agency),
       yearFrom: singleInt(searchParams.yearFrom),
@@ -74,6 +82,7 @@ export function buildSearchUrl(
   q: string,
   mode: SearchMode,
   filters: ParsedSearch["filters"] = emptyFilters(),
+  page = 1,
 ): string {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
@@ -83,6 +92,7 @@ export function buildSearchUrl(
   }
   if (filters.yearFrom !== null) params.set("yearFrom", String(filters.yearFrom));
   if (filters.yearTo !== null) params.set("yearTo", String(filters.yearTo));
+  if (page > 1) params.set("page", String(page));
   const qs = params.toString();
   return qs ? `/search?${qs}` : "/search";
 }

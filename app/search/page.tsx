@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchCorpusManifest, fetchSearch } from "@/lib/api-client";
-import { parseSearchParams, buildSearchUrl } from "@/lib/search";
+import {
+  parseSearchParams,
+  buildSearchUrl,
+  SEARCH_PAGE_SIZE,
+} from "@/lib/search";
 import { SearchBar } from "@/components/search/search-bar";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SavedSearches } from "@/components/search/saved-searches";
@@ -9,6 +13,7 @@ import { SearchSidebar } from "@/components/search/search-sidebar";
 import { SearchResultCard } from "@/components/search/search-result-card";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { ActiveTopicChip } from "@/components/search/active-topic-chip";
+import { PaginationControls } from "@/components/search/pagination-controls";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
@@ -27,9 +32,11 @@ export default async function SearchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const { q, mode, filters } = parseSearchParams(params);
+  const { q, mode, filters, page } = parseSearchParams(params);
+  // Pagination only applies to document mode; mention/semantic get offset=0.
+  const offset = mode === "document" ? (page - 1) * SEARCH_PAGE_SIZE : 0;
   const [response, manifest] = await Promise.all([
-    fetchSearch(q, mode, filters),
+    fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
   ]);
 
@@ -141,6 +148,16 @@ export default async function SearchPage({
                         query={q}
                       />
                     ) : null,
+                  )}
+                  {q && (
+                    <PaginationControls
+                      q={q}
+                      mode={mode}
+                      filters={filters}
+                      page={page}
+                      pageSize={SEARCH_PAGE_SIZE}
+                      total={response.total}
+                    />
                   )}
                 </div>
               ) : (

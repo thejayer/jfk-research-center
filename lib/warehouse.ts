@@ -1175,11 +1175,14 @@ export async function fetchSearch({
   mode,
   filters = {},
   limit = 50,
+  offset = 0,
 }: {
   query: string;
   mode: "document" | "mention" | "semantic";
   filters?: SearchFilters;
   limit?: number;
+  /** Document mode only. Mention/semantic ignore this. */
+  offset?: number;
 }): Promise<SearchResponse> {
   if (mode === "semantic") {
     return fetchSemanticSearch({ query: q, limit });
@@ -1268,7 +1271,7 @@ export async function fetchSearch({
        ORDER BY
          CASE match_confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
          start_date DESC NULLS LAST
-       LIMIT ${Number(limit)}`,
+       LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
       params,
     ),
     loadSearchFacets(),
