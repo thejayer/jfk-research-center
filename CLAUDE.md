@@ -258,8 +258,73 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-19 (April hotfix cycle — 12 tickets, P0 + T1-T11)
+**Last updated:** 2026-04-20 (Wave 3 entities + UX/mobile quick-wins)
 
+- **Wave 3 entities — Warren Commission counsel, mob, Garrison,
+  CIA Mexico City / CI (2026-04-20, PR #13).** Nine new entities
+  completing the gameplan Appendix D 32-entity roster: `specter`,
+  `marcello`, `trafficante`, `giancana`, `roselli`, `garrison`,
+  `clay-shaw`, `goodpasture`, `jane-roman`. Each ships the T8
+  launch package — row in `sql/12` (sort_orders 24-32), 5-7 facts in
+  `sql/19`, 2 sources in `sql/16`, 3-8 timeline events in `sql/22`.
+  Roster now **32 entities** (26 people + 6 orgs).
+  - **Unified per-entity timeline.** The Oswald-only static
+    `oswaldTimeline()` function in `lib/warehouse.ts` was deleted;
+    `fetchEntity` now queries `timeline_events WHERE @slug IN
+    UNNEST(related_entity_ids)` for every entity. All 22 previously-
+    empty entity-page timelines now populate from BigQuery. Oswald's
+    9 static events were already present in `sql/22`, so no
+    migration needed.
+  - **Cross-linked existing case-timeline rows.** Warren Report
+    delivery → `specter`; HSCA Final Report → `marcello`,
+    `trafficante`; Giancana killing → `giancana`,
+    `church-committee`; Oswald Mexico City visit → `goodpasture`,
+    `duran`. Also corrected a pre-existing data bug on the Roselli
+    body-found row (date was 1976-05-04; actual date 1976-08-07).
+  - **Mention backfill.** `sql/13` rerun picked up new aliases:
+    clay-shaw 32, roselli 27, garrison 21, giancana 17, goodpasture
+    16, jane-roman 15, trafficante 11, marcello 7, specter 6.
+  - **Wave 3 ticket file:** `~/jfk_wave3_tickets.md`. Deferred items
+    from the ticket spec that were NOT shipped: the `investigator`/
+    `adjacent` category filter on `/entities` (would need a new
+    `entity_category` column on `sql/12` + UI rework), the Playwright
+    regression spec (no Playwright suite in the repo yet).
+- **UX + mobile quick-wins (2026-04-20, PR #14).** 13 items from a
+  codebase audit, all scoped behind `max-width: 480px` media queries
+  so desktop rendering is unchanged.
+  - **Mobile tap targets.** `components/layout/theme-toggle.tsx`
+    34x34 → 44x44 (WCAG 2.5.5). `.dp-panel-close` in `app/globals.css`
+    given a 44x44 tap target with flex centering.
+  - **Popover / modal widths.** `.chunk-cite-popover` + the
+    `<CiteButton>` popover widths: `60ch` / `72ch` →
+    `min(Nch, calc(100vw − 32px))` so neither overflows the viewport
+    on `<375px` screens. Keyboard-help modal in
+    `components/layout/keyboard-shortcuts.tsx` gained
+    `max-height: calc(100vh − 48px); overflow-y: auto` — the shortcut
+    list was completely unscrollable on phones.
+  - **Viz layout.** Graph range slider drops its `minWidth: 260` on
+    `<480px` (was a horizontal-scroll trap); `.dp-legend` stacks
+    vertically on `<480px`; home "At a Glance" grid `minmax(180px,
+    1fr)` → `minmax(150px, 1fr)` so the 4 pills no longer force a
+    2-up-with-overflow layout at 375px.
+  - **Entity page polish.** Timeline vertical rule switched from
+    `var(--border)` to `var(--border-strong)` (was invisible on dark
+    theme). New "View all N documents mentioning X →" link below the
+    top-10 document list, deep-linking to `/search?entity=SLUG`.
+  - **Empty states + accessibility.** `/entities` fallback when
+    neither people nor orgs render. Corrections honeypot:
+    `position: absolute; left: -9999px` → `display: none` +
+    `aria-hidden="true"` (keyboard users could previously tab into the
+    hidden "Website" field).
+  - **Search result card.** `scrollMarginTop` hardcoded 120px →
+    `calc(var(--header-height, 64px) + 80px)` so `j`/`k` keyboard
+    jumps don't hide results behind the sticky search band on mobile.
+    Description snippet line-clamped to 3 lines via new
+    `.search-result-snippet` CSS rule.
+  - **Deliberately deferred** (logged for a follow-up wave): loading
+    skeletons on 7 dynamic pages, touch dismissal on
+    cryptonym/chunk-action popovers, graph label collision, Dealey
+    pinch-zoom, `/search` pagination UI.
 - **April hotfix cycle (2026-04-19).** P0 + 11 follow-on tickets shipped
   in one session, each as its own PR. Cycle re-audit + ticket file:
   `~/jfk_hotfix_tickets.md`. Headlines:
