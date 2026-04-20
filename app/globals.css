@@ -430,6 +430,29 @@ hr {
   }
 }
 
+/* ----- Skeleton (loading placeholders) ----- */
+.skeleton {
+  display: block;
+  background: linear-gradient(
+    90deg,
+    var(--surface),
+    var(--surface-2),
+    var(--surface)
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1400ms ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+@keyframes skeleton-shimmer {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: -200% 0%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
 /* ----- Cryptonym mention popover (CryptonymMention) ----- */
 .cryptonym {
   position: relative;
