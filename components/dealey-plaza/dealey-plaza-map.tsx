@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import type { DealeyPlazaResponse, DealeyPlazaWitness } from "@/lib/api-types";
 
 /**
@@ -45,11 +45,132 @@ const ORIGINS: Array<{ key: string; label: string }> = [
   { key: "Could not determine", label: "Undetermined" },
 ];
 
+const INITIAL_VIEWBOX = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
+const MIN_W = VIEW_W / 8; // max zoom-in: 8×
+const MAX_W = VIEW_W; // max zoom-out: 1× (no zooming past the starting extent)
+
 export function DealeyPlazaMap({ data }: Props) {
   const [selected, setSelected] = useState<DealeyPlazaWitness | null>(null);
   const [activeOrigins, setActiveOrigins] = useState<Set<string>>(
     () => new Set(ORIGINS.map((o) => o.key)),
   );
+  const [viewBox, setViewBox] = useState(INITIAL_VIEWBOX);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{ dist: number; vbw: number; vbh: number } | null>(
+    null,
+  );
+  const panRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    vbx: number;
+    vby: number;
+  } | null>(null);
+
+  const screenToView = (clientX: number, clientY: number) => {
+    const svg = svgRef.current;
+    if (!svg) return { x: 0, y: 0 };
+    const rect = svg.getBoundingClientRect();
+    return {
+      x: viewBox.x + ((clientX - rect.left) / rect.width) * viewBox.w,
+      y: viewBox.y + ((clientY - rect.top) / rect.height) * viewBox.h,
+    };
+  };
+
+  const zoomAround = (cx: number, cy: number, factor: number) => {
+    setViewBox((vb) => {
+      const newW = Math.max(MIN_W, Math.min(MAX_W, vb.w * factor));
+      const newH = newW * (VIEW_H / VIEW_W);
+      // Keep (cx, cy) stationary in screen space
+      const newX = cx - ((cx - vb.x) * newW) / vb.w;
+      const newY = cy - ((cy - vb.y) * newH) / vb.h;
+      return { x: newX, y: newY, w: newW, h: newH };
+    });
+  };
+
+  const zoomButton = (factor: number) => {
+    // Zoom around the current viewBox center when using the buttons.
+    zoomAround(viewBox.x + viewBox.w / 2, viewBox.y + viewBox.h / 2, factor);
+  };
+
+  const resetView = () => setViewBox(INITIAL_VIEWBOX);
+
+  const onWheel = (e: ReactWheelEvent<SVGSVGElement>) => {
+    if (!e.ctrlKey && !e.metaKey) {
+      // Native wheel should scroll the page. Require ctrl/meta to zoom,
+      // matching how OS maps and PDFs behave.
+      return;
+    }
+    e.preventDefault();
+    const center = screenToView(e.clientX, e.clientY);
+    zoomAround(center.x, center.y, e.deltaY > 0 ? 1.15 : 1 / 1.15);
+  };
+
+  const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2) {
+      const [a, b] = Array.from(pointersRef.current.values());
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      pinchRef.current = {
+        dist: Math.hypot(dx, dy),
+        vbw: viewBox.w,
+        vbh: viewBox.h,
+      };
+      panRef.current = null;
+    } else if (pointersRef.current.size === 1) {
+      panRef.current = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        vbx: viewBox.x,
+        vby: viewBox.y,
+      };
+    }
+  };
+
+  const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (!pointersRef.current.has(e.pointerId)) return;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointersRef.current.size === 2 && pinchRef.current) {
+      const [a, b] = Array.from(pointersRef.current.values());
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const factor = pinchRef.current.dist / dist;
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      const vbMid = screenToView(midX, midY);
+      setViewBox((vb) => {
+        const newW = Math.max(
+          MIN_W,
+          Math.min(MAX_W, pinchRef.current!.vbw * factor),
+        );
+        const newH = newW * (VIEW_H / VIEW_W);
+        const newX = vbMid.x - ((vbMid.x - vb.x) * newW) / vb.w;
+        const newY = vbMid.y - ((vbMid.y - vb.y) * newH) / vb.h;
+        return { x: newX, y: newY, w: newW, h: newH };
+      });
+    } else if (panRef.current && pointersRef.current.size === 1) {
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const dxScreen = e.clientX - panRef.current.startX;
+      const dyScreen = e.clientY - panRef.current.startY;
+      const dxView = (dxScreen / rect.width) * viewBox.w;
+      const dyView = (dyScreen / rect.height) * viewBox.h;
+      setViewBox((vb) => ({
+        ...vb,
+        x: panRef.current!.vbx - dxView,
+        y: panRef.current!.vby - dyView,
+      }));
+    }
+  };
+
+  const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    pointersRef.current.delete(e.pointerId);
+    if (pointersRef.current.size < 2) pinchRef.current = null;
+    if (pointersRef.current.size === 0) panRef.current = null;
+  };
 
   const project = useMemo(() => {
     const { minLat, maxLat, minLng, maxLng } = data.bounds;
@@ -107,14 +228,61 @@ export function DealeyPlazaMap({ data }: Props) {
             </button>
           );
         })}
+        <div
+          className="dp-zoom"
+          role="group"
+          aria-label="Zoom map"
+          style={{ marginLeft: "auto", display: "flex", gap: 4 }}
+        >
+          <button
+            type="button"
+            className="dp-chip"
+            onClick={() => zoomButton(1 / 1.25)}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="dp-chip"
+            onClick={() => zoomButton(1.25)}
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="dp-chip"
+            onClick={resetView}
+            aria-label="Reset map view"
+            disabled={
+              viewBox.x === INITIAL_VIEWBOX.x &&
+              viewBox.y === INITIAL_VIEWBOX.y &&
+              viewBox.w === INITIAL_VIEWBOX.w &&
+              viewBox.h === INITIAL_VIEWBOX.h
+            }
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className="dp-stage">
         <svg
-          viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+          ref={svgRef}
+          viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
           role="img"
           aria-label="Schematic map of Dealey Plaza with witness positions"
           className="dp-svg"
+          onWheel={onWheel}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+          style={{
+            touchAction: "none",
+            cursor: panRef.current ? "grabbing" : "grab",
+          }}
         >
           {/* Plaza ground tone */}
           <rect width={VIEW_W} height={VIEW_H} fill="var(--surface)" />

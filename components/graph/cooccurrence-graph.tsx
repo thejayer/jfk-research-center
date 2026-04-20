@@ -73,7 +73,15 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
       .force("center", forceCenter<SimNode>(VIEW_W / 2, VIEW_H / 2))
       .force(
         "collide",
-        forceCollide<SimNode>((d) => nodeRadius(d.degree) + 4),
+        // Collide radius includes enough room for the label to the south of
+        // the node. Labels run ~6.5 px per char at fontSize 12; cap the
+        // contribution so very long names don't push everyone apart.
+        forceCollide<SimNode>((d) =>
+          Math.max(
+            nodeRadius(d.degree) + 4,
+            Math.min(120, d.name.length * 3.5),
+          ),
+        ),
       )
       .on("tick", () => {
         forceRender((t) => t + 1);
@@ -303,6 +311,13 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
                     fontSize={12}
                     fill={dim ? "var(--text-muted)" : "var(--text)"}
                     pointerEvents="none"
+                    // Halo: stroke rendered BEFORE fill, in the surface color,
+                    // so the label stays readable when it overlaps an edge or
+                    // a neighbor's label.
+                    stroke="var(--surface)"
+                    strokeWidth={3}
+                    strokeLinejoin="round"
+                    paintOrder="stroke"
                     style={{ userSelect: "none" }}
                   >
                     {n.name}
