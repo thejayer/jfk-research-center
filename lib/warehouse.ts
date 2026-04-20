@@ -19,6 +19,13 @@ import { BigQuery } from "@google-cloud/bigquery";
 import type {
   ConfidenceLevel,
   CorpusManifest,
+  RedactionAction,
+  RedactionActionType,
+  RedactionDetection,
+  RedactionDocDetail,
+  RedactionQueueItem,
+  RedactionQueueResponse,
+  RedactionReviewStatus,
   DocumentCard,
   DocumentDetail,
   DocumentResponse,
@@ -2295,4 +2302,245 @@ export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> 
       maxLng: maxLng + padLng,
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Admin — redaction review queue (sql/44).
+// ---------------------------------------------------------------------------
+
+const DATASET_STAGING = "jfk_staging";
+
+type RawQueueRow = {
+  document_id: string;
+  title: string | null;
+  agency: string | null;
+  release_set: string | null;
+  num_pages: number | null;
+  total_detections: number;
+  unreviewed_count: number;
+  confirmed_count: number;
+  rejected_count: number;
+  first_page: number;
+  last_page: number;
+  mean_confidence: number | null;
+  max_area_pct: number | null;
+  detection_method: string | null;
+  review_priority: number;
+};
+
+function mapQueueItem(r: RawQueueRow): RedactionQueueItem {
+  return {
+    documentId: r.document_id,
+    title: r.title,
+    agency: r.agency,
+    releaseSet: r.release_set,
+    numPages: r.num_pages,
+    totalDetections: Number(r.total_detections ?? 0),
+    unreviewedCount: Number(r.unreviewed_count ?? 0),
+    confirmedCount: Number(r.confirmed_count ?? 0),
+    rejectedCount: Number(r.rejected_count ?? 0),
+    firstPage: Number(r.first_page ?? 0),
+    lastPage: Number(r.last_page ?? 0),
+    meanConfidence: r.mean_confidence,
+    maxAreaPct: r.max_area_pct,
+    detectionMethod: r.detection_method,
+    reviewPriority: Number(r.review_priority ?? 0),
+  };
+}
+
+export async function fetchRedactionQueue(
+  limit: number = 100,
+): Promise<RedactionQueueResponse> {
+  const rows = await query<RawQueueRow>(
+    `
+    SELECT *
+    FROM \`${PROJECT}.${DATASET_STAGING}.docai_review_queue\`
+    ORDER BY review_priority DESC, document_id
+    LIMIT @limit
+    `,
+    { limit },
+  );
+  const items = rows.map(mapQueueItem);
+
+  // Totals are computed off the full queue view, not just the page.
+  const totals = await query<{ total_docs: number; total_unreviewed: number }>(
+    `
+    SELECT
+      COUNT(*) AS total_docs,
+      SUM(unreviewed_count) AS total_unreviewed
+    FROM \`${PROJECT}.${DATASET_STAGING}.docai_review_queue\`
+    `,
+  );
+  const t = totals[0] ?? { total_docs: 0, total_unreviewed: 0 };
+
+  return {
+    items,
+    totalDocs: Number(t.total_docs ?? 0),
+    totalUnreviewed: Number(t.total_unreviewed ?? 0),
+  };
+}
+
+type RawDetectionRow = {
+  redaction_id: string;
+  page_num: number;
+  bbox_x1: number;
+  bbox_y1: number;
+  bbox_x2: number;
+  bbox_y2: number;
+  area_pct: number | null;
+  confidence: number | null;
+  detection_method: string | null;
+  review_status: string | null;
+  reviewed_by: string | null;
+  reviewed_at: { value: string } | string | null;
+  reviewer_notes: string | null;
+};
+
+function asIso(v: { value: string } | string | null | undefined): string | null {
+  if (!v) return null;
+  if (typeof v === "string") return v;
+  return v.value ?? null;
+}
+
+function mapDetection(r: RawDetectionRow): RedactionDetection {
+  const status = (r.review_status || "unreviewed") as RedactionReviewStatus;
+  return {
+    redactionId: r.redaction_id,
+    pageNum: Number(r.page_num),
+    bboxX1: Number(r.bbox_x1),
+    bboxY1: Number(r.bbox_y1),
+    bboxX2: Number(r.bbox_x2),
+    bboxY2: Number(r.bbox_y2),
+    areaPct: r.area_pct,
+    confidence: r.confidence,
+    detectionMethod: r.detection_method,
+    reviewStatus: status,
+    reviewedBy: r.reviewed_by,
+    reviewedAt: asIso(r.reviewed_at),
+    reviewerNotes: r.reviewer_notes,
+  };
+}
+
+export async function fetchRedactionDoc(
+  documentId: string,
+): Promise<RedactionDocDetail | null> {
+  const meta = await query<{
+    document_id: string;
+    title: string | null;
+    agency: string | null;
+    release_set: string | null;
+    num_pages: number | null;
+  }>(
+    `
+    SELECT
+      r.document_id,
+      r.title,
+      r.agency,
+      COALESCE(d.release_set, r.release_set) AS release_set,
+      COALESCE(d.num_pages, r.num_pages) AS num_pages
+    FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+    LEFT JOIN \`${PROJECT}.${DATASET_STAGING}.docai_documents\` d
+      USING (document_id)
+    WHERE r.document_id = @doc
+    LIMIT 1
+    `,
+    { doc: documentId },
+  );
+
+  if (meta.length === 0) {
+    // Orphan detections (doc not in jfk_records) are still reviewable if we
+    // have rows in docai_redactions — synthesize a stub.
+    const anyDet = await query<{ document_id: string }>(
+      `
+      SELECT document_id
+      FROM \`${PROJECT}.${DATASET_STAGING}.docai_redactions\`
+      WHERE document_id = @doc
+      LIMIT 1
+      `,
+      { doc: documentId },
+    );
+    if (anyDet.length === 0) return null;
+  }
+
+  const detections = await query<RawDetectionRow>(
+    `
+    SELECT
+      redaction_id, page_num,
+      bbox_x1, bbox_y1, bbox_x2, bbox_y2,
+      area_pct, confidence, detection_method,
+      review_status, reviewed_by, reviewed_at, reviewer_notes
+    FROM \`${PROJECT}.${DATASET_STAGING}.docai_redactions\`
+    WHERE document_id = @doc
+    ORDER BY page_num, bbox_y1, bbox_x1
+    `,
+    { doc: documentId },
+  );
+
+  const m = meta[0];
+  const mapped = detections.map(mapDetection);
+  const unreviewed = mapped.filter((d) => d.reviewStatus === "unreviewed").length;
+
+  return {
+    documentId,
+    title: m?.title ?? null,
+    agency: m?.agency ?? null,
+    releaseSet: m?.release_set ?? null,
+    numPages: m?.num_pages ?? null,
+    totalDetections: mapped.length,
+    unreviewedCount: unreviewed,
+    detections: mapped,
+  };
+}
+
+export async function applyRedactionAction(
+  documentId: string,
+  action: RedactionAction,
+  reviewer: string,
+): Promise<{ updated: number }> {
+  const notes = action.notes ?? null;
+
+  // confirm_all targets every unreviewed detection on the doc.
+  if (action.type === "confirm_all") {
+    const [job] = await bq().createQueryJob({
+      query: `
+        UPDATE \`${PROJECT}.${DATASET_STAGING}.docai_redactions\`
+        SET review_status = 'confirmed',
+            reviewed_by = @reviewer,
+            reviewed_at = CURRENT_TIMESTAMP(),
+            reviewer_notes = @notes
+        WHERE document_id = @doc
+          AND review_status = 'unreviewed'
+      `,
+      params: { doc: documentId, reviewer, notes },
+      location: "US",
+    });
+    await job.getQueryResults();
+    return { updated: Number(job.metadata?.statistics?.query?.numDmlAffectedRows ?? 0) };
+  }
+
+  const ids = action.redactionIds ?? [];
+  if (ids.length === 0) return { updated: 0 };
+  const statusMap: Record<RedactionActionType, RedactionReviewStatus> = {
+    confirm: "confirmed",
+    reject: "rejected",
+    needs_split: "needs_split",
+    confirm_all: "confirmed",
+  };
+  const newStatus = statusMap[action.type];
+
+  const [job] = await bq().createQueryJob({
+    query: `
+      UPDATE \`${PROJECT}.${DATASET_STAGING}.docai_redactions\`
+      SET review_status = @status,
+          reviewed_by = @reviewer,
+          reviewed_at = CURRENT_TIMESTAMP(),
+          reviewer_notes = @notes
+      WHERE document_id = @doc
+        AND redaction_id IN UNNEST(@ids)
+    `,
+    params: { doc: documentId, status: newStatus, reviewer, notes, ids },
+    location: "US",
+  });
+  await job.getQueryResults();
+  return { updated: Number(job.metadata?.statistics?.query?.numDmlAffectedRows ?? 0) };
 }
