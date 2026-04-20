@@ -379,6 +379,12 @@ export type CaseTimelineCategory =
   | "release"
   | "death";
 
+export type TimelineDocumentLink = {
+  documentId: string;
+  title: string | null;
+  note: string | null;
+};
+
 export type CaseTimelineEvent = {
   id: string;
   date: string;
@@ -389,6 +395,7 @@ export type CaseTimelineEvent = {
   relatedEntityIds: string[];
   relatedTopicIds: string[];
   sourceExternal: string[];
+  documentLinks: TimelineDocumentLink[];
   importance: number;
 };
 
