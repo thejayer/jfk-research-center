@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@google-cloud/bigquery": "^8.1.1",
+    "@google-cloud/storage": "^7.19.0",
     "@types/d3-force": "^3.0.10",
     "d3-force": "^3.0.0",
     "next": "15.0.3",

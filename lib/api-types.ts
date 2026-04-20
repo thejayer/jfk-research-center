@@ -535,3 +535,78 @@ export type PhysicalEvidenceIndex = {
   items: PhysicalEvidenceCard[];
   categories: Array<{ category: PhysicalEvidenceCategory; count: number }>;
 };
+
+// ---------------------------------------------------------------------------
+// Admin — redaction review queue.
+// ---------------------------------------------------------------------------
+
+export type RedactionReviewStatus =
+  | "unreviewed"
+  | "confirmed"
+  | "rejected"
+  | "needs_split"
+  | "auto_confirmed";
+
+export type RedactionQueueItem = {
+  documentId: string;
+  title: string | null;
+  agency: string | null;
+  releaseSet: string | null;
+  numPages: number | null;
+  totalDetections: number;
+  unreviewedCount: number;
+  confirmedCount: number;
+  rejectedCount: number;
+  firstPage: number;
+  lastPage: number;
+  meanConfidence: number | null;
+  maxAreaPct: number | null;
+  detectionMethod: string | null;
+  reviewPriority: number;
+};
+
+export type RedactionQueueResponse = {
+  items: RedactionQueueItem[];
+  totalDocs: number;
+  totalUnreviewed: number;
+};
+
+export type RedactionDetection = {
+  redactionId: string;
+  pageNum: number;
+  bboxX1: number;
+  bboxY1: number;
+  bboxX2: number;
+  bboxY2: number;
+  areaPct: number | null;
+  confidence: number | null;
+  detectionMethod: string | null;
+  reviewStatus: RedactionReviewStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewerNotes: string | null;
+};
+
+export type RedactionDocDetail = {
+  documentId: string;
+  title: string | null;
+  agency: string | null;
+  releaseSet: string | null;
+  numPages: number | null;
+  totalDetections: number;
+  unreviewedCount: number;
+  detections: RedactionDetection[];
+};
+
+export type RedactionActionType =
+  | "confirm"
+  | "reject"
+  | "needs_split"
+  | "confirm_all";
+
+export type RedactionAction = {
+  type: RedactionActionType;
+  redactionIds?: string[];  // required for per-detection actions; omitted for confirm_all
+  notes?: string;
+};
+
