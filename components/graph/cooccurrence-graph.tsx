@@ -145,7 +145,7 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
           marginBottom: 18,
         }}
       >
-        <div style={{ minWidth: 260, flex: "1 1 260px" }}>
+        <div className="graph-range-wrap" style={{ flex: "1 1 260px" }}>
           <label
             className="eyebrow"
             style={{ display: "block", marginBottom: 6 }}

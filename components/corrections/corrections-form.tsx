@@ -187,7 +187,7 @@ export function CorrectionsForm({
       </Field>
 
       {/* Honeypot — hidden from users; bots fill everything. */}
-      <div aria-hidden style={{ position: "absolute", left: "-9999px" }}>
+      <div aria-hidden="true" style={{ display: "none" }}>
         <label>
           Website
           <input

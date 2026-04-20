@@ -24,7 +24,7 @@ export function SearchResultCard({
       style={{
         padding: "22px 0",
         borderTop: "1px solid var(--border)",
-        scrollMarginTop: 120,
+        scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
       }}
     >
       <div
@@ -77,7 +77,7 @@ export function SearchResultCard({
 
       {document.snippet && (
         <p
-          className="muted"
+          className="muted search-result-snippet"
           style={{
             fontSize: "0.97rem",
             lineHeight: 1.6,

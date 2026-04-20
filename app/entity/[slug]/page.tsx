@@ -138,6 +138,17 @@ export default async function EntityPage({
             description="A curated selection of the records that most directly discuss this entity."
           />
           <EntityDocumentList documents={data.topDocuments} />
+          {(data.entity.documentCount ?? 0) > data.topDocuments.length && (
+            <div style={{ marginTop: 18 }}>
+              <Link
+                href={`/search?entity=${encodeURIComponent(data.entity.slug)}`}
+                style={{ fontSize: "0.95rem", fontWeight: 500 }}
+              >
+                View all {(data.entity.documentCount ?? 0).toLocaleString()}{" "}
+                documents mentioning {data.entity.name} →
+              </Link>
+            </div>
+          )}
         </section>
       )}
 
