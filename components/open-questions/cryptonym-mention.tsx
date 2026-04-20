@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { CryptonymEntry } from "@/lib/api-types";
+import { useClickOutside } from "@/lib/use-click-outside";
 
 /**
  * Detects cryptonym tokens in `text` and wraps each one in a small
@@ -85,6 +86,8 @@ function Tooltip({
 }) {
   const [open, setOpen] = useState(false);
   const popoverId = useId();
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(wrapperRef, open, () => setOpen(false));
   const statusLabel =
     entry.status === "declassified"
       ? "Declassified"
@@ -94,6 +97,7 @@ function Tooltip({
 
   return (
     <span
+      ref={wrapperRef}
       className="cryptonym"
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
