@@ -236,8 +236,8 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
       </div>
 
       <svg
-        role="img"
-        aria-label="Entity co-occurrence network"
+        role="group"
+        aria-label="Entity co-occurrence network. Contains interactive node and edge links."
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
         style={{
           width: "100%",
@@ -360,8 +360,8 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
         .graph-range input[type="range"]::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 16px;
-          height: 16px;
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           background: var(--bg);
           border: 2px solid var(--accent);
@@ -370,8 +370,8 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
           box-shadow: var(--shadow-sm);
         }
         .graph-range input[type="range"]::-moz-range-thumb {
-          width: 14px;
-          height: 14px;
+          width: 24px;
+          height: 24px;
           border-radius: 50%;
           background: var(--bg);
           border: 2px solid var(--accent);
