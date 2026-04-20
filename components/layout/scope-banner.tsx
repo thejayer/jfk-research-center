@@ -42,15 +42,24 @@ export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
           Releases indexed: <span className="num">{indexed.join(", ")}</span>.
         </>
       )}
-      {manifest.recordsWith2025Ocr > 0 && (
+      {manifest.recordsWithOcr > 0 && (
         <>
           {" "}
-          OCR text is sourced from the 2025 re-release for{" "}
-          <span className="num">
-            {formatNumber(manifest.recordsWith2025Ocr)}
-          </span>{" "}
-          records (NARA has not yet published an XLSX manifest for 2025; each
-          document&rsquo;s prior-release history is shown on its page).
+          <span className="num">{formatNumber(manifest.recordsWithOcr)}</span>{" "}
+          records have full-text OCR indexed
+          {manifest.recordsWith2025Ocr > 0 && (
+            <>
+              {" "}
+              — of those,{" "}
+              <span className="num">
+                {formatNumber(manifest.recordsWith2025Ocr)}
+              </span>{" "}
+              are sourced from the 2025 re-release (NARA has not yet published
+              an XLSX manifest for 2025; each document&rsquo;s prior-release
+              history is shown on its page)
+            </>
+          )}
+          .
         </>
       )}
       {pending.length > 0 && (

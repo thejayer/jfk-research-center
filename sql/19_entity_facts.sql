@@ -285,7 +285,7 @@ select * from unnest([
 
   ('phillips', 'born', 'October 31, 1922 — Fort Worth, Texas',
     date '1922-10-31', 'REFERENCE', 'Association of Former Intelligence Officers biographical file', 'High', 1),
-  ('phillips', 'role_1963', 'CIA Chief of Cuban Operations at the Mexico City station',
+  ('phillips', 'role_1963', 'Chief of Covert Action at the CIA Mexico City station, with primary responsibility for Cuban operations',
     null, 'CHURCH', 'Church Committee Book V', 'High', 2),
   ('phillips', 'later_roles', 'Chief of Western Hemisphere Division, 1973–1975 (retired)',
     null, 'REFERENCE', 'CIA personnel records', 'High', 3),
