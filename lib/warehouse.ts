@@ -130,6 +130,107 @@ export async function insertCorrection(input: CorrectionInsert): Promise<void> {
     ]);
 }
 
+export type CorrectionStatus = "new" | "reviewing" | "resolved" | "rejected";
+
+export type CorrectionRow = {
+  submissionId: string;
+  submittedAt: string;
+  surface: string;
+  targetId: string | null;
+  issue: string;
+  suggestedFix: string | null;
+  submitterEmail: string | null;
+  status: CorrectionStatus;
+  notes: string | null;
+};
+
+export async function fetchCorrections(
+  opts: { status?: CorrectionStatus; limit?: number } = {},
+): Promise<{
+  items: CorrectionRow[];
+  counts: Record<CorrectionStatus, number>;
+}> {
+  const limit = Math.max(1, Math.min(500, opts.limit ?? 200));
+  const whereSql = opts.status ? "WHERE status = @status" : "";
+  const params: Record<string, unknown> = {};
+  if (opts.status) params.status = opts.status;
+
+  const [rowsRaw, countsRaw] = await Promise.all([
+    query<{
+      submission_id: string;
+      submitted_at: { value: string } | string;
+      surface: string;
+      target_id: string | null;
+      issue: string;
+      suggested_fix: string | null;
+      submitter_email: string | null;
+      status: string;
+      notes: string | null;
+    }>(
+      `SELECT submission_id, submitted_at, surface, target_id, issue,
+              suggested_fix, submitter_email, status, notes
+         FROM \`${PROJECT}.${DATASET_CURATED}.corrections_submissions\`
+         ${whereSql}
+        ORDER BY submitted_at DESC
+        LIMIT ${Number(limit)}`,
+      params,
+    ),
+    query<{ status: string; n: number }>(
+      `SELECT status, COUNT(*) AS n
+         FROM \`${PROJECT}.${DATASET_CURATED}.corrections_submissions\`
+        GROUP BY status`,
+    ),
+  ]);
+
+  const counts: Record<CorrectionStatus, number> = {
+    new: 0,
+    reviewing: 0,
+    resolved: 0,
+    rejected: 0,
+  };
+  for (const r of countsRaw) {
+    if (
+      r.status === "new" ||
+      r.status === "reviewing" ||
+      r.status === "resolved" ||
+      r.status === "rejected"
+    ) {
+      counts[r.status] = Number(r.n ?? 0);
+    }
+  }
+
+  const items: CorrectionRow[] = rowsRaw.map((r) => ({
+    submissionId: r.submission_id,
+    submittedAt:
+      typeof r.submitted_at === "object"
+        ? r.submitted_at.value
+        : r.submitted_at,
+    surface: r.surface,
+    targetId: r.target_id,
+    issue: r.issue,
+    suggestedFix: r.suggested_fix,
+    submitterEmail: r.submitter_email,
+    status: (r.status as CorrectionStatus) ?? "new",
+    notes: r.notes,
+  }));
+
+  return { items, counts };
+}
+
+export async function updateCorrectionStatus(
+  submissionId: string,
+  status: CorrectionStatus,
+  notes: string | null,
+): Promise<void> {
+  await query(
+    `UPDATE \`${PROJECT}.${DATASET_CURATED}.corrections_submissions\`
+        SET status = @status,
+            notes  = COALESCE(@notes, notes)
+      WHERE submission_id = @id`,
+    { id: submissionId, status, notes },
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Row adapters
 // ---------------------------------------------------------------------------
