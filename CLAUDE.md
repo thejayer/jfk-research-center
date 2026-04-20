@@ -253,13 +253,95 @@ gcloud run deploy jfk-research-center \
   take the write, every subsequent command returns exit 1 with no
   output. Diagnosis: run `df -h /` via `! df -h /` — if disk is full,
   clean and re-SSH.
+- **`jfk_records.digital_object_url` has casing + path-segment bugs.**
+  Some rows encode `/DOCID-NNNN.pdf` (uppercase) but archives.gov only
+  serves `/docid-NNNN.pdf` (lowercase) → 404 on every uppercase fetch.
+  Some 2022/2023 rows have a doubled path segment (`/2022/2022/…`) that
+  also 404s; collapse with `sed -E 's#/(20[12][0-9])/\1/#/\1/#'`. Any
+  PDF fetcher against the `digital_object_url` column should try both
+  the as-is URL, a lowercase-DOCID variant, a path-collapsed variant,
+  and the combination (see `jfk_docai_ingest.py::_nara_url_variants`
+  for the reference retry ladder).
+- **Next.js middleware is edge-runtime only — no `node:crypto`.**
+  `lib/admin-auth.ts` originally imported `createHmac` from
+  `node:crypto`, which Webpack rejects when bundling `middleware.ts`
+  (the edge runtime doesn't resolve `node:` URIs). Fix: write anything
+  that middleware touches against the Web Crypto API (`crypto.subtle`)
+  plus a small `toBase64Url`/`fromBase64Url` and constant-time compare.
+  Regression caught on the first Cloud Run build of PR #16.
 
 ---
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-20 (Wave 3 entities + UX/mobile quick-wins)
+**Last updated:** 2026-04-20 (redaction review queue + DocAI OCR pilot)
 
+- **Redaction review queue `/admin/redactions` (2026-04-20, PR #16).**
+  Human-in-the-loop gate for PIL-detected black-bar redactions, deployed
+  as the first `/admin/*` surface on the site. Unblocks the internal side
+  of the long-deferred 5-B public redaction diff viewer.
+  - **Detector.** `~/redaction_detector_prototype.py` (lives in $HOME,
+    not the repo — it's a calibration tool, not a pipeline step).
+    PyMuPDF rasterize @ 150 DPI → binary threshold at intensity ≤90 →
+    morphological opening with a 9×14 horizontal kernel to erode text
+    glyphs while preserving redaction-bar-sized solid regions →
+    `skimage.measure.label` for connected components → filter by area
+    (0.05%–60% of page), min 25×10 px, extent ≥0.65, aspect 0.15–20.
+    False-positive rate ~0.26% on a 60-doc `withholding_status='Redact'`
+    sweep; **major finding — that manifest tag is decorrelated with
+    visible black-bar redactions** (page-level withholding is the more
+    common form), so the queue is indexed by detector output, not tag.
+  - **DocAI ingest pilot (companion work).** `~/jfk_docai_ingest.py` +
+    `~/requirements.txt` + `~/README.md` stage NARA PDFs through
+    `gs://jfk-vault-pdfs/` and the Document AI OCR processor `jfk-ocr`
+    (ID `f4e0536f5f244cb1`, pinned to `pretrained-ocr-v2.1-2024-08-07`)
+    into `jfk_staging.docai_*` tables. Smoke test loaded 12 docs / 39
+    pages. Still limited to sync processDocument (30-page cap); >30-page
+    docs need the batch path. Queue view = `docai_backfill_queue`
+    (already existed; just verified behavior).
+  - **Data layer** (`sql/44_docai_redactions_review.sql`). Adds
+    `review_status` / `reviewed_by` / `reviewed_at` / `reviewer_notes`
+    to `jfk_staging.docai_redactions`. Creates `docai_review_queue`
+    view (one row per doc, priority = `unreviewed_count * 10 +
+    total_detections`, `LEFT JOIN`s to `docai_documents` and
+    `jfk_records` so orphan detections still surface).
+  - **Loader** (`scripts/load_pil_detections.py`). Reads detector output
+    dirs, uploads overlay PNGs to `gs://jfk-vault-ocr/review/<doc>/`,
+    wipes-and-reinserts detection rows per doc for idempotency.
+    **Caveat:** the wipe destroys in-flight review state if you re-run
+    the detector with new thresholds on a doc that already has
+    confirmed/rejected rows — switch to MERGE before scaling beyond the
+    seed.
+  - **Admin auth** (`lib/admin-auth.ts`, `middleware.ts`). HMAC-SHA256
+    signed HttpOnly session cookie, 7-day lifetime. Uses Web Crypto
+    (`crypto.subtle`) rather than `node:crypto` so middleware.ts works
+    in the edge runtime. Two Cloud Run env vars: `ADMIN_TOKEN` (shared
+    secret) and `ADMIN_SESSION_SECRET` (HMAC key). Rotate by changing
+    both. `REDACTION_REVIEW_BUCKET=jfk-vault-ocr` is the overlay host.
+  - **Routes.** `/admin/login`, `/admin/redactions`, `/admin/redactions/
+    [document_id]`. API: `GET /api/admin/redactions` (list), `GET/POST
+    /api/admin/redactions/[id]` (detail + actions `confirm` / `reject` /
+    `needs_split` / `confirm_all`), `GET /api/admin/redactions/[id]/
+    image/[page]` (streams overlay PNG from GCS — proxy pattern, since
+    the Cloud Run SA can't self-sign URLs without
+    `iam.serviceAccounts.signBlob`).
+  - **UI.** List is a priority-sorted table; detail view shows each page
+    as a full-width overlay with a sidebar of numbered detections, each
+    with per-detection Confirm/Reject/Split buttons and a bulk "Accept
+    all N unreviewed" at the top. Inline styles per house convention;
+    one client component (`components/admin/redaction-reviewer.tsx`)
+    handles action POSTs and optimistic refresh from the returned doc
+    payload.
+  - **Seed.** 7 docs / 77 detections in the 124-10278 FBI series
+    (10403 has the most at 29 candidates). Doc 389 was the calibration
+    exemplar — detector catches 10 of ~12 visible bars on its page 2.
+  - **Known follow-ups not in this PR:** (a) no undo/re-queue flow —
+    once a detection is confirmed/rejected the UI has no path back,
+    manual BQ `UPDATE` only; (b) no list filters or pagination (fine
+    at 7 docs, painful past 700); (c) DocAI v2.1 `mean_page_confidence`
+    parser reads 0 because confidence moved from `page.layout` to
+    individual tokens — unrelated to redactions but should be fixed
+    before relying on the field.
 - **Wave 3 entities — Warren Commission counsel, mob, Garrison,
   CIA Mexico City / CI (2026-04-20, PR #13).** Nine new entities
   completing the gameplan Appendix D 32-entity roster: `specter`,
@@ -836,14 +918,24 @@ bq query --use_legacy_sql=false \
   a vertical chronological view. Spec wants horizontal zoomable timeline
   with decade → year → day → hour zoom levels; the Nov 22–24 1963
   hour-level view is the marquee.
-- **5-B Redaction diff viewer (deferred from Phase 5).** Needs
-  per-release OCR text bodies that do not exist in the warehouse:
-  `document_versions` carries metadata only, and `jfk_text_chunks`
-  holds just the 2025 ABBYY re-OCR per NAID. Building 5-B requires
-  downloading per-release PDFs from NARA for every NAID, OCR'ing
-  each, and persisting a `release_text_versions` table keyed by
-  (naid, release_set) before any diff UI work. ~1–2 weeks of ingest
-  work; revisit after 5-A/5-C/5-E.
+- **5-B Redaction diff viewer (deferred from Phase 5 — internal side
+  shipped 2026-04-20 in PR #16).** Public cross-release diff UI still
+  pending per-release OCR text, which the DocAI pilot starts to unlock
+  but hasn't scaled to. The internal human-in-the-loop review workflow
+  (`/admin/redactions`, `docai_review_queue`, PIL black-rect detector)
+  is live — it produces the `confirmed` detection signal that the
+  eventual public diff view will read from. To finish 5-B we still
+  need: (a) DocAI batch-processing path for >30-page docs; (b) a
+  `release_text_versions` table keyed by (naid, release_set); (c) the
+  public diff UI itself on `/document/[id]`.
+- **DocAI v2.1 confidence parser (follow-up).** `docai_documents.mean_page_confidence`
+  reads 0 for every doc processed by `pretrained-ocr-v2.1-2024-08-07`
+  because the v2.1 processor stopped populating `page.layout.confidence`
+  — the signal moved to individual tokens. Fix: in `jfk_docai_ingest.py`
+  `parse_document`, compute mean confidence by averaging
+  `page.tokens[*].layout.confidence` instead. Not urgent (alpha_ratio is
+  the working quality signal), but the field is load-bearing in any
+  future quality filter.
 - **5-D Grounded chatbot (deferred from Phase 5).** Depends on 5-A
   vector retrieval being live. Spec-flagged as highest-risk addition
   (hard citation guardrails, Gemini audit logging, 50-pair gold eval
