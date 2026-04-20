@@ -145,10 +145,10 @@ export const ROADMAP: RoadmapItem[] = [
   {
     surface: "/admin/corrections",
     label: "Corrections admin triage view",
-    status: "planned",
+    status: "shipped",
     phase: "Hotfix cycle follow-up",
     description:
-      "Cloud IAM-protected admin page for triaging corrections submissions. Blocking on the project's admin auth scheme decision.",
+      "Admin-gated page for triaging corrections submissions. Gated on the HMAC session cookie shipped with /admin/redactions; status transitions (new → reviewing → resolved/rejected) plus triage notes save to corrections_submissions.",
   },
   {
     surface: "/dealey-plaza",
