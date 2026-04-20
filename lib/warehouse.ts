@@ -1295,29 +1295,41 @@ export async function fetchSearch({
     };
   });
 
-  // Mention mode: return real OCR passages first, fall back to title/description.
+  // Mention mode: OCR passage hits only. Paginated by offset; total is
+  // the real COUNT(*) of matching chunks. Metadata-only hits (title/
+  // description without OCR) live in Documents mode.
   let mentionResults: SearchResult[] = [];
+  let mentionTotal = 0;
   if (mode === "mention" && qNorm) {
-    const ocrRows = await query<{
-      document_id: string;
-      naid: string;
-      title: string;
-      chunk_id: string;
-      chunk_order: number;
-      chunk_text: string;
-      page_label: string | null;
-    }>(
-      `SELECT r.document_id, r.naid, r.title,
-              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-         JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-           USING (document_id)
-        WHERE c.source_type = 'abbyy_ocr'
-          AND LOWER(c.chunk_text) LIKE @qLike
-        ORDER BY c.document_id, c.chunk_order
-        LIMIT ${Number(limit)}`,
-      params,
-    );
+    const [ocrRows, ocrTotal] = await Promise.all([
+      query<{
+        document_id: string;
+        naid: string;
+        title: string;
+        chunk_id: string;
+        chunk_order: number;
+        chunk_text: string;
+        page_label: string | null;
+      }>(
+        `SELECT r.document_id, r.naid, r.title,
+                c.chunk_id, c.chunk_order, c.chunk_text, c.page_label
+           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
+           JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+             USING (document_id)
+          WHERE c.source_type = 'abbyy_ocr'
+            AND LOWER(c.chunk_text) LIKE @qLike
+          ORDER BY c.document_id, c.chunk_order
+          LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+        params,
+      ),
+      query<{ n: number }>(
+        `SELECT COUNT(*) AS n
+           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
+          WHERE c.source_type = 'abbyy_ocr'
+            AND LOWER(c.chunk_text) LIKE @qLike`,
+        params,
+      ),
+    ]);
     mentionResults = ocrRows.map((r) => ({
       kind: "mention",
       mention: {
@@ -1333,46 +1345,13 @@ export async function fetchSearch({
         chunkOrder: r.chunk_order,
       },
     }));
-
-    // If OCR yielded too few, pad with metadata hits (title/description).
-    if (mentionResults.length < 8) {
-      const metaRows = await query<RecordRow & {
-        entity_id: string;
-        confidence: ConfidenceLevel;
-        match_source: string;
-      }>(
-        `SELECT r.*, m.entity_id, m.confidence, m.match_source
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-           JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\` m
-             USING (document_id)
-          WHERE (LOWER(r.title) LIKE @qLike OR LOWER(r.description) LIKE @qLike)
-          ORDER BY m.score DESC, r.start_date DESC
-          LIMIT ${Number(limit)}`,
-        params,
-      );
-      for (const r of metaRows) {
-        mentionResults.push({
-          kind: "mention",
-          mention: {
-            id: `mx-${r.document_id}-${r.entity_id}`,
-            documentId: r.document_id,
-            documentTitle: r.title,
-            documentHref: `/document/${encodeURIComponent(r.document_id)}`,
-            excerpt: r.description || r.title,
-            matchedTerms: [qNorm],
-            confidence: r.confidence,
-            source: r.match_source === "title" ? "title" : "description",
-            pageLabel: null,
-          },
-        });
-      }
-    }
+    mentionTotal = ocrTotal[0]?.n ?? 0;
   }
 
   return {
     query: qNorm,
     mode,
-    total: mode === "mention" ? mentionResults.length : (total[0]?.n ?? 0),
+    total: mode === "mention" ? mentionTotal : (total[0]?.n ?? 0),
     filters: filterData,
     results: mode === "mention" ? mentionResults : docResults,
   };

@@ -33,8 +33,8 @@ export default async function SearchPage({
 }) {
   const params = await searchParams;
   const { q, mode, filters, page } = parseSearchParams(params);
-  // Pagination only applies to document mode; mention/semantic get offset=0.
-  const offset = mode === "document" ? (page - 1) * SEARCH_PAGE_SIZE : 0;
+  // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
+  const offset = mode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
   const [response, manifest] = await Promise.all([
     fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
@@ -172,6 +172,16 @@ export default async function SearchPage({
                         query={q}
                       />
                     ) : null,
+                  )}
+                  {q && mode === "mention" && (
+                    <PaginationControls
+                      q={q}
+                      mode={mode}
+                      filters={filters}
+                      page={page}
+                      pageSize={SEARCH_PAGE_SIZE}
+                      total={response.total}
+                    />
                   )}
                 </div>
               )}
