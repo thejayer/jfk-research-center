@@ -40,6 +40,12 @@ jobs:
           project_id: jfk-vault
 
       - name: Deploy to Cloud Run
+        env:
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
+          REDACTION_REVIEW_BUCKET: ${{ secrets.REDACTION_REVIEW_BUCKET }}
+        # Every deploy re-asserts the full expected env. Add new vars here
+        # plus a repo secret so a fresh rollout is self-contained.
         run: |
           gcloud run deploy jfk-research-center \
             --source=. \
@@ -49,5 +55,5 @@ jobs:
             --port=8080 \
             --memory=1Gi --cpu=1 \
             --max-instances=3 --min-instances=0 \
-            --set-env-vars="JFK_BQ_PROJECT=jfk-vault" \
+            --set-env-vars="^|^JFK_BQ_PROJECT=jfk-vault|ADMIN_TOKEN=${ADMIN_TOKEN}|ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET}|REDACTION_REVIEW_BUCKET=${REDACTION_REVIEW_BUCKET}" \
             --quiet
