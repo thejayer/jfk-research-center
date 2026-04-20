@@ -156,7 +156,11 @@ sql/
 scripts/
   normalize_nara_manifests.py   XLSX → unified CSV for jfk_raw.nara_manifest
   ingest_abbyy.py               Streaming ABBYY → staging (default disk-safe mode)
+  ingest_primary_sources.py     Warren/ARRB/Church → jfk_staging.primary_source_*
+  load_pil_detections.py        PIL black-rect detections → docai_redactions
+  jfk_docai_ingest.py           Document AI OCR pipeline (sync + batch, dry-run gated)
   rebuild_warehouse.sh          Runs the promotion SQL files in order
+  requirements-docai.txt        Python deps for jfk_docai_ingest.py
   export_mock_data.ts           Dev utility, not load-bearing
 ```
 
@@ -260,7 +264,7 @@ gcloud run deploy jfk-research-center \
   also 404s; collapse with `sed -E 's#/(20[12][0-9])/\1/#/\1/#'`. Any
   PDF fetcher against the `digital_object_url` column should try both
   the as-is URL, a lowercase-DOCID variant, a path-collapsed variant,
-  and the combination (see `jfk_docai_ingest.py::_nara_url_variants`
+  and the combination (see `scripts/jfk_docai_ingest.py::_nara_url_variants`
   for the reference retry ladder).
 - **Next.js middleware is edge-runtime only — no `node:crypto`.**
   `lib/admin-auth.ts` originally imported `createHmac` from
@@ -291,14 +295,21 @@ gcloud run deploy jfk-research-center \
     sweep; **major finding — that manifest tag is decorrelated with
     visible black-bar redactions** (page-level withholding is the more
     common form), so the queue is indexed by detector output, not tag.
-  - **DocAI ingest pilot (companion work).** `~/jfk_docai_ingest.py` +
-    `~/requirements.txt` + `~/README.md` stage NARA PDFs through
+  - **DocAI ingest pilot (companion work).** `scripts/jfk_docai_ingest.py`
+    + `scripts/requirements-docai.txt` stage NARA PDFs through
     `gs://jfk-vault-pdfs/` and the Document AI OCR processor `jfk-ocr`
     (ID `f4e0536f5f244cb1`, pinned to `pretrained-ocr-v2.1-2024-08-07`)
     into `jfk_staging.docai_*` tables. Smoke test loaded 12 docs / 39
-    pages. Still limited to sync processDocument (30-page cap); >30-page
-    docs need the batch path. Queue view = `docai_backfill_queue`
-    (already existed; just verified behavior).
+    pages. `~/README.md` still documents one-time GCP/IAM setup.
+    The script takes `--mode {sync|batch}`, `--limit N`, `--run-id`,
+    and `--dry-run` (prints planned docs + GCS prefixes without any API
+    calls). Batch mode (for >30-page docs) submits a `batchProcess`
+    LRO, polls to completion, and merges the GCS JSON shards back into
+    a single `documentai.Document` before the same parser runs on it.
+    Queue view = `docai_backfill_queue` (already existed; just
+    verified behavior). Pipeline status views = `sql/45` →
+    `docai_pipeline_summary` + `docai_pipeline_by_release` +
+    `docai_pipeline_errors` (read-only, no side effects).
   - **Data layer** (`sql/44_docai_redactions_review.sql`). Adds
     `review_status` / `reviewed_by` / `reviewed_at` / `reviewer_notes`
     to `jfk_staging.docai_redactions`. Creates `docai_review_queue`
@@ -338,10 +349,9 @@ gcloud run deploy jfk-research-center \
   - **Known follow-ups not in this PR:** (a) no undo/re-queue flow —
     once a detection is confirmed/rejected the UI has no path back,
     manual BQ `UPDATE` only; (b) no list filters or pagination (fine
-    at 7 docs, painful past 700); (c) DocAI v2.1 `mean_page_confidence`
-    parser reads 0 because confidence moved from `page.layout` to
-    individual tokens — unrelated to redactions but should be fixed
-    before relying on the field.
+    at 7 docs, painful past 700). The DocAI v2.1 `mean_page_confidence`
+    parser bug and the missing batch path for >30-page docs were both
+    addressed in the 2026-04-20 docai-structure wave.
 - **Wave 3 entities — Warren Commission counsel, mob, Garrison,
   CIA Mexico City / CI (2026-04-20, PR #13).** Nine new entities
   completing the gameplan Appendix D 32-entity roster: `specter`,
@@ -928,14 +938,15 @@ bq query --use_legacy_sql=false \
   need: (a) DocAI batch-processing path for >30-page docs; (b) a
   `release_text_versions` table keyed by (naid, release_set); (c) the
   public diff UI itself on `/document/[id]`.
-- **DocAI v2.1 confidence parser (follow-up).** `docai_documents.mean_page_confidence`
-  reads 0 for every doc processed by `pretrained-ocr-v2.1-2024-08-07`
-  because the v2.1 processor stopped populating `page.layout.confidence`
-  — the signal moved to individual tokens. Fix: in `jfk_docai_ingest.py`
-  `parse_document`, compute mean confidence by averaging
-  `page.tokens[*].layout.confidence` instead. Not urgent (alpha_ratio is
-  the working quality signal), but the field is load-bearing in any
-  future quality filter.
+- **DocAI v2.1 confidence parser (fixed 2026-04-20).**
+  `docai_documents.mean_page_confidence` used to read 0 because
+  `pretrained-ocr-v2.1-2024-08-07` stopped populating
+  `page.layout.confidence` and moved the signal onto individual
+  tokens. `scripts/jfk_docai_ingest.py::parse_document` now averages
+  `page.tokens[*].layout.confidence` and falls back to
+  `page.layout.confidence` for any future processor that re-populates
+  the page-level field. The 12 pilot docs would need to be re-ingested
+  (or their stored GCS responses re-parsed) to backfill the column.
 - **5-D Grounded chatbot (deferred from Phase 5).** Depends on 5-A
   vector retrieval being live. Spec-flagged as highest-risk addition
   (hard citation guardrails, Gemini audit logging, 50-pair gold eval

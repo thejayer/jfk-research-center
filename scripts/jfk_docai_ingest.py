@@ -1,0 +1,968 @@
+"""
+JFK Vault — Document AI OCR ingest pilot.
+
+Reads from jfk_staging.docai_backfill_queue, fetches the PDF,
+runs Document AI OCR, parses the response, and loads:
+  - docai_documents
+  - docai_pages
+  - docai_blocks
+  - docai_tokens
+  - docai_redactions
+  - docai_text_chunks
+  - docai_processing_log
+
+Designed for a pilot run (e.g. LIMIT 200 from the queue). Scale out
+later by wrapping main() in a Cloud Run Job with CONCURRENCY workers.
+
+Prereqs (one-time):
+  gcloud auth application-default login
+  pip install google-cloud-documentai google-cloud-storage \
+              google-cloud-bigquery httpx pypdf pillow
+  # Create the Document AI OCR processor in your GCP project first;
+  # grab the processor ID from the Cloud Console.
+
+Environment variables:
+  GCP_PROJECT            = jfk-vault
+  DOCAI_LOCATION         = us   # or eu
+  DOCAI_PROCESSOR_ID     = <ocr processor id>
+  DOCAI_PROCESSOR_VERSION= pretrained-ocr-v2.0-2023-06-02  # pin this
+  GCS_PDF_BUCKET         = jfk-vault-pdfs
+  GCS_OCR_BUCKET         = jfk-vault-ocr
+  PILOT_LIMIT            = 200
+  CHUNK_TARGET_CHARS     = 1000
+  CHUNK_OVERLAP_CHARS    = 100
+"""
+
+from __future__ import annotations
+
+import argparse
+import dataclasses
+import hashlib
+import io
+import json
+import logging
+import os
+import re
+import time
+import uuid
+from datetime import datetime, timezone
+from typing import Iterable
+
+import httpx
+from google.api_core.client_options import ClientOptions
+from google.cloud import bigquery, documentai_v1 as documentai, storage
+
+# ---------- config ----------
+
+PROJECT = os.environ["GCP_PROJECT"]
+DOCAI_LOCATION = os.getenv("DOCAI_LOCATION", "us")
+DOCAI_PROCESSOR_ID = os.environ["DOCAI_PROCESSOR_ID"]
+DOCAI_PROCESSOR_VERSION = os.getenv(
+    "DOCAI_PROCESSOR_VERSION", "pretrained-ocr-v2.0-2023-06-02"
+)
+GCS_PDF_BUCKET = os.environ["GCS_PDF_BUCKET"]
+GCS_OCR_BUCKET = os.environ["GCS_OCR_BUCKET"]
+PILOT_LIMIT = int(os.getenv("PILOT_LIMIT", "200"))
+CHUNK_TARGET_CHARS = int(os.getenv("CHUNK_TARGET_CHARS", "1000"))
+CHUNK_OVERLAP_CHARS = int(os.getenv("CHUNK_OVERLAP_CHARS", "100"))
+
+STAGING = f"{PROJECT}.jfk_staging"
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s :: %(message)s",
+)
+log = logging.getLogger("jfk_docai")
+
+# ---------- clients ----------
+
+bq = bigquery.Client(project=PROJECT)
+gcs = storage.Client(project=PROJECT)
+docai_client = documentai.DocumentProcessorServiceClient(
+    client_options=ClientOptions(
+        api_endpoint=f"{DOCAI_LOCATION}-documentai.googleapis.com"
+    )
+)
+PROCESSOR_NAME = (
+    f"projects/{PROJECT}/locations/{DOCAI_LOCATION}"
+    f"/processors/{DOCAI_PROCESSOR_ID}"
+)
+
+# ---------- small helpers ----------
+
+
+def now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def log_step(
+    document_id: str,
+    release_set: str | None,
+    step: str,
+    status: str,
+    **kwargs,
+) -> None:
+    row = {
+        "document_id": document_id,
+        "release_set": release_set,
+        "step": step,
+        "status": status,
+        "processor_version": DOCAI_PROCESSOR_VERSION,
+        "event_at": now().isoformat(),
+        **kwargs,
+    }
+    errors = bq.insert_rows_json(f"{STAGING}.docai_processing_log", [row])
+    if errors:
+        log.warning("log insert failed: %s", errors)
+
+
+def alpha_ratio(s: str) -> float:
+    if not s:
+        return 0.0
+    alpha = sum(c.isalpha() for c in s)
+    return alpha / len(s)
+
+
+def quality_band(ar: float) -> str:
+    if ar >= 0.75:
+        return "good"
+    if ar >= 0.60:
+        return "ok"
+    if ar >= 0.45:
+        return "weak"
+    return "bad"
+
+
+CLASSIFICATION_RE = re.compile(
+    r"\b(TOP\s*SECRET|SECRET|CONFIDENTIAL|UNCLASSIFIED|RESTRICTED)\b",
+    re.IGNORECASE,
+)
+
+
+def detect_classification(text: str) -> str | None:
+    if not text:
+        return None
+    m = CLASSIFICATION_RE.search(text)
+    return m.group(0).upper().replace(" ", "") if m else None
+
+
+# ---------- stage 1: fetch PDF to GCS ----------
+
+
+@dataclasses.dataclass
+class QueueItem:
+    document_id: str
+    release_set: str
+    agency: str | None
+    num_pages: int | None
+    pdf_url: str
+
+
+def fetch_queue(limit: int, *, mode: str = "sync") -> list[QueueItem]:
+    """Pull queued docs from docai_backfill_queue.
+
+    mode='sync'  → docs within the 30-page processDocument ceiling.
+    mode='batch' → docs above the ceiling, for the LRO path.
+    """
+    if mode == "sync":
+        page_clause = "num_pages BETWEEN 1 AND 30"
+    elif mode == "batch":
+        page_clause = "num_pages > 30"
+    else:
+        raise ValueError(f"unknown mode: {mode}")
+    sql = f"""
+    SELECT document_id, release_set, agency, num_pages, pdf_url
+    FROM `{STAGING}.docai_backfill_queue`
+    WHERE {page_clause}
+    LIMIT @limit
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("limit", "INT64", limit)]
+    )
+    return [
+        QueueItem(
+            document_id=r["document_id"],
+            release_set=r["release_set"],
+            agency=r["agency"],
+            num_pages=r["num_pages"],
+            pdf_url=r["pdf_url"],
+        )
+        for r in bq.query(sql, job_config=job_config).result()
+    ]
+
+
+def gcs_pdf_uri(document_id: str, release_set: str) -> str:
+    safe = release_set.replace("/", "-")
+    return f"gs://{GCS_PDF_BUCKET}/{safe}/{document_id}.pdf"
+
+
+def _nara_url_variants(url: str) -> list[str]:
+    """archives.gov serves /docid-* lowercase; jfk_records has /DOCID-* uppercase for some rows."""
+    variants = [url]
+    if "/DOCID-" in url:
+        variants.append(url.replace("/DOCID-", "/docid-"))
+    return variants
+
+
+def fetch_pdf(item: QueueItem) -> tuple[str, int, str]:
+    """Download PDF, upload to GCS. Returns (gcs_uri, bytes, sha256)."""
+    t0 = time.time()
+    uri = gcs_pdf_uri(item.document_id, item.release_set)
+    bucket_name = uri.split("/")[2]
+    blob_name = "/".join(uri.split("/")[3:])
+    bucket = gcs.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    if blob.exists():
+        log_step(
+            item.document_id,
+            item.release_set,
+            "fetch",
+            "skipped",
+            gcs_uri=uri,
+            duration_ms=0,
+        )
+        blob.reload()
+        return uri, blob.size or 0, blob.md5_hash or ""
+
+    data = None
+    last_status = None
+    with httpx.Client(timeout=60.0, follow_redirects=True) as client:
+        for candidate in _nara_url_variants(item.pdf_url):
+            r = client.get(candidate)
+            last_status = r.status_code
+            if r.status_code == 404:
+                continue
+            r.raise_for_status()
+            data = r.content
+            break
+    if data is None:
+        raise RuntimeError(
+            f"no NARA URL variant succeeded for {item.document_id} (last status {last_status})"
+        )
+
+    sha = hashlib.sha256(data).hexdigest()
+    blob.upload_from_string(data, content_type="application/pdf")
+    log_step(
+        item.document_id,
+        item.release_set,
+        "fetch",
+        "ok",
+        gcs_uri=uri,
+        bytes=len(data),
+        sha256=sha,
+        http_status=r.status_code,
+        duration_ms=int((time.time() - t0) * 1000),
+    )
+    return uri, len(data), sha
+
+
+# ---------- stage 2: Document AI OCR ----------
+
+
+def run_docai(gcs_pdf: str, document_id: str, release_set: str) -> documentai.Document:
+    """Synchronous processDocument against the OCR processor.
+
+    For docs larger than the sync limit (30 pages / 20MB) you must switch to
+    batchProcess — this pilot uses sync since p95 is 35 pages and we can
+    fallback to batch for the long tail. See handle_large_doc() below.
+    """
+    t0 = time.time()
+    bucket_name = gcs_pdf.split("/")[2]
+    blob_name = "/".join(gcs_pdf.split("/")[3:])
+    pdf_bytes = gcs.bucket(bucket_name).blob(blob_name).download_as_bytes()
+
+    request = documentai.ProcessRequest(
+        name=PROCESSOR_NAME,
+        raw_document=documentai.RawDocument(
+            content=pdf_bytes, mime_type="application/pdf"
+        ),
+        process_options=documentai.ProcessOptions(
+            ocr_config=documentai.OcrConfig(
+                enable_native_pdf_parsing=True,
+                enable_image_quality_scores=True,
+                enable_symbol=False,
+                premium_features=documentai.OcrConfig.PremiumFeatures(
+                    compute_style_info=False,
+                    enable_selection_mark_detection=True,
+                ),
+            )
+        ),
+    )
+    response = docai_client.process_document(request=request)
+    log_step(
+        document_id,
+        release_set,
+        "ocr_complete",
+        "ok",
+        duration_ms=int((time.time() - t0) * 1000),
+    )
+    return response.document
+
+
+# ---------- stage 2b: batch path for >30-page docs ----------
+
+
+def _batch_output_prefix(run_id: str) -> str:
+    return f"gs://{GCS_OCR_BUCKET}/batch/{run_id}/"
+
+
+def run_docai_batch(
+    items: list[QueueItem],
+    gcs_pdfs: dict[str, str],
+    run_id: str,
+) -> dict[str, str]:
+    """Submit a batchProcess LRO for docs whose page count exceeds the
+    sync limit, poll until complete, and return a mapping of
+    document_id -> GCS prefix where the per-doc JSON shards landed.
+
+    Shards look like gs://{bucket}/batch/{run_id}/{N}/{N}-{shard}.json
+    where N is the zero-indexed position of the input within the batch.
+
+    Raises if the LRO errors, deadlines (1h), or any individual doc
+    status is non-OK. The caller is responsible for parsing shards
+    back into documentai.Document objects (see _fetch_batch_outputs).
+    """
+    output_prefix = _batch_output_prefix(run_id)
+    input_docs = documentai.BatchDocumentsInputConfig(
+        gcs_documents=documentai.GcsDocuments(
+            documents=[
+                documentai.GcsDocument(
+                    gcs_uri=gcs_pdfs[item.document_id],
+                    mime_type="application/pdf",
+                )
+                for item in items
+            ]
+        )
+    )
+    output_config = documentai.DocumentOutputConfig(
+        gcs_output_config=documentai.DocumentOutputConfig.GcsOutputConfig(
+            gcs_uri=output_prefix,
+        )
+    )
+    request = documentai.BatchProcessRequest(
+        name=PROCESSOR_NAME,
+        input_documents=input_docs,
+        document_output_config=output_config,
+    )
+    t0 = time.time()
+    operation = docai_client.batch_process_documents(request=request)
+    log.info(
+        "batch LRO submitted: %s (%d docs, output=%s)",
+        operation.operation.name,
+        len(items),
+        output_prefix,
+    )
+
+    poll = 10.0
+    max_poll = 120.0
+    deadline = time.time() + 3600
+    while not operation.done():
+        if time.time() > deadline:
+            raise RuntimeError("batch LRO exceeded 1h deadline")
+        time.sleep(poll)
+        poll = min(poll * 1.5, max_poll)
+
+    if operation.exception():
+        raise operation.exception()  # type: ignore[misc]
+
+    metadata = operation.metadata
+    out_map: dict[str, str] = {}
+    for status in getattr(metadata, "individual_process_statuses", []):
+        src = status.input_gcs_source
+        doc_id = src.rsplit("/", 1)[-1].removesuffix(".pdf")
+        # State is documentai.BatchProcessMetadata.IndividualProcessStatus.State
+        state_name = getattr(status.status, "code", None)
+        if state_name and state_name != 0:
+            log.error(
+                "batch item failed: %s code=%s message=%s",
+                doc_id,
+                state_name,
+                getattr(status.status, "message", ""),
+            )
+            continue
+        out_map[doc_id] = status.output_gcs_destination
+    log.info(
+        "batch LRO complete in %ds; %d/%d docs ok",
+        int(time.time() - t0),
+        len(out_map),
+        len(items),
+    )
+    return out_map
+
+
+def _fetch_batch_outputs(output_prefix: str) -> documentai.Document:
+    """Read every .json shard at output_prefix and merge into one Document.
+
+    Document AI writes one shard per ~N pages; merging concatenates their
+    .text and .pages lists so the rest of the parser downstream can treat
+    the result identically to a sync processDocument response.
+    """
+    bucket_name = output_prefix.split("/")[2]
+    prefix = "/".join(output_prefix.split("/")[3:])
+    bucket = gcs.bucket(bucket_name)
+    shards = sorted(
+        [b for b in bucket.list_blobs(prefix=prefix) if b.name.endswith(".json")],
+        key=lambda b: b.name,
+    )
+    if not shards:
+        raise RuntimeError(f"no shards at {output_prefix}")
+    merged = documentai.Document()
+    for blob in shards:
+        raw = blob.download_as_bytes()
+        shard = documentai.Document.from_json(raw, ignore_unknown_fields=True)
+        merged.text += shard.text
+        merged.pages.extend(shard.pages)
+    return merged
+
+
+# ---------- stage 3: parse response into BQ-shaped dicts ----------
+
+
+def bbox_from_vertices(verts) -> tuple[float, float, float, float] | None:
+    """Convert Document AI normalized vertices to (x1, y1, x2, y2)."""
+    if not verts:
+        return None
+    xs = [v.x for v in verts if v.x is not None]
+    ys = [v.y for v in verts if v.y is not None]
+    if not xs or not ys:
+        return None
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def text_for_anchor(anchor, full_text: str) -> str:
+    if not anchor or not anchor.text_segments:
+        return ""
+    return "".join(
+        full_text[seg.start_index : seg.end_index] for seg in anchor.text_segments
+    )
+
+
+def parse_document(
+    item: QueueItem, gcs_pdf: str, gcs_response: str, doc: documentai.Document
+) -> dict:
+    full_text = doc.text or ""
+    pages_out: list[dict] = []
+    blocks_out: list[dict] = []
+    tokens_out: list[dict] = []
+    redactions_out: list[dict] = []
+
+    doc_confidences: list[float] = []
+    total_tokens = 0
+    total_blocks = 0
+    total_redactions = 0
+    redaction_area_total = 0.0
+
+    for p_idx, page in enumerate(doc.pages):
+        page_num = p_idx + 1
+        page_text = text_for_anchor(page.layout.text_anchor, full_text)
+        # v2.1 processors stopped populating page.layout.confidence; the
+        # signal moved to individual tokens. Average page.tokens[*].layout
+        # .confidence and fall back to the page layout field for any
+        # future version that re-populates it.
+        token_confs = [
+            t.layout.confidence
+            for t in page.tokens
+            if t.layout
+            and t.layout.confidence is not None
+            and t.layout.confidence > 0
+        ]
+        if token_confs:
+            page_conf = sum(token_confs) / len(token_confs)
+        else:
+            page_conf = page.layout.confidence or 0.0
+        doc_confidences.append(page_conf)
+        ar = alpha_ratio(page_text)
+
+        redaction_count = 0
+        page_redaction_area = 0.0
+        for vis in getattr(page, "visual_elements", []):
+            vtype = getattr(vis.type_, "name", str(vis.type_)) if hasattr(vis, "type_") else ""
+            if "redaction" in str(vtype).lower() or "black" in str(vtype).lower():
+                bbox = bbox_from_vertices(
+                    vis.layout.bounding_poly.normalized_vertices
+                    if vis.layout.bounding_poly
+                    else None
+                )
+                if not bbox:
+                    continue
+                x1, y1, x2, y2 = bbox
+                area = max(0.0, (x2 - x1) * (y2 - y1))
+                redactions_out.append(
+                    {
+                        "document_id": item.document_id,
+                        "page_num": page_num,
+                        "redaction_id": f"{item.document_id}-p{page_num}-r{redaction_count}",
+                        "bbox_x1": x1,
+                        "bbox_y1": y1,
+                        "bbox_x2": x2,
+                        "bbox_y2": y2,
+                        "area_pct": area * 100.0,
+                        "detection_method": "docai_visual_element",
+                        "confidence": vis.layout.confidence,
+                        "nearby_text_before": None,
+                        "nearby_text_after": None,
+                    }
+                )
+                redaction_count += 1
+                page_redaction_area += area
+
+        total_redactions += redaction_count
+        redaction_area_total += page_redaction_area
+
+        block_count = 0
+        paragraph_count = len(page.paragraphs)
+        line_count = len(page.lines)
+        token_count = len(page.tokens)
+        total_tokens += token_count
+
+        for b_idx, block in enumerate(page.blocks):
+            block_text = text_for_anchor(block.layout.text_anchor, full_text)
+            bbox = bbox_from_vertices(
+                block.layout.bounding_poly.normalized_vertices
+                if block.layout.bounding_poly
+                else None
+            )
+            if not bbox:
+                continue
+            x1, y1, x2, y2 = bbox
+            classification = detect_classification(block_text)
+            block_id = f"{item.document_id}-p{page_num}-b{b_idx}"
+
+            blocks_out.append(
+                {
+                    "document_id": item.document_id,
+                    "page_num": page_num,
+                    "block_id": block_id,
+                    "block_type": "paragraph",
+                    "reading_order": b_idx,
+                    "text": block_text,
+                    "confidence": block.layout.confidence,
+                    "bbox_x1": x1,
+                    "bbox_y1": y1,
+                    "bbox_x2": x2,
+                    "bbox_y2": y2,
+                    "bbox_area_pct": (x2 - x1) * (y2 - y1) * 100.0,
+                    "is_classification_marking": classification is not None,
+                    "classification_text": classification,
+                }
+            )
+            block_count += 1
+            total_blocks += 1
+
+        for t_idx, tok in enumerate(page.tokens):
+            tbbox = bbox_from_vertices(
+                tok.layout.bounding_poly.normalized_vertices
+                if tok.layout.bounding_poly
+                else None
+            )
+            if not tbbox:
+                continue
+            brk = None
+            if tok.detected_break:
+                brk_type = tok.detected_break.type_
+                brk = brk_type.name if hasattr(brk_type, "name") else str(brk_type)
+            tokens_out.append(
+                {
+                    "document_id": item.document_id,
+                    "page_num": page_num,
+                    "block_id": None,
+                    "token_index": t_idx,
+                    "text": text_for_anchor(tok.layout.text_anchor, full_text),
+                    "confidence": tok.layout.confidence,
+                    "bbox_x1": tbbox[0],
+                    "bbox_y1": tbbox[1],
+                    "bbox_x2": tbbox[2],
+                    "bbox_y2": tbbox[3],
+                    "detected_break": brk,
+                }
+            )
+
+        pages_out.append(
+            {
+                "document_id": item.document_id,
+                "page_num": page_num,
+                "page_label": f"p. {page_num}",
+                "width": page.dimension.width if page.dimension else None,
+                "height": page.dimension.height if page.dimension else None,
+                "unit": page.dimension.unit if page.dimension else None,
+                "rotation_degrees": 0,
+                "page_confidence": page_conf,
+                "block_count": block_count,
+                "paragraph_count": paragraph_count,
+                "token_count": token_count,
+                "line_count": line_count,
+                "has_tables": len(page.tables) > 0,
+                "has_form_fields": len(page.form_fields) > 0,
+                "redaction_count": redaction_count,
+                "redaction_area_pct": page_redaction_area * 100.0,
+                "alpha_ratio": ar,
+                "quality_band": quality_band(ar),
+                "page_text": page_text,
+            }
+        )
+
+    mean_conf = sum(doc_confidences) / len(doc_confidences) if doc_confidences else 0.0
+    mean_ar = (
+        sum(p["alpha_ratio"] for p in pages_out) / len(pages_out) if pages_out else 0.0
+    )
+    num_pages = len(pages_out)
+
+    doc_row = {
+        "document_id": item.document_id,
+        "release_set": item.release_set,
+        "gcs_pdf_uri": gcs_pdf,
+        "gcs_response_uri": gcs_response,
+        "processor_id": DOCAI_PROCESSOR_ID,
+        "processor_version": DOCAI_PROCESSOR_VERSION,
+        "num_pages": num_pages,
+        "mean_page_confidence": mean_conf,
+        "mean_alpha_ratio": mean_ar,
+        "ocr_quality_band": quality_band(mean_ar),
+        "total_tokens": total_tokens,
+        "total_blocks": total_blocks,
+        "has_tables": any(p["has_tables"] for p in pages_out),
+        "has_forms": any(p["has_form_fields"] for p in pages_out),
+        "has_redactions": total_redactions > 0,
+        "redaction_area_pct": (redaction_area_total / num_pages * 100.0)
+        if num_pages
+        else 0.0,
+        "processing_status": "loaded",
+        "error_message": None,
+        "processed_at": now().isoformat(),
+        "loaded_at": now().isoformat(),
+    }
+
+    return {
+        "document": doc_row,
+        "pages": pages_out,
+        "blocks": blocks_out,
+        "tokens": tokens_out,
+        "redactions": redactions_out,
+    }
+
+
+# ---------- stage 4: chunker ----------
+
+
+def chunk_pages(item: QueueItem, parsed: dict) -> list[dict]:
+    """Greedy chunker: concat page_text across pages, break at ~1000 chars,
+    keep 100-char overlap, attach bbox union from contributing blocks."""
+    pages = parsed["pages"]
+    blocks = parsed["blocks"]
+    blocks_by_page: dict[int, list[dict]] = {}
+    for b in blocks:
+        blocks_by_page.setdefault(b["page_num"], []).append(b)
+
+    chunks: list[dict] = []
+    buffer = ""
+    buffer_pages: list[int] = []
+    buffer_blocks: list[str] = []
+    buffer_conf: list[float] = []
+    chunk_order = 0
+
+    def flush():
+        nonlocal chunk_order, buffer, buffer_pages, buffer_blocks, buffer_conf
+        if not buffer.strip():
+            buffer = ""
+            buffer_pages = []
+            buffer_blocks = []
+            buffer_conf = []
+            return
+        pn_start = min(buffer_pages) if buffer_pages else None
+        pn_end = max(buffer_pages) if buffer_pages else None
+        text_to_write = buffer.strip()
+        chunks.append(
+            {
+                "chunk_id": f"{item.document_id}-{chunk_order}-docai_ocr",
+                "document_id": item.document_id,
+                "naid": None,
+                "chunk_order": chunk_order,
+                "chunk_text": text_to_write,
+                "chunk_chars": len(text_to_write),
+                "token_estimate": int(len(text_to_write) / 4),
+                "page_label": f"p. {pn_start}" if pn_start else None,
+                "page_num_start": pn_start,
+                "page_num_end": pn_end,
+                "source_type": "docai_ocr",
+                "ocr_engine": f"docai/{DOCAI_PROCESSOR_VERSION}",
+                "mean_confidence": sum(buffer_conf) / len(buffer_conf)
+                if buffer_conf
+                else None,
+                "alpha_ratio": alpha_ratio(text_to_write),
+                "block_ids": buffer_blocks.copy(),
+                "bbox_union_x1": None,
+                "bbox_union_y1": None,
+                "bbox_union_x2": None,
+                "bbox_union_y2": None,
+                "contains_redaction": False,
+                "contains_handwriting": False,
+                "created_at": now().isoformat(),
+            }
+        )
+        chunk_order += 1
+        # Overlap
+        overlap = buffer[-CHUNK_OVERLAP_CHARS:] if CHUNK_OVERLAP_CHARS else ""
+        buffer = overlap
+        buffer_pages = []
+        buffer_blocks = []
+        buffer_conf = []
+
+    for page in pages:
+        pn = page["page_num"]
+        for b in blocks_by_page.get(pn, []):
+            add = (b["text"] or "").strip()
+            if not add:
+                continue
+            if len(buffer) + len(add) + 1 > CHUNK_TARGET_CHARS and buffer:
+                flush()
+            buffer += ("\n" if buffer else "") + add
+            buffer_pages.append(pn)
+            buffer_blocks.append(b["block_id"])
+            if b["confidence"] is not None:
+                buffer_conf.append(b["confidence"])
+    flush()
+    return chunks
+
+
+# ---------- stage 5: load to BQ ----------
+
+
+def insert_rows(table: str, rows: list[dict]) -> None:
+    if not rows:
+        return
+    errors = bq.insert_rows_json(f"{STAGING}.{table}", rows)
+    if errors:
+        raise RuntimeError(f"BQ insert errors on {table}: {errors}")
+
+
+def load_parsed(parsed: dict, chunks: list[dict]) -> None:
+    insert_rows("docai_documents", [parsed["document"]])
+    insert_rows("docai_pages", parsed["pages"])
+    insert_rows("docai_blocks", parsed["blocks"])
+    insert_rows("docai_tokens", parsed["tokens"])
+    insert_rows("docai_redactions", parsed["redactions"])
+    insert_rows("docai_text_chunks", chunks)
+
+
+# ---------- orchestrator ----------
+
+
+def process_one(item: QueueItem) -> None:
+    try:
+        gcs_pdf, nbytes, sha = fetch_pdf(item)
+    except Exception as e:
+        log.exception("fetch failed: %s", item.document_id)
+        log_step(
+            item.document_id,
+            item.release_set,
+            "fetch",
+            "error",
+            error_class=type(e).__name__,
+            error_message=str(e)[:500],
+        )
+        return
+
+    gcs_response = f"gs://{GCS_OCR_BUCKET}/{item.document_id}.json"
+
+    try:
+        doc = run_docai(gcs_pdf, item.document_id, item.release_set)
+    except Exception as e:
+        log.exception("docai failed: %s", item.document_id)
+        log_step(
+            item.document_id,
+            item.release_set,
+            "ocr_request",
+            "error",
+            error_class=type(e).__name__,
+            error_message=str(e)[:500],
+        )
+        return
+
+    # Persist raw response for replay / audit
+    try:
+        bucket = gcs.bucket(GCS_OCR_BUCKET)
+        bucket.blob(f"{item.document_id}.json").upload_from_string(
+            documentai.Document.to_json(doc), content_type="application/json"
+        )
+    except Exception:
+        log.exception("could not persist docai response for %s", item.document_id)
+
+    parsed = parse_document(item, gcs_pdf, gcs_response, doc)
+    chunks = chunk_pages(item, parsed)
+
+    try:
+        load_parsed(parsed, chunks)
+        log_step(
+            item.document_id,
+            item.release_set,
+            "load",
+            "ok",
+            bytes=nbytes,
+            sha256=sha,
+        )
+        log.info(
+            "loaded %s | pages=%d chunks=%d conf=%.2f ar=%.2f",
+            item.document_id,
+            parsed["document"]["num_pages"],
+            len(chunks),
+            parsed["document"]["mean_page_confidence"],
+            parsed["document"]["mean_alpha_ratio"],
+        )
+    except Exception as e:
+        log.exception("load failed: %s", item.document_id)
+        log_step(
+            item.document_id,
+            item.release_set,
+            "load",
+            "error",
+            error_class=type(e).__name__,
+            error_message=str(e)[:500],
+        )
+
+
+def process_batch_group(items: list[QueueItem], run_id: str) -> None:
+    """End-to-end batch-mode orchestrator: fetch → LRO → parse → load."""
+    gcs_pdfs: dict[str, str] = {}
+    for item in items:
+        try:
+            uri, _, _ = fetch_pdf(item)
+            gcs_pdfs[item.document_id] = uri
+        except Exception as e:
+            log.exception("fetch failed: %s", item.document_id)
+            log_step(
+                item.document_id,
+                item.release_set,
+                "fetch",
+                "error",
+                error_class=type(e).__name__,
+                error_message=str(e)[:500],
+            )
+    if not gcs_pdfs:
+        log.warning("no PDFs fetched; nothing to submit")
+        return
+    batchable = [i for i in items if i.document_id in gcs_pdfs]
+
+    try:
+        outputs = run_docai_batch(batchable, gcs_pdfs, run_id)
+    except Exception as e:
+        log.exception("batch LRO failed")
+        for item in batchable:
+            log_step(
+                item.document_id,
+                item.release_set,
+                "ocr_request",
+                "error",
+                error_class=type(e).__name__,
+                error_message=str(e)[:500],
+            )
+        return
+
+    for item in batchable:
+        out_prefix = outputs.get(item.document_id)
+        if not out_prefix:
+            log.warning("no output for %s", item.document_id)
+            continue
+        try:
+            doc = _fetch_batch_outputs(out_prefix)
+            parsed = parse_document(item, gcs_pdfs[item.document_id], out_prefix, doc)
+            chunks = chunk_pages(item, parsed)
+            load_parsed(parsed, chunks)
+            log_step(item.document_id, item.release_set, "load", "ok")
+            log.info(
+                "loaded %s | pages=%d chunks=%d conf=%.2f",
+                item.document_id,
+                parsed["document"]["num_pages"],
+                len(chunks),
+                parsed["document"]["mean_page_confidence"],
+            )
+        except Exception as e:
+            log.exception("parse/load failed: %s", item.document_id)
+            log_step(
+                item.document_id,
+                item.release_set,
+                "load",
+                "error",
+                error_class=type(e).__name__,
+                error_message=str(e)[:500],
+            )
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description="JFK Vault Document AI OCR ingest.",
+    )
+    p.add_argument(
+        "--mode",
+        choices=("sync", "batch"),
+        default="sync",
+        help="sync processDocument (≤30 pages) or batchProcess LRO (>30 pages)",
+    )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=PILOT_LIMIT,
+        help="max docs to pull from the queue (default %(default)s)",
+    )
+    p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list queued docs + planned output paths; make NO API calls "
+        "and write NO rows. Safe for wiring verification.",
+    )
+    p.add_argument(
+        "--run-id",
+        default=None,
+        help="batch-mode run identifier; default is a UTC timestamp.",
+    )
+    return p.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+    items = fetch_queue(args.limit, mode=args.mode)
+    log.info(
+        "%s: %d docs queued (limit=%d, dry_run=%s)",
+        args.mode,
+        len(items),
+        args.limit,
+        args.dry_run,
+    )
+
+    if args.dry_run:
+        for i, item in enumerate(items, 1):
+            log.info(
+                "[dry-run %d/%d] %s (%s, %s pages) → %s",
+                i,
+                len(items),
+                item.document_id,
+                item.release_set,
+                item.num_pages,
+                gcs_pdf_uri(item.document_id, item.release_set),
+            )
+        if args.mode == "batch":
+            run_id = args.run_id or now().strftime("%Y%m%dT%H%M%SZ")
+            log.info(
+                "[dry-run] batch output would land at %s",
+                _batch_output_prefix(run_id),
+            )
+        return
+
+    if args.mode == "sync":
+        for i, item in enumerate(items, 1):
+            log.info(
+                "[%d/%d] %s (%s, %s pages)",
+                i,
+                len(items),
+                item.document_id,
+                item.release_set,
+                item.num_pages,
+            )
+            process_one(item)
+    else:
+        run_id = args.run_id or now().strftime("%Y%m%dT%H%M%SZ")
+        process_batch_group(items, run_id)
+
+
+if __name__ == "__main__":
+    main()
