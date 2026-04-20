@@ -6,6 +6,8 @@ import type {
   CaseTimelineEvent,
 } from "@/lib/api-types";
 import { formatDate } from "@/lib/format";
+import { CategoryFilterChips } from "@/components/timeline/category-filter-chips";
+import { DecadeSection } from "@/components/timeline/decade-section";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +33,21 @@ const CATEGORY_COLOR: Record<CaseTimelineCategory, string> = {
   death: "var(--text-muted)",
 };
 
+const MARQUEE_START = "1963-11-22";
+const MARQUEE_END = "1963-11-25";
+
 export default async function TimelinePage() {
   const data = await fetchCaseTimeline();
 
-  // Group events by decade → year.
   const byDecade = new Map<string, Map<string, CaseTimelineEvent[]>>();
+  const categoryCounts: Record<CaseTimelineCategory, number> = {
+    biographical: 0,
+    operational: 0,
+    investigation: 0,
+    release: 0,
+    death: 0,
+  };
+  let latestDate = "";
   for (const e of data.events) {
     const year = e.date.slice(0, 4);
     const decade = `${year.slice(0, 3)}0s`;
@@ -43,6 +55,8 @@ export default async function TimelinePage() {
     const years = byDecade.get(decade)!;
     if (!years.has(year)) years.set(year, []);
     years.get(year)!.push(e);
+    categoryCounts[e.category] += 1;
+    if (e.date > latestDate) latestDate = e.date;
   }
   const decades = Array.from(byDecade.keys()).sort();
 
@@ -76,7 +90,21 @@ export default async function TimelinePage() {
           HSCA, ARRB) frame it. Each event links to related entities,
           topics, and source documents where those exist.
         </p>
+        {latestDate && (
+          <p
+            className="muted num"
+            style={{
+              fontSize: "0.82rem",
+              marginTop: 10,
+              letterSpacing: "0.02em",
+            }}
+          >
+            Ongoing · current through {formatDate(latestDate)}
+          </p>
+        )}
       </header>
+
+      <CategoryFilterChips counts={categoryCounts} />
 
       <nav
         aria-label="Decade jump"
@@ -121,181 +149,290 @@ export default async function TimelinePage() {
       {decades.map((decade) => {
         const years = byDecade.get(decade)!;
         const yearKeys = Array.from(years.keys()).sort();
+        const totalEvents = Array.from(years.values()).reduce(
+          (n, l) => n + l.length,
+          0,
+        );
         return (
-          <section
+          <DecadeSection
             key={decade}
-            id={`decade-${decade}`}
-            style={{ marginBottom: 56 }}
+            decade={decade}
+            totalEvents={totalEvents}
           >
-            <h2
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "1.6rem",
-                letterSpacing: "-0.01em",
-                marginBottom: 20,
-                borderBottom: "1px solid var(--border)",
-                paddingBottom: 10,
-              }}
-            >
-              <span className="num">{decade}</span>
-            </h2>
             {yearKeys.map((year) => (
-              <div key={year} style={{ marginBottom: 30 }}>
-                <h3
-                  className="num"
-                  style={{
-                    fontSize: "1.05rem",
-                    fontWeight: 600,
-                    color: "var(--text-muted)",
-                    marginBottom: 10,
-                    letterSpacing: "0.02em",
-                  }}
-                >
-                  {year}
-                </h3>
-                <ol
-                  style={{
-                    margin: 0,
-                    padding: 0,
-                    listStyle: "none",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 12,
-                  }}
-                >
-                  {years.get(year)!.map((e) => (
-                    <EventCard key={e.id} event={e} />
-                  ))}
-                </ol>
-              </div>
+              <YearGroup
+                key={year}
+                year={year}
+                events={years.get(year)!}
+              />
             ))}
-          </section>
+          </DecadeSection>
         );
       })}
     </div>
   );
 }
 
+function YearGroup({
+  year,
+  events,
+}: {
+  year: string;
+  events: CaseTimelineEvent[];
+}) {
+  const pre = events.filter((e) => e.date < MARQUEE_START);
+  const marquee = events.filter(
+    (e) => e.date >= MARQUEE_START && e.date <= MARQUEE_END,
+  );
+  const post = events.filter((e) => e.date > MARQUEE_END);
+
+  return (
+    <div style={{ marginBottom: 30 }}>
+      <h3
+        className="num"
+        style={{
+          fontSize: "1.05rem",
+          fontWeight: 600,
+          color: "var(--text-muted)",
+          marginBottom: 10,
+          letterSpacing: "0.02em",
+        }}
+      >
+        {year}
+      </h3>
+      {pre.length > 0 && <EventList events={pre} />}
+      {marquee.length > 0 && (
+        <div
+          style={{
+            marginTop: pre.length > 0 ? 14 : 0,
+            marginBottom: post.length > 0 ? 14 : 0,
+            padding: "14px 14px 16px",
+            border: "1px solid var(--border-strong)",
+            borderRadius: "var(--radius-md)",
+            background:
+              "color-mix(in srgb, var(--text) 4%, var(--surface))",
+          }}
+        >
+          <div
+            className="eyebrow"
+            style={{
+              fontSize: "0.7rem",
+              letterSpacing: "0.12em",
+              color: "var(--text-muted)",
+              marginBottom: 10,
+            }}
+          >
+            72 hours in Dallas · Nov 22–25, 1963
+          </div>
+          <EventList events={marquee} />
+        </div>
+      )}
+      {post.length > 0 && <EventList events={post} />}
+    </div>
+  );
+}
+
+function EventList({ events }: { events: CaseTimelineEvent[] }) {
+  return (
+    <ol
+      style={{
+        margin: 0,
+        padding: 0,
+        listStyle: "none",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      {events.map((e) => (
+        <EventCard key={e.id} event={e} />
+      ))}
+    </ol>
+  );
+}
+
+function hostLabel(url: string): string {
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 function EventCard({ event: e }: { event: CaseTimelineEvent }) {
   return (
     <li
+      id={e.id}
+      data-timeline-event
+      data-category={e.category}
       style={{
-        display: "grid",
-        gridTemplateColumns: "140px 1fr",
-        gap: 16,
-        padding: "14px 16px",
+        padding: "12px 16px 14px",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",
         background: "var(--surface)",
+        scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
       }}
     >
       <div
-        className="num muted"
-        style={{ fontSize: "0.78rem", lineHeight: 1.5 }}
+        className="num"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+          fontSize: "0.74rem",
+          color: "var(--text-muted)",
+          letterSpacing: "0.04em",
+          marginBottom: 6,
+        }}
       >
-        <div>{formatDate(e.date)}</div>
+        <span>{formatDate(e.date)}</span>
         {e.timeLocal && (
-          <div style={{ fontSize: "0.72rem", marginTop: 2 }}>{e.timeLocal}</div>
+          <>
+            <span aria-hidden="true">·</span>
+            <span>{e.timeLocal}</span>
+          </>
         )}
+        <span aria-hidden="true">·</span>
+        <span
+          style={{
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: CATEGORY_COLOR[e.category],
+          }}
+        >
+          {CATEGORY_LABEL[e.category]}
+        </span>
+        {e.importance >= 5 && (
+          <span title="Headline event" style={{ letterSpacing: "0.04em" }}>
+            ★ headline
+          </span>
+        )}
+        <a
+          href={`#${e.id}`}
+          aria-label={`Permalink to ${e.title}`}
+          className="timeline-permalink"
+          style={{
+            marginLeft: "auto",
+            fontSize: "0.9rem",
+            textDecoration: "none",
+            padding: "0 4px",
+            lineHeight: 1,
+            color: "var(--text-muted)",
+          }}
+        >
+          #
+        </a>
       </div>
-      <div style={{ minWidth: 0 }}>
+      <div
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "1.05rem",
+          letterSpacing: "-0.005em",
+          marginBottom: 4,
+          lineHeight: 1.3,
+        }}
+      >
+        {e.title}
+      </div>
+      <p
+        style={{
+          fontSize: "0.92rem",
+          lineHeight: 1.55,
+          color: "var(--text)",
+          marginTop: 4,
+          marginBottom: 0,
+        }}
+      >
+        {e.description}
+      </p>
+      {(e.relatedEntityIds.length > 0 || e.relatedTopicIds.length > 0) && (
         <div
           style={{
+            marginTop: 8,
+            fontSize: "0.72rem",
+            color: "var(--text-muted)",
             display: "flex",
-            gap: 8,
-            alignItems: "center",
             flexWrap: "wrap",
-            marginBottom: 6,
+            gap: 6,
+            alignItems: "baseline",
           }}
         >
           <span
-            style={{
-              fontSize: "0.7rem",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              padding: "2px 8px",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 4,
-              color: CATEGORY_COLOR[e.category],
-            }}
+            className="eyebrow"
+            style={{ letterSpacing: "0.08em", marginRight: 2 }}
           >
-            {CATEGORY_LABEL[e.category]}
+            Related:
           </span>
-          {e.importance >= 5 && (
-            <span
-              className="muted"
+          {e.relatedEntityIds.map((id) => (
+            <Link
+              key={id}
+              href={`/entity/${encodeURIComponent(id)}`}
               style={{
-                fontSize: "0.7rem",
-                letterSpacing: "0.04em",
+                padding: "1px 6px",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                color: "var(--text-muted)",
+                textDecoration: "none",
               }}
-              title="Headline event"
             >
-              ★ headline
-            </span>
-          )}
+              {id}
+            </Link>
+          ))}
+          {e.relatedTopicIds.map((id) => (
+            <Link
+              key={id}
+              href={`/topic/${encodeURIComponent(id)}`}
+              style={{
+                padding: "1px 6px",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                color: "var(--text-muted)",
+                textDecoration: "none",
+              }}
+            >
+              #{id}
+            </Link>
+          ))}
         </div>
+      )}
+      {e.sourceExternal.length > 0 && (
         <div
           style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "1.05rem",
-            letterSpacing: "-0.005em",
-            marginBottom: 4,
-            lineHeight: 1.3,
+            marginTop: 6,
+            fontSize: "0.72rem",
+            color: "var(--text-muted)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            alignItems: "baseline",
           }}
         >
-          {e.title}
-        </div>
-        <p
-          style={{
-            fontSize: "0.92rem",
-            lineHeight: 1.55,
-            color: "var(--text)",
-            marginTop: 4,
-            marginBottom: 0,
-          }}
-        >
-          {e.description}
-        </p>
-        {(e.relatedEntityIds.length > 0 || e.relatedTopicIds.length > 0) && (
-          <div
-            className="muted"
-            style={{
-              marginTop: 8,
-              fontSize: "0.78rem",
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-            }}
+          <span
+            className="eyebrow"
+            style={{ letterSpacing: "0.08em", marginRight: 2 }}
           >
-            {e.relatedEntityIds.map((id) => (
-              <Link
-                key={id}
-                href={`/entity/${encodeURIComponent(id)}`}
-                style={{
-                  padding: "1px 6px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                }}
-              >
-                {id}
-              </Link>
-            ))}
-            {e.relatedTopicIds.map((id) => (
-              <Link
-                key={id}
-                href={`/topic/${encodeURIComponent(id)}`}
-                style={{
-                  padding: "1px 6px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                }}
-              >
-                #{id}
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+            Sources:
+          </span>
+          {e.sourceExternal.map((url) => (
+            <a
+              key={url}
+              href={url}
+              target="_blank"
+              rel="noreferrer noopener"
+              style={{
+                padding: "1px 6px",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                color: "var(--text-muted)",
+                textDecoration: "none",
+              }}
+            >
+              {hostLabel(url)} ↗
+            </a>
+          ))}
+        </div>
+      )}
     </li>
   );
 }
