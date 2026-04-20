@@ -396,6 +396,14 @@ hr {
   color: var(--text);
   outline: none;
 }
+.search-result-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
 .chunk-cite-popover {
   display: block;
   position: absolute;
@@ -406,7 +414,7 @@ hr {
   border-radius: 8px;
   background: var(--bg);
   box-shadow: var(--shadow-md, 0 6px 24px rgba(0,0,0,0.12));
-  max-width: 60ch;
+  max-width: min(60ch, calc(100vw - 32px));
 }
 .chunk-highlight {
   background: color-mix(in srgb, var(--accent) 18%, transparent);
@@ -558,6 +566,25 @@ hr {
   color: var(--text-muted);
   margin-right: 4px;
 }
+@media (max-width: 480px) {
+  .dp-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  .dp-legend-label {
+    margin-right: 0;
+  }
+}
+.graph-range-wrap {
+  min-width: 260px;
+}
+@media (max-width: 480px) {
+  .graph-range-wrap {
+    min-width: 0;
+    width: 100%;
+  }
+}
 .dp-chip {
   padding: 4px 10px;
   border-radius: 999px;
@@ -632,14 +659,19 @@ hr {
 }
 .dp-panel-close {
   position: absolute;
-  top: 8px;
-  right: 10px;
+  top: 6px;
+  right: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-muted);
-  padding: 2px 8px;
   border-radius: 4px;
-  font-size: 0.85rem;
+  font-size: 1rem;
+  line-height: 1;
   cursor: pointer;
 }
 .dp-panel-close:hover,

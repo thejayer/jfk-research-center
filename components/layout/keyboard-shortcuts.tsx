@@ -199,6 +199,8 @@ function HelpModal({ onClose }: { onClose: () => void }) {
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(440px, 100%)",
+          maxHeight: "calc(100vh - 48px)",
+          overflowY: "auto",
           background: "var(--surface)",
           border: "1px solid var(--border-strong)",
           borderRadius: "var(--radius-md)",

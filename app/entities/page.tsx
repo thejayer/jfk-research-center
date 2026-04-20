@@ -3,6 +3,8 @@ import Link from "next/link";
 import { fetchEntities } from "@/lib/api-client";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LinkButton } from "@/components/ui/button";
 import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -57,24 +59,34 @@ export default async function EntitiesIndexPage() {
         </p>
       </header>
 
-      {people.length > 0 && (
-        <section aria-label="People" style={{ marginBottom: 56 }}>
-          <SectionHeading
-            eyebrow="People"
-            title={`People — ${people.length}`}
-          />
-          <EntityGrid entities={people} />
-        </section>
-      )}
+      {people.length === 0 && orgs.length === 0 ? (
+        <EmptyState
+          title="No entities yet"
+          description="The entity roster is empty or failed to load. Try the main search while we investigate."
+          action={<LinkButton href="/search">Go to search →</LinkButton>}
+        />
+      ) : (
+        <>
+          {people.length > 0 && (
+            <section aria-label="People" style={{ marginBottom: 56 }}>
+              <SectionHeading
+                eyebrow="People"
+                title={`People — ${people.length}`}
+              />
+              <EntityGrid entities={people} />
+            </section>
+          )}
 
-      {orgs.length > 0 && (
-        <section aria-label="Organizations" style={{ marginBottom: 56 }}>
-          <SectionHeading
-            eyebrow="Organizations"
-            title={`Organizations — ${orgs.length}`}
-          />
-          <EntityGrid entities={orgs} />
-        </section>
+          {orgs.length > 0 && (
+            <section aria-label="Organizations" style={{ marginBottom: 56 }}>
+              <SectionHeading
+                eyebrow="Organizations"
+                title={`Organizations — ${orgs.length}`}
+              />
+              <EntityGrid entities={orgs} />
+            </section>
+          )}
+        </>
       )}
     </div>
   );

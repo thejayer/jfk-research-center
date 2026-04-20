@@ -9,7 +9,7 @@ export function EntityTimeline({ events }: { events: TimelineEvent[] }) {
         listStyle: "none",
         margin: 0,
         padding: 0,
-        borderLeft: "1px solid var(--border)",
+        borderLeft: "1px solid var(--border-strong)",
         paddingLeft: 22,
       }}
     >

@@ -63,7 +63,7 @@ export function CiteButton({ citations }: { citations: CitationFormats }) {
             border: "1px solid var(--border)",
             borderRadius: "var(--radius-md)",
             background: "var(--surface)",
-            maxWidth: "72ch",
+            maxWidth: "min(72ch, calc(100vw - 32px))",
           }}
         >
           <div
