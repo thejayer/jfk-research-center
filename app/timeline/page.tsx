@@ -396,6 +396,42 @@ function EventCard({ event: e }: { event: CaseTimelineEvent }) {
           ))}
         </div>
       )}
+      {e.documentLinks.length > 0 && (
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: "0.72rem",
+            color: "var(--text-muted)",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 6,
+            alignItems: "baseline",
+          }}
+        >
+          <span
+            className="eyebrow"
+            style={{ letterSpacing: "0.08em", marginRight: 2 }}
+          >
+            Documents:
+          </span>
+          {e.documentLinks.map((d) => (
+            <Link
+              key={d.documentId}
+              href={`/document/${encodeURIComponent(d.documentId)}`}
+              title={d.note ?? undefined}
+              style={{
+                padding: "1px 6px",
+                border: "1px solid var(--border)",
+                borderRadius: 4,
+                color: "var(--text-muted)",
+                textDecoration: "none",
+              }}
+            >
+              {d.title ?? d.documentId}
+            </Link>
+          ))}
+        </div>
+      )}
       {e.sourceExternal.length > 0 && (
         <div
           style={{

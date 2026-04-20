@@ -1925,13 +1925,34 @@ type CaseTimelineRow = {
 };
 
 export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
-  const rows = await query<CaseTimelineRow>(
-    `SELECT event_id, event_date, event_time_local, title, description,
-            category, related_entity_ids, related_topic_ids,
-            source_external, importance
-       FROM \`${PROJECT}.${DATASET_CURATED}.timeline_events\`
-      ORDER BY event_date, event_time_local NULLS FIRST`,
-  );
+  const [rows, docLinkRows] = await Promise.all([
+    query<CaseTimelineRow>(
+      `SELECT event_id, event_date, event_time_local, title, description,
+              category, related_entity_ids, related_topic_ids,
+              source_external, importance
+         FROM \`${PROJECT}.${DATASET_CURATED}.timeline_events\`
+        ORDER BY event_date, event_time_local NULLS FIRST`,
+    ),
+    query<{
+      event_id: string;
+      document_id: string;
+      note: string | null;
+      title: string | null;
+    }>(
+      `SELECT d.event_id, d.document_id, d.note, r.title
+         FROM \`${PROJECT}.${DATASET_CURATED}.timeline_event_documents\` d
+         LEFT JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+           USING (document_id)
+        ORDER BY d.event_id, d.sort_order`,
+    ),
+  ]);
+
+  const docLinksByEvent = new Map<string, CaseTimelineEvent["documentLinks"]>();
+  for (const r of docLinkRows) {
+    const list = docLinksByEvent.get(r.event_id) ?? [];
+    list.push({ documentId: r.document_id, title: r.title, note: r.note });
+    docLinksByEvent.set(r.event_id, list);
+  }
 
   const events: CaseTimelineEvent[] = rows.map((r) => {
     const dateStr =
@@ -1946,6 +1967,7 @@ export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
       relatedEntityIds: r.related_entity_ids ?? [],
       relatedTopicIds: r.related_topic_ids ?? [],
       sourceExternal: r.source_external ?? [],
+      documentLinks: docLinksByEvent.get(r.event_id) ?? [],
       importance: r.importance ?? 3,
     };
   });
