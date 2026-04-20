@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCitation, type CitationFormats, type CitationInput } from "@/lib/citations";
+import { useClickOutside } from "@/lib/use-click-outside";
 
 type Style = keyof CitationFormats;
 
@@ -39,6 +40,18 @@ export function ChunkActions({
   const [style, setStyle] = useState<Style>("chicago");
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedCite, setCopiedCite] = useState(false);
+  const wrapperRef = useRef<HTMLSpanElement>(null);
+
+  useClickOutside(wrapperRef, open, () => setOpen(false));
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   const citations = useMemo<CitationFormats>(() => {
     const origin =
@@ -75,7 +88,7 @@ export function ChunkActions({
   };
 
   return (
-    <span className="chunk-actions">
+    <span ref={wrapperRef} className="chunk-actions">
       <button
         type="button"
         className="chunk-action-btn"
