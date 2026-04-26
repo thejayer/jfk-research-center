@@ -8,6 +8,7 @@ import type {
 import { formatDate } from "@/lib/format";
 import { CategoryFilterChips } from "@/components/timeline/category-filter-chips";
 import { DecadeSection } from "@/components/timeline/decade-section";
+import { TimelinePermalink } from "@/components/timeline/timeline-permalink";
 
 export const dynamic = "force-dynamic";
 
@@ -308,21 +309,7 @@ function EventCard({ event: e }: { event: CaseTimelineEvent }) {
             ★ headline
           </span>
         )}
-        <a
-          href={`#${e.id}`}
-          aria-label={`Permalink to ${e.title}`}
-          className="timeline-permalink"
-          style={{
-            marginLeft: "auto",
-            fontSize: "0.9rem",
-            textDecoration: "none",
-            padding: "0 4px",
-            lineHeight: 1,
-            color: "var(--text-muted)",
-          }}
-        >
-          #
-        </a>
+        <TimelinePermalink eventId={e.id} title={e.title} />
       </div>
       <div
         style={{

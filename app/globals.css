@@ -418,6 +418,37 @@ hr {
   overflow: hidden;
 }
 
+/* ----- Per-event timeline permalink affordance (TimelinePermalink) ----- */
+.timeline-permalink {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: opacity 160ms ease, background-color 120ms ease,
+    border-color 120ms ease, color 120ms ease;
+}
+[data-timeline-event]:hover .timeline-permalink,
+[data-timeline-event]:focus-within .timeline-permalink {
+  opacity: 1;
+}
+.timeline-permalink:hover,
+.timeline-permalink:focus-visible {
+  background: var(--bg);
+  border-color: var(--border);
+  color: var(--text);
+  outline: none;
+  opacity: 1;
+}
+
 .chunk-cite-popover {
   display: block;
   position: absolute;
