@@ -289,13 +289,17 @@ gcloud run deploy jfk-research-center \
     first load). No `d3-axis` / no react timeline lib — SVG is hand-rolled
     matching the `/graph` and `/dealey-plaza` house pattern.
   - **Four zoom levels** keyed off `transform.k`: decade (k<4) renders dots
-    on a single baseline; year (4≤k<30) splits events into 5 category lanes
-    and labels are hidden; day (30≤k<250) shows headline labels; hour
-    (k≥250) shows full labels truncated to 42 chars. The Nov 22–25, 1963
-    marquee window is rendered as a translucent highlight band so it stays
-    visible even at decade zoom; "72h Dallas" toolbar button auto-zooms to
-    k≈800 centered on Nov 23 (hour level). Reset button returns to
-    `zoomIdentity`.
+    on a single baseline plus a per-year density histogram in the upper
+    half (filter-aware — toggling Operational off shrinks the 1963 spike
+    and surfaces the 1976–78 HSCA cluster); year (4≤k<30) splits events
+    into 5 category lanes and labels are hidden; day (30≤k<250) shows
+    headline labels; hour (k≥250) shows full labels truncated to 42 chars.
+    The Nov 22–25, 1963 marquee window is rendered as a translucent
+    highlight band so it stays visible even at decade zoom; "72h Dallas"
+    toolbar button auto-zooms to k=2800 centered on Nov 23 (hour level,
+    ~11-day visible window so events spread out instead of overlapping).
+    Per-event programmatic zoom (used by hash permalinks for events with a
+    `timeLocal`) targets k=2000. Reset button returns to `zoomIdentity`.
   - **Components.** New `components/timeline/zoomable-timeline.tsx` (client),
     `components/timeline/event-card.tsx` (shared between zoom and list — the
     selected-event side panel renders the same card). New
@@ -946,13 +950,11 @@ bq query --use_legacy_sql=false \
 
 ## Open TODOs
 
-- **3-C Corrections admin triage view (deferred).** The public form +
-  BQ table (`jfk_curated.corrections_submissions`, sql/40) +
-  `/api/corrections` insert path shipped in the April 2026 hotfix
-  cycle, alongside "Report an error on this page" links on entity and
-  topic pages. The admin triage view at `/admin/corrections` remains
-  blocked on the project's admin auth scheme decision (Cloud IAM vs.
-  Identity-Aware Proxy vs. a small in-app allowlist).
+- **3-C Corrections admin triage view (shipped 2026-04-26, PR #26).**
+  `/admin/corrections` lives behind the same HMAC session middleware
+  introduced for `/admin/redactions`. Auth scheme question resolved by
+  reusing the in-app allowlist + `ADMIN_TOKEN` shared secret pattern
+  rather than waiting on Cloud IAM / IAP integration.
 - **3-E Dealey Plaza interactive page (shipped April 2026, follow-ups).**
   `/dealey-plaza` ships an SVG schematic of 1963 Dealey Plaza with 20
   witnesses plotted from sworn WC testimony, a toggleable shot-origin
@@ -961,14 +963,15 @@ bq query --use_legacy_sql=false \
   the schematic for users who want geographic context, a motorcade
   Z-frame scrubber, and per-witness links into the relevant Warren
   Commission Hearings volumes once those are individually NAID-addressable.
-- **3-F zoomable timeline follow-ups (shipped 2026-04-26).** Default
-  `/timeline` is the four-level zoom view (decade/year/day/hour); list
-  view at `?view=list`. Possible polish if it surfaces in usage:
-  (a) stacked-density bars per decade so very dense periods read at a
-  glance; (b) animated zoom-on-permalink (currently snaps); (c) a
-  "next event" jump arrow at year+ levels for keyboard users; (d) URL
-  state for the current zoom transform so a copied URL re-opens at the
-  same view.
+- **3-F zoomable timeline follow-ups (shipped 2026-04-26, PR #30).**
+  Default `/timeline` is the four-level zoom view (decade/year/day/hour)
+  with per-year density histogram at decade level; list view at
+  `?view=list`. Possible polish if it surfaces in usage:
+  (a) animated zoom-on-permalink (currently snaps); (b) a "next event"
+  jump arrow at year+ levels for keyboard users; (c) URL state for the
+  current zoom transform so a copied URL re-opens at the same view;
+  (d) label-collision avoidance at hour level (assassination-day events
+  cluster within ~5px and their labels overlap).
 - **5-B Redaction diff viewer (deferred from Phase 5 — internal side
   shipped 2026-04-20 in PR #16).** Public cross-release diff UI still
   pending per-release OCR text, which the DocAI pilot starts to unlock
@@ -979,15 +982,14 @@ bq query --use_legacy_sql=false \
   need: (a) DocAI batch-processing path for >30-page docs; (b) a
   `release_text_versions` table keyed by (naid, release_set); (c) the
   public diff UI itself on `/document/[id]`.
-- **DocAI v2.1 confidence parser (fixed 2026-04-20).**
-  `docai_documents.mean_page_confidence` used to read 0 because
-  `pretrained-ocr-v2.1-2024-08-07` stopped populating
-  `page.layout.confidence` and moved the signal onto individual
-  tokens. `scripts/jfk_docai_ingest.py::parse_document` now averages
-  `page.tokens[*].layout.confidence` and falls back to
-  `page.layout.confidence` for any future processor that re-populates
-  the page-level field. The 12 pilot docs would need to be re-ingested
-  (or their stored GCS responses re-parsed) to backfill the column.
+- **DocAI v2.1 confidence parser (fixed 2026-04-20, backfilled
+  2026-04-26 in PR #23).** `docai_documents.mean_page_confidence` used
+  to read 0 because `pretrained-ocr-v2.1-2024-08-07` moved the signal
+  off `page.layout.confidence` and onto individual tokens.
+  `scripts/jfk_docai_ingest.py::parse_document` now averages
+  `page.tokens[*].layout.confidence` with a page-level fallback.
+  `sql/46_backfill_docai_confidence.sql` rebuilt the column for the 12
+  pilot docs without re-ingesting via DocAI.
 - **5-D Grounded chatbot (deferred from Phase 5).** Depends on 5-A
   vector retrieval being live. Spec-flagged as highest-risk addition
   (hard citation guardrails, Gemini audit logging, 50-pair gold eval
@@ -1003,12 +1005,17 @@ bq query --use_legacy_sql=false \
   abused. When ready: Firestore-backed keys (free tier 1000 req/day,
   no-auth below some lower public threshold), per-key counters, kill
   switch on per-endpoint spend. See gameplan PW-5E-2.
-- **Run axe-core live audit (4-I follow-up).** Static fixes are in
-  (focus trap on help modal, `:focus-visible` rings, no missing alt/
-  aria-label gaps), but the full WCAG 2.2 AA audit still needs a live
-  run. Easiest: install the axe DevTools browser extension and run it
-  on /, /search (with filters open + drawer open on mobile), /topic/*,
-  /document/*, /timeline. Fix any serious/critical issues it surfaces.
+- **Axe-core a11y gate (shipped 2026-04-26, PRs #27 + #28).** PR #27
+  cleared all serious/critical violations across the audited pages
+  (`/`, `/search`, `/timeline`, `/entity/*`, `/topic/*`,
+  `/open-questions/*`, `/graph`, `/dealey-plaza`, `/evidence`,
+  `/corrections`, `/about/methodology`, `/bibliography`). PR #28 wired
+  `scripts/axe-audit.mjs` into `.github/workflows/deploy.yml` as a
+  blocking gate so any future regression fails the deploy. To extend
+  coverage: add new routes to `URLS` in `scripts/axe-audit.mjs`. The
+  full WCAG 2.2 AA audit beyond serious/critical (moderate/minor
+  contrast / heading-hierarchy / color-only signaling) is still
+  worthwhile when there's appetite.
 - **Consider NARA 2025 release manifest.** NARA hasn't published an XLSX
   for the 2025 release yet. Until they do, the 14 unmatched ABBYY RIFs
   stay in `dq_unmatched_abbyy`. Monitor archives.gov/research/jfk/release-2025.
