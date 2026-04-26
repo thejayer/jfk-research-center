@@ -231,8 +231,10 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
 
   const zoomToEvent = useCallback(
     (e: CaseTimelineEvent & { _t: Date }) => {
-      // Pick a level appropriate for this event's resolution (hour if timeLocal, else day).
-      const k = e.timeLocal ? 600 : 90;
+      // Pick a level appropriate for this event's resolution. Events with a
+      // timeLocal need hour-level zoom to separate from same-day neighbors;
+      // date-only events read fine at day level.
+      const k = e.timeLocal ? 2000 : 90;
       const t = transformFromState({ k, centerDate: e._t }, baseScale);
       applyTransform(t);
       setSelectedId(e.id);
@@ -244,7 +246,9 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     const center = new Date(
       (MARQUEE_START.getTime() + MARQUEE_END.getTime()) / 2,
     );
-    const t = transformFromState({ k: 800, centerDate: center }, baseScale);
+    // k=2800 puts the visible window at ~11 days, so Nov 22–25's events
+    // spread across ~40% of the chart instead of clustering in <120px.
+    const t = transformFromState({ k: 2800, centerDate: center }, baseScale);
     applyTransform(t);
   }, [applyTransform, baseScale]);
 
@@ -338,6 +342,26 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
   );
 
   const level = levelFor(transform.k);
+
+  // Per-year histogram bins (only consumed at decade level). Recomputed when
+  // category filter toggles; empty years are omitted to keep the JSX small.
+  const yearBins = useMemo(() => {
+    if (level !== "decade") return null;
+    const bins = new Map<number, number>();
+    for (const e of events) {
+      if (!activeCategories.has(e.category)) continue;
+      const y = e._t.getUTCFullYear();
+      bins.set(y, (bins.get(y) ?? 0) + 1);
+    }
+    return bins;
+  }, [events, activeCategories, level]);
+
+  const yearBinMax = useMemo(() => {
+    if (!yearBins) return 0;
+    let max = 0;
+    for (const v of yearBins.values()) if (v > max) max = v;
+    return max;
+  }, [yearBins]);
   const visibleDomain: [Date, Date] = [
     xScale.invert(MARGIN.left) as Date,
     xScale.invert(MARGIN.left + PLOT_W) as Date,
@@ -466,6 +490,32 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
               </text>
             );
           })}
+
+          {/* Year-density histogram (decade level only) */}
+          {yearBins && yearBinMax > 0 && (
+            <g clipPath="url(#timeline-plot-clip)">
+              {Array.from(yearBins.entries()).map(([year, count]) => {
+                const x = xScale(new Date(Date.UTC(year, 0, 1)));
+                const xNext = xScale(new Date(Date.UTC(year + 1, 0, 1)));
+                const w = Math.max(1, xNext - x - 0.5);
+                if (x + w < MARGIN.left || x > MARGIN.left + PLOT_W) return null;
+                const baseline = VIEW_H - MARGIN.bottom - 14;
+                const maxH = PLOT_H * 0.62;
+                const h = (count / yearBinMax) * maxH;
+                return (
+                  <rect
+                    key={`hist-${year}`}
+                    x={x}
+                    y={baseline - h}
+                    width={w}
+                    height={h}
+                    fill="var(--text)"
+                    opacity={0.08}
+                  />
+                );
+              })}
+            </g>
+          )}
 
           {/* Marquee window highlight */}
           {marqueeX2 > MARGIN.left && marqueeX1 < MARGIN.left + PLOT_W && (
