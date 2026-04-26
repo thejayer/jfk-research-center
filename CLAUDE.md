@@ -278,8 +278,45 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-20 (redaction review queue + DocAI OCR pilot)
+**Last updated:** 2026-04-26 (3-F zoomable timeline)
 
+- **3-F zoomable D3 timeline (2026-04-26).** `/timeline` now defaults to
+  a horizontal zoomable view; the previous chronological list is preserved
+  at `/timeline?view=list` (also serves as the no-JS / screen-reader path).
+  - **Stack.** `d3-scale` (time scale), `d3-zoom` (semantic zoom), `d3-time`
+    (tick generators), `d3-selection` + `d3-transition` (animated programmatic
+    zoom). All deps tree-shake; `/timeline` route bundle is 27.8 kB (137 kB
+    first load). No `d3-axis` / no react timeline lib — SVG is hand-rolled
+    matching the `/graph` and `/dealey-plaza` house pattern.
+  - **Four zoom levels** keyed off `transform.k`: decade (k<4) renders dots
+    on a single baseline; year (4≤k<30) splits events into 5 category lanes
+    and labels are hidden; day (30≤k<250) shows headline labels; hour
+    (k≥250) shows full labels truncated to 42 chars. The Nov 22–25, 1963
+    marquee window is rendered as a translucent highlight band so it stays
+    visible even at decade zoom; "72h Dallas" toolbar button auto-zooms to
+    k≈800 centered on Nov 23 (hour level). Reset button returns to
+    `zoomIdentity`.
+  - **Components.** New `components/timeline/zoomable-timeline.tsx` (client),
+    `components/timeline/event-card.tsx` (shared between zoom and list — the
+    selected-event side panel renders the same card). New
+    `components/timeline/list-view.tsx` extracts the prior page body into a
+    server component; `app/timeline/page.tsx` is now a thin shell that
+    decides between views via `searchParams.view`.
+  - **Permalink interop.** Existing `#event-{id}` hashes (shipped in PR #29)
+    auto-zoom to the target event and open the side panel on initial load
+    *and* on subsequent `hashchange` events. Clicking an event dot calls
+    `history.replaceState` with the hash so the link is copyable from the
+    address bar.
+  - **A11y.** SVG has `tabIndex=0` + `role="img"` + descriptive `aria-label`.
+    Keyboard shortcuts when the SVG is focused: `+`/`-` zoom, `←`/`→` pan,
+    `0` reset, `Esc` close panel. Hidden `<ol aria-label="Currently visible
+    timeline events">` mirrors the events currently in the visible domain
+    so screen readers can navigate without parsing the SVG. Axe-core CI
+    gate passed clean. List view fallback covers users with JS disabled.
+  - **Mobile.** SVG uses `viewBox` + `width:100%` so it scales; `touchAction:
+    none` lets d3-zoom handle pinch + drag without browser scroll
+    interference. Side panel is `position: fixed; width: min(440px, 96vw)`
+    so it becomes ~full-screen on phones.
 - **Redaction review queue `/admin/redactions` (2026-04-20, PR #16).**
   Human-in-the-loop gate for PIL-detected black-bar redactions, deployed
   as the first `/admin/*` surface on the site. Unblocks the internal side
@@ -924,10 +961,14 @@ bq query --use_legacy_sql=false \
   the schematic for users who want geographic context, a motorcade
   Z-frame scrubber, and per-witness links into the relevant Warren
   Commission Hearings volumes once those are individually NAID-addressable.
-- **3-F heavy: zoomable D3 timeline (deferred).** Current `/timeline` is
-  a vertical chronological view. Spec wants horizontal zoomable timeline
-  with decade → year → day → hour zoom levels; the Nov 22–24 1963
-  hour-level view is the marquee.
+- **3-F zoomable timeline follow-ups (shipped 2026-04-26).** Default
+  `/timeline` is the four-level zoom view (decade/year/day/hour); list
+  view at `?view=list`. Possible polish if it surfaces in usage:
+  (a) stacked-density bars per decade so very dense periods read at a
+  glance; (b) animated zoom-on-permalink (currently snaps); (c) a
+  "next event" jump arrow at year+ levels for keyboard users; (d) URL
+  state for the current zoom transform so a copied URL re-opens at the
+  same view.
 - **5-B Redaction diff viewer (deferred from Phase 5 — internal side
   shipped 2026-04-20 in PR #16).** Public cross-release diff UI still
   pending per-release OCR text, which the DocAI pilot starts to unlock
