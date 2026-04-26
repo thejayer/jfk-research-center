@@ -57,3 +57,36 @@ jobs:
             --max-instances=3 --min-instances=0 \
             --set-env-vars="^|^JFK_BQ_PROJECT=jfk-vault|ADMIN_TOKEN=${ADMIN_TOKEN}|ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET}|REDACTION_REVIEW_BUCKET=${REDACTION_REVIEW_BUCKET}" \
             --quiet
+
+  axe:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright-core install --with-deps chromium
+      - name: Install Playwright system deps (cache hit path)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright-core install-deps chromium
+      - name: Run axe-core audit against deployed site
+        run: node scripts/axe-audit.mjs "https://jfk-research-center-690906762945.us-central1.run.app"
+      - name: Upload axe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: axe-report
+          path: axe-report.json
+          if-no-files-found: warn

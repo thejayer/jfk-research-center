@@ -1,7 +1,13 @@
 // One-shot WCAG 2.2 AA audit using axe-core against the live site.
 // Run: node scripts/axe-audit.mjs [base-url]
 // Default base URL is the Cloud Run production host.
+//
+// Writes ./axe-report.json alongside the stdout summary so CI can upload
+// it as an artifact. Exits non-zero when any audited page has a serious
+// or critical violation, which the deploy workflow reads as a regression
+// gate.
 
+import { writeFileSync } from "node:fs";
 import { chromium } from "playwright-core";
 import axeModule from "@axe-core/playwright";
 const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder ?? axeModule;
@@ -77,6 +83,7 @@ await browser.close();
 
 console.log("\n==== SERIOUS/CRITICAL VIOLATIONS ACROSS ALL PAGES ====\n");
 const byRule = new Map();
+let totalSC = 0;
 for (const p of summary) {
   if (!p.violations) continue;
   for (const v of p.violations) {
@@ -86,7 +93,11 @@ for (const p of summary) {
     const entry = byRule.get(k);
     entry.pages.push(p.path);
     entry.nodes += v.nodes;
+    totalSC += 1;
   }
+}
+if (byRule.size === 0) {
+  console.log("(none — all audited pages are clean at serious/critical)");
 }
 for (const [rule, { help, pages, nodes, example }] of byRule.entries()) {
   console.log(`• ${rule}`);
@@ -97,4 +108,12 @@ for (const [rule, { help, pages, nodes, example }] of byRule.entries()) {
   console.log();
 }
 
-console.log(JSON.stringify(summary, null, 2));
+writeFileSync("axe-report.json", JSON.stringify(summary, null, 2));
+console.log(`\nFull report: ./axe-report.json (${summary.length} pages audited)`);
+
+if (totalSC > 0) {
+  console.error(
+    `\n✗ Audit failed: ${totalSC} serious/critical violation(s).`,
+  );
+  process.exit(1);
+}
