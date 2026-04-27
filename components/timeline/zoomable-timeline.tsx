@@ -239,9 +239,18 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
 
   // Apply zoom to the svg's stored transform when our state-driven transform
   // diverges from d3-zoom's internal one (e.g. on programmatic zoomTo).
-  const applyTransform = useCallback((t: ZoomTransform) => {
+  // animate=true glides via d3 transition; respects prefers-reduced-motion.
+  const applyTransform = useCallback((t: ZoomTransform, animate = false) => {
     if (!svgRef.current || !zoomRef.current) return;
-    select(svgRef.current).call(zoomRef.current.transform, t);
+    const sel = select(svgRef.current);
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (animate && !reduced) {
+      sel.transition().duration(500).call(zoomRef.current.transform, t);
+    } else {
+      sel.call(zoomRef.current.transform, t);
+    }
   }, []);
 
   const zoomToEvent = useCallback(
@@ -251,7 +260,7 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
       // date-only events read fine at day level.
       const k = e.timeLocal ? 2000 : 90;
       const t = transformFromState({ k, centerDate: e._t }, baseScale);
-      applyTransform(t);
+      applyTransform(t, true);
       setSelectedId(e.id);
     },
     [applyTransform, baseScale],
@@ -264,11 +273,11 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     // k=2800 puts the visible window at ~11 days, so Nov 22–25's events
     // spread across ~40% of the chart instead of clustering in <120px.
     const t = transformFromState({ k: 2800, centerDate: center }, baseScale);
-    applyTransform(t);
+    applyTransform(t, true);
   }, [applyTransform, baseScale]);
 
   const resetZoom = useCallback(() => {
-    applyTransform(zoomIdentity);
+    applyTransform(zoomIdentity, true);
     setSelectedId(null);
   }, [applyTransform]);
 
