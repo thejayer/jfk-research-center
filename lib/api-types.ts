@@ -617,3 +617,43 @@ export type RedactionAction = {
   notes?: string;
 };
 
+export type OcrReleaseProgress = {
+  releaseSet: string;
+  totalDocs: number;
+  pendingFetch: number;     // fetch_status='pending'
+  fetched: number;          // fetch_status='fetched' (regardless of OCR status)
+  fetchFailed: number;
+  pendingOcr: number;       // docai_status='pending'
+  ocrRunning: number;
+  ocrComplete: number;
+  ocrFailed: number;
+  totalPagesComplete: number;
+  totalBytesFetched: number;
+  meanConfidence: number | null;
+  lastUpdate: string | null;
+};
+
+export type OcrFailureItem = {
+  documentId: string;
+  releaseSet: string;
+  fetchStatus: string | null;
+  docaiStatus: string | null;
+  fetchError: string | null;
+  docaiError: string | null;
+  updatedAt: string;
+};
+
+export type OcrProgressResponse = {
+  perRelease: OcrReleaseProgress[];
+  overall: {
+    totalDocs: number;
+    fetched: number;
+    ocrComplete: number;
+    failed: number;
+    totalPagesComplete: number;
+    totalBytesFetched: number;
+  };
+  recentFailures: OcrFailureItem[];
+  generatedAt: string;
+};
+

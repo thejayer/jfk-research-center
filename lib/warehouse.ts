@@ -25,6 +25,9 @@ import type {
   RedactionDocDetail,
   RedactionQueueItem,
   RedactionQueueResponse,
+  OcrProgressResponse,
+  OcrReleaseProgress,
+  OcrFailureItem,
   RedactionReviewStatus,
   DocumentCard,
   DocumentDetail,
@@ -2648,4 +2651,124 @@ export async function applyRedactionAction(
   });
   await job.getQueryResults();
   return { updated: Number(job.metadata?.statistics?.query?.numDmlAffectedRows ?? 0) };
+}
+
+type RawOcrReleaseRow = {
+  release_set: string;
+  total_docs: number;
+  pending_fetch: number;
+  fetched: number;
+  fetch_failed: number;
+  pending_ocr: number;
+  ocr_running: number;
+  ocr_complete: number;
+  ocr_failed: number;
+  total_pages_complete: number | null;
+  total_bytes_fetched: number | null;
+  mean_confidence: number | null;
+  last_update: { value: string } | string | null;
+};
+
+type RawOcrFailureRow = {
+  document_id: string;
+  release_set: string;
+  fetch_status: string | null;
+  docai_status: string | null;
+  fetch_error: string | null;
+  docai_error: string | null;
+  updated_at: { value: string } | string;
+};
+
+function tsToIso(v: { value: string } | string | null): string | null {
+  if (v == null) return null;
+  if (typeof v === "string") return v;
+  return v.value ?? null;
+}
+
+export async function fetchOcrProgress(): Promise<OcrProgressResponse> {
+  const perReleaseRows = await query<RawOcrReleaseRow>(
+    `
+    SELECT
+      release_set,
+      COUNT(*)                                                AS total_docs,
+      COUNTIF(fetch_status = 'pending')                       AS pending_fetch,
+      COUNTIF(fetch_status = 'fetched')                       AS fetched,
+      COUNTIF(fetch_status = 'failed')                        AS fetch_failed,
+      COUNTIF(docai_status = 'pending')                       AS pending_ocr,
+      COUNTIF(docai_status = 'running')                       AS ocr_running,
+      COUNTIF(docai_status = 'complete')                      AS ocr_complete,
+      COUNTIF(docai_status = 'failed')                        AS ocr_failed,
+      SUM(IF(docai_status = 'complete', page_count, 0))       AS total_pages_complete,
+      SUM(IF(fetch_status = 'fetched', byte_size, 0))         AS total_bytes_fetched,
+      AVG(IF(docai_status = 'complete', mean_page_conf, NULL)) AS mean_confidence,
+      MAX(updated_at)                                         AS last_update
+    FROM \`${PROJECT}.${DATASET_CURATED}.release_text_versions\`
+    GROUP BY release_set
+    ORDER BY release_set
+    `,
+  );
+
+  const perRelease: OcrReleaseProgress[] = perReleaseRows.map((r) => ({
+    releaseSet: r.release_set,
+    totalDocs: Number(r.total_docs ?? 0),
+    pendingFetch: Number(r.pending_fetch ?? 0),
+    fetched: Number(r.fetched ?? 0),
+    fetchFailed: Number(r.fetch_failed ?? 0),
+    pendingOcr: Number(r.pending_ocr ?? 0),
+    ocrRunning: Number(r.ocr_running ?? 0),
+    ocrComplete: Number(r.ocr_complete ?? 0),
+    ocrFailed: Number(r.ocr_failed ?? 0),
+    totalPagesComplete: Number(r.total_pages_complete ?? 0),
+    totalBytesFetched: Number(r.total_bytes_fetched ?? 0),
+    meanConfidence: r.mean_confidence ?? null,
+    lastUpdate: tsToIso(r.last_update),
+  }));
+
+  const overall = perRelease.reduce(
+    (acc, p) => ({
+      totalDocs: acc.totalDocs + p.totalDocs,
+      fetched: acc.fetched + p.fetched,
+      ocrComplete: acc.ocrComplete + p.ocrComplete,
+      failed: acc.failed + p.fetchFailed + p.ocrFailed,
+      totalPagesComplete: acc.totalPagesComplete + p.totalPagesComplete,
+      totalBytesFetched: acc.totalBytesFetched + p.totalBytesFetched,
+    }),
+    {
+      totalDocs: 0,
+      fetched: 0,
+      ocrComplete: 0,
+      failed: 0,
+      totalPagesComplete: 0,
+      totalBytesFetched: 0,
+    },
+  );
+
+  const failureRows = await query<RawOcrFailureRow>(
+    `
+    SELECT
+      document_id, release_set, fetch_status, docai_status,
+      fetch_error, docai_error, updated_at
+    FROM \`${PROJECT}.${DATASET_CURATED}.release_text_versions\`
+    WHERE fetch_status = 'failed' OR docai_status = 'failed'
+    ORDER BY updated_at DESC
+    LIMIT 25
+    `,
+  );
+
+  const recentFailures: OcrFailureItem[] = failureRows.map((r) => ({
+    documentId: r.document_id,
+    releaseSet: r.release_set,
+    fetchStatus: r.fetch_status,
+    docaiStatus: r.docai_status,
+    fetchError: r.fetch_error,
+    docaiError: r.docai_error,
+    updatedAt: tsToIso(r.updated_at) ?? "",
+  }));
+
+  return {
+    perRelease,
+    overall,
+    recentFailures,
+    generatedAt: new Date().toISOString(),
+  };
 }
