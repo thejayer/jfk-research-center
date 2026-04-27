@@ -293,17 +293,20 @@ gcloud run deploy jfk-research-center \
     `(document_id, release_set)` for the public 5-B diff UI.
   - **GCS layout.** PDFs at
     `gs://jfk-vault-pdfs/by-naid/{naid}/{release}/document.pdf`;
-    DocAI output at
-    `gs://jfk-vault-ocr/by-naid/{naid}/{release}/docai/merged.json`
-    with raw batch shards as `*.shard.json` siblings. Existing
+    canonical post-merge OCR at
+    `gs://jfk-vault-ocr/by-naid/{naid}/{release}/docai/merged.json`.
+    Raw batch shards stay where DocAI writes them, at
+    `gs://jfk-vault-ocr/batch/{run_id}/...`, NOT co-located with
+    merged.json — diff UI only reads merged, so co-location buys
+    nothing and skipping it dropped a per-doc rename loop. Existing
     `redaction-prototype/` and `review/` prefixes (PIL detector work)
     are unchanged.
-  - **Lifecycle on `gs://jfk-vault-ocr`.** Shards
-    (`matchesPrefix=by-naid/`, `matchesSuffix=.shard.json`) move to
-    COLDLINE at 30 days. No deletion — shards are kept indefinitely
-    as forensic backup against merger bugs (~$0.05/month at projected
-    backlog scale, not worth the recoverability cost). Merged JSON
-    and all other prefixes have no lifecycle.
+  - **Lifecycle on `gs://jfk-vault-ocr`.** Anything under `batch/`
+    moves to COLDLINE at 30 days; no deletion. Shards are kept
+    indefinitely as forensic backup against merger bugs (~$0.05/month
+    at projected backlog scale, not worth the recoverability cost).
+    Merged JSON, `by-naid/`, `redaction-prototype/`, and `review/`
+    have no lifecycle.
   - **Smoke-test migration.** The 12 DocAI-ed JSONs and 20 staged
     PDFs from the April pilot moved from
     `gs://jfk-vault-pdfs/2021/{naid}.pdf` and
@@ -318,11 +321,29 @@ gcloud run deploy jfk-research-center \
     (1992-1994) are NOT in the manifest, so 5-B's diff reach is bounded
     to the 2017-2025 era. 2025 PDFs need a separate acquisition path
     (the ABBYY repo gave us OCR'd text but not PDFs).
-  - **Not yet built.** Orchestration script extending
-    `scripts/jfk_docai_ingest.py` to fan parallel fetch +
-    DocAI-batch over `release_text_versions` rows where
-    `fetch_status='pending' OR docai_status='pending'`. That is the
-    only remaining engineering work before the corpus OCR run.
+  - **Seed (`sql/49`).** One-shot insert of 53,901 pending rows from
+    `document_versions` × the four backlog releases. Total
+    `release_text_versions` row count after seed: 53,921 across
+    2017-2018 (36,576) / 2021 (1,491) / 2022 (13,177) / 2023 (2,677).
+    Idempotent via LEFT JOIN guard.
+  - **Orchestration script.** `scripts/jfk_docai_ingest.py` extended
+    with `fetch_queue_v2()` reading from `release_text_versions`,
+    `rtv_stage()`/`rtv_flush()` for buffered MERGE-based state
+    updates (every 50 docs), parallel fetch via ThreadPoolExecutor
+    (3 workers, polite to archives.gov), and the new GCS path
+    generators. CLI gains `--source release_text_versions`
+    (default) and `--release-set 2021` for the shakedown. Legacy
+    `--source backfill_queue` path is preserved.
+  - **Cost outlook for the full corpus OCR.** 53,921
+    `(naid, release_set)` pairs × ~12.4 pages avg ≈ 669K pages →
+    **~$1,000** at `pretrained-ocr-v2.1`'s $1.50/1k page tier (down
+    from earlier $1,200 estimate; `document_versions` collapses
+    within-release dupes that the manifest still has). PDF URLs are
+    100% in `nara_manifest.pdf_url`. Pre-2017 releases (1992-1994)
+    are NOT in the manifest. 2025 PDFs need a separate acquisition
+    path (the ABBYY repo gave us OCR'd text but not PDFs).
+  - **Not yet built.** Live shakedown on the 2021 slice (1,491 docs);
+    progress dashboard under `/admin/ocr-progress`; full corpus run.
 - **3-F zoomable D3 timeline (2026-04-26).** `/timeline` now defaults to
   a horizontal zoomable view; the previous chronological list is preserved
   at `/timeline?view=list` (also serves as the no-JS / screen-reader path).

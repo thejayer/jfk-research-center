@@ -48,6 +48,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Iterable
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import httpx
 from google.api_core.client_options import ClientOptions
 from google.cloud import bigquery, documentai_v1 as documentai, storage
@@ -67,6 +69,16 @@ CHUNK_TARGET_CHARS = int(os.getenv("CHUNK_TARGET_CHARS", "1000"))
 CHUNK_OVERLAP_CHARS = int(os.getenv("CHUNK_OVERLAP_CHARS", "100"))
 
 STAGING = f"{PROJECT}.jfk_staging"
+CURATED = f"{PROJECT}.jfk_curated"
+
+# Concurrency for archives.gov fetches. NARA appears tolerant but we
+# stay polite — this is a public archive, not a CDN. Bump cautiously.
+PARALLEL_FETCH_WORKERS = int(os.getenv("PARALLEL_FETCH_WORKERS", "3"))
+
+# State updates to release_text_versions are buffered and bulk-MERGEd
+# every N docs. Per-row UPDATEs against BQ would dominate cost at 53K
+# rows; one MERGE per N is two orders of magnitude cheaper.
+RTV_FLUSH_EVERY = int(os.getenv("RTV_FLUSH_EVERY", "50"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -191,9 +203,181 @@ def fetch_queue(limit: int, *, mode: str = "sync") -> list[QueueItem]:
     ]
 
 
+def _safe_release(release_set: str) -> str:
+    return release_set.replace("/", "-")
+
+
+def fetch_queue_v2(
+    limit: int, *, mode: str = "sync", release_set: str | None = None
+) -> list[QueueItem]:
+    """Pull queued docs from jfk_curated.release_text_versions.
+
+    Returns rows where fetch or DocAI is still pending, joined to
+    document_versions for agency / num_pages / pdf_url. mode='sync'
+    selects ≤30-page docs (also rows with NULL num_pages, since we can
+    decide post-fetch by inspecting the PDF); mode='batch' selects >30.
+
+    release_set, if given, narrows to a single release — used for the
+    2021 shakedown.
+    """
+    if mode == "sync":
+        page_clause = "(dv.num_pages BETWEEN 1 AND 30 OR dv.num_pages IS NULL)"
+    elif mode == "batch":
+        page_clause = "dv.num_pages > 30"
+    else:
+        raise ValueError(f"unknown mode: {mode}")
+
+    release_clause = "AND rtv.release_set = @release_set" if release_set else ""
+    sql = f"""
+    SELECT
+      rtv.document_id,
+      rtv.release_set,
+      dv.agency,
+      dv.num_pages,
+      COALESCE(rtv.source_pdf_url, dv.pdf_url) AS pdf_url
+    FROM `{CURATED}.release_text_versions` rtv
+    JOIN `{CURATED}.document_versions` dv
+      USING (document_id, release_set)
+    WHERE (rtv.fetch_status = 'pending' OR rtv.docai_status = 'pending')
+      AND {page_clause}
+      AND COALESCE(rtv.source_pdf_url, dv.pdf_url) IS NOT NULL
+      {release_clause}
+    ORDER BY dv.num_pages NULLS LAST, rtv.document_id
+    LIMIT @limit
+    """
+    params: list[bigquery.ScalarQueryParameter] = [
+        bigquery.ScalarQueryParameter("limit", "INT64", limit)
+    ]
+    if release_set:
+        params.append(
+            bigquery.ScalarQueryParameter("release_set", "STRING", release_set)
+        )
+    job_config = bigquery.QueryJobConfig(query_parameters=params)
+    return [
+        QueueItem(
+            document_id=r["document_id"],
+            release_set=r["release_set"],
+            agency=r["agency"],
+            num_pages=r["num_pages"],
+            pdf_url=r["pdf_url"],
+        )
+        for r in bq.query(sql, job_config=job_config).result()
+    ]
+
+
+_RTV_BUFFER: list[dict] = []
+
+
+def rtv_stage(document_id: str, release_set: str, **fields) -> None:
+    """Buffer a release_text_versions state update. Flushes on RTV_FLUSH_EVERY."""
+    row = {"document_id": document_id, "release_set": release_set, **fields}
+    _RTV_BUFFER.append(row)
+    if len(_RTV_BUFFER) >= RTV_FLUSH_EVERY:
+        rtv_flush()
+
+
+def rtv_flush() -> None:
+    """Flush buffered state updates into release_text_versions via MERGE.
+
+    Uses a temp staging table loaded via load_table_from_json (one job per
+    flush, ~5-10s) followed by a single MERGE statement, then drops the
+    temp table. Per-row UPDATEs would have dominated runtime + scan cost.
+    """
+    global _RTV_BUFFER
+    if not _RTV_BUFFER:
+        return
+    updates = _RTV_BUFFER
+    _RTV_BUFFER = []
+
+    temp_id = uuid.uuid4().hex[:10]
+    temp_table = f"{STAGING}.rtv_state_buffer_{temp_id}"
+
+    schema = [
+        bigquery.SchemaField("document_id", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("release_set", "STRING", mode="REQUIRED"),
+        bigquery.SchemaField("fetch_status", "STRING"),
+        bigquery.SchemaField("fetch_error", "STRING"),
+        bigquery.SchemaField("source_pdf_url", "STRING"),
+        bigquery.SchemaField("gcs_pdf_uri", "STRING"),
+        bigquery.SchemaField("pdf_sha256", "STRING"),
+        bigquery.SchemaField("byte_size", "INT64"),
+        bigquery.SchemaField("page_count", "INT64"),
+        bigquery.SchemaField("fetched_at", "TIMESTAMP"),
+        bigquery.SchemaField("docai_status", "STRING"),
+        bigquery.SchemaField("docai_run_id", "STRING"),
+        bigquery.SchemaField("gcs_docai_uri", "STRING"),
+        bigquery.SchemaField("mean_page_conf", "FLOAT64"),
+        bigquery.SchemaField("docai_error", "STRING"),
+    ]
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+    )
+    bq.load_table_from_json(updates, temp_table, job_config=job_config).result()
+
+    merge_sql = f"""
+    MERGE `{CURATED}.release_text_versions` t
+    USING `{temp_table}` s
+    ON t.document_id = s.document_id AND t.release_set = s.release_set
+    WHEN MATCHED THEN UPDATE SET
+      fetch_status   = COALESCE(s.fetch_status,   t.fetch_status),
+      fetch_error    = COALESCE(s.fetch_error,    t.fetch_error),
+      source_pdf_url = COALESCE(s.source_pdf_url, t.source_pdf_url),
+      gcs_pdf_uri    = COALESCE(s.gcs_pdf_uri,    t.gcs_pdf_uri),
+      pdf_sha256     = COALESCE(s.pdf_sha256,     t.pdf_sha256),
+      byte_size      = COALESCE(s.byte_size,      t.byte_size),
+      page_count     = COALESCE(s.page_count,     t.page_count),
+      fetched_at     = COALESCE(s.fetched_at,     t.fetched_at),
+      docai_status   = COALESCE(s.docai_status,   t.docai_status),
+      docai_run_id   = COALESCE(s.docai_run_id,   t.docai_run_id),
+      gcs_docai_uri  = COALESCE(s.gcs_docai_uri,  t.gcs_docai_uri),
+      mean_page_conf = COALESCE(s.mean_page_conf, t.mean_page_conf),
+      docai_error    = COALESCE(s.docai_error,    t.docai_error),
+      updated_at     = CURRENT_TIMESTAMP()
+    WHEN NOT MATCHED THEN INSERT (
+      document_id, release_set, fetch_status, fetch_error, source_pdf_url,
+      gcs_pdf_uri, pdf_sha256, byte_size, page_count, fetched_at,
+      docai_status, docai_run_id, gcs_docai_uri, mean_page_conf, docai_error,
+      updated_at
+    ) VALUES (
+      s.document_id, s.release_set, s.fetch_status, s.fetch_error, s.source_pdf_url,
+      s.gcs_pdf_uri, s.pdf_sha256, s.byte_size, s.page_count, s.fetched_at,
+      s.docai_status, s.docai_run_id, s.gcs_docai_uri, s.mean_page_conf, s.docai_error,
+      CURRENT_TIMESTAMP()
+    )
+    """
+    bq.query(merge_sql).result()
+    bq.delete_table(temp_table, not_found_ok=True)
+    log.info("rtv: flushed %d state updates", len(updates))
+
+
 def gcs_pdf_uri(document_id: str, release_set: str) -> str:
-    safe = release_set.replace("/", "-")
-    return f"gs://{GCS_PDF_BUCKET}/{safe}/{document_id}.pdf"
+    """gs://jfk-vault-pdfs/by-naid/{naid}/{release}/document.pdf"""
+    return (
+        f"gs://{GCS_PDF_BUCKET}/by-naid/{document_id}/"
+        f"{_safe_release(release_set)}/document.pdf"
+    )
+
+
+def gcs_docai_merged_uri(document_id: str, release_set: str) -> str:
+    """gs://jfk-vault-ocr/by-naid/{naid}/{release}/docai/merged.json — the canonical post-merge OCR output."""
+    return (
+        f"gs://{GCS_OCR_BUCKET}/by-naid/{document_id}/"
+        f"{_safe_release(release_set)}/docai/merged.json"
+    )
+
+
+def gcs_docai_dir_prefix(document_id: str, release_set: str) -> str:
+    """gs://jfk-vault-ocr/by-naid/{naid}/{release}/docai/ — directory containing merged.json.
+
+    Raw batch shards stay at gs://jfk-vault-ocr/batch/{run_id}/ where DocAI
+    wrote them — they are not co-located with the merged output. The
+    bucket lifecycle moves anything under batch/ to coldline at 30 days.
+    """
+    return (
+        f"gs://{GCS_OCR_BUCKET}/by-naid/{document_id}/"
+        f"{_safe_release(release_set)}/docai/"
+    )
 
 
 def _nara_url_variants(url: str) -> list[str]:
@@ -749,6 +933,14 @@ def load_parsed(parsed: dict, chunks: list[dict]) -> None:
 
 
 def process_one(item: QueueItem) -> None:
+    """Single-doc orchestration for sync mode.
+
+    State transitions written to release_text_versions via rtv_stage:
+    - on fetch ok:    fetch_status='fetched' + sha256/byte_size/gcs_pdf_uri/fetched_at
+    - on fetch fail:  fetch_status='failed' + fetch_error
+    - on ocr ok:      docai_status='complete' + gcs_docai_uri/mean_page_conf/page_count
+    - on ocr fail:    docai_status='failed' + docai_error
+    """
     try:
         gcs_pdf, nbytes, sha = fetch_pdf(item)
     except Exception as e:
@@ -761,9 +953,27 @@ def process_one(item: QueueItem) -> None:
             error_class=type(e).__name__,
             error_message=str(e)[:500],
         )
+        rtv_stage(
+            item.document_id,
+            item.release_set,
+            fetch_status="failed",
+            fetch_error=f"{type(e).__name__}: {str(e)[:400]}",
+        )
         return
 
-    gcs_response = f"gs://{GCS_OCR_BUCKET}/{item.document_id}.json"
+    rtv_stage(
+        item.document_id,
+        item.release_set,
+        fetch_status="fetched",
+        gcs_pdf_uri=gcs_pdf,
+        pdf_sha256=sha,
+        byte_size=nbytes,
+        fetched_at=now().isoformat(),
+        source_pdf_url=item.pdf_url,
+        docai_status="running",
+    )
+
+    gcs_response = gcs_docai_merged_uri(item.document_id, item.release_set)
 
     try:
         doc = run_docai(gcs_pdf, item.document_id, item.release_set)
@@ -777,16 +987,22 @@ def process_one(item: QueueItem) -> None:
             error_class=type(e).__name__,
             error_message=str(e)[:500],
         )
+        rtv_stage(
+            item.document_id,
+            item.release_set,
+            docai_status="failed",
+            docai_error=f"{type(e).__name__}: {str(e)[:400]}",
+        )
         return
 
-    # Persist raw response for replay / audit
+    # Persist canonical merged response (sync mode = single shard, no merge needed).
     try:
-        bucket = gcs.bucket(GCS_OCR_BUCKET)
-        bucket.blob(f"{item.document_id}.json").upload_from_string(
+        merged_bucket, merged_blob = _split_gcs_uri(gcs_response)
+        gcs.bucket(merged_bucket).blob(merged_blob).upload_from_string(
             documentai.Document.to_json(doc), content_type="application/json"
         )
     except Exception:
-        log.exception("could not persist docai response for %s", item.document_id)
+        log.exception("could not persist docai merged.json for %s", item.document_id)
 
     parsed = parse_document(item, gcs_pdf, gcs_response, doc)
     chunks = chunk_pages(item, parsed)
@@ -800,6 +1016,14 @@ def process_one(item: QueueItem) -> None:
             "ok",
             bytes=nbytes,
             sha256=sha,
+        )
+        rtv_stage(
+            item.document_id,
+            item.release_set,
+            docai_status="complete",
+            gcs_docai_uri=gcs_response,
+            mean_page_conf=parsed["document"]["mean_page_confidence"],
+            page_count=parsed["document"]["num_pages"],
         )
         log.info(
             "loaded %s | pages=%d chunks=%d conf=%.2f ar=%.2f",
@@ -819,29 +1043,67 @@ def process_one(item: QueueItem) -> None:
             error_class=type(e).__name__,
             error_message=str(e)[:500],
         )
+        rtv_stage(
+            item.document_id,
+            item.release_set,
+            docai_status="failed",
+            docai_error=f"{type(e).__name__}: {str(e)[:400]}",
+        )
+
+
+def _split_gcs_uri(uri: str) -> tuple[str, str]:
+    """gs://bucket/path/to/blob → (bucket, path/to/blob)"""
+    parts = uri.removeprefix("gs://").split("/", 1)
+    return parts[0], parts[1] if len(parts) > 1 else ""
+
+
+def _fetch_pdf_with_rtv(item: QueueItem) -> tuple[str, int, str] | None:
+    """fetch_pdf wrapper that writes rtv state on success or failure."""
+    try:
+        uri, nbytes, sha = fetch_pdf(item)
+    except Exception as e:
+        log.exception("fetch failed: %s", item.document_id)
+        log_step(
+            item.document_id, item.release_set, "fetch", "error",
+            error_class=type(e).__name__, error_message=str(e)[:500],
+        )
+        rtv_stage(
+            item.document_id, item.release_set,
+            fetch_status="failed",
+            fetch_error=f"{type(e).__name__}: {str(e)[:400]}",
+        )
+        return None
+    rtv_stage(
+        item.document_id, item.release_set,
+        fetch_status="fetched",
+        gcs_pdf_uri=uri, pdf_sha256=sha, byte_size=nbytes,
+        fetched_at=now().isoformat(), source_pdf_url=item.pdf_url,
+    )
+    return uri, nbytes, sha
 
 
 def process_batch_group(items: list[QueueItem], run_id: str) -> None:
-    """End-to-end batch-mode orchestrator: fetch → LRO → parse → load."""
+    """End-to-end batch-mode orchestrator: fetch → LRO → parse → load.
+
+    Fetches run in parallel (PARALLEL_FETCH_WORKERS) since they're I/O
+    bound on archives.gov. The DocAI LRO itself is one call regardless.
+    """
     gcs_pdfs: dict[str, str] = {}
-    for item in items:
-        try:
-            uri, _, _ = fetch_pdf(item)
-            gcs_pdfs[item.document_id] = uri
-        except Exception as e:
-            log.exception("fetch failed: %s", item.document_id)
-            log_step(
-                item.document_id,
-                item.release_set,
-                "fetch",
-                "error",
-                error_class=type(e).__name__,
-                error_message=str(e)[:500],
-            )
+    with ThreadPoolExecutor(max_workers=PARALLEL_FETCH_WORKERS) as pool:
+        futures = {pool.submit(_fetch_pdf_with_rtv, item): item for item in items}
+        for fut in as_completed(futures):
+            item = futures[fut]
+            result = fut.result()
+            if result is not None:
+                gcs_pdfs[item.document_id] = result[0]
     if not gcs_pdfs:
         log.warning("no PDFs fetched; nothing to submit")
         return
     batchable = [i for i in items if i.document_id in gcs_pdfs]
+
+    for item in batchable:
+        rtv_stage(item.document_id, item.release_set,
+                  docai_status="running", docai_run_id=run_id)
 
     try:
         outputs = run_docai_batch(batchable, gcs_pdfs, run_id)
@@ -849,26 +1111,40 @@ def process_batch_group(items: list[QueueItem], run_id: str) -> None:
         log.exception("batch LRO failed")
         for item in batchable:
             log_step(
-                item.document_id,
-                item.release_set,
-                "ocr_request",
-                "error",
-                error_class=type(e).__name__,
-                error_message=str(e)[:500],
+                item.document_id, item.release_set, "ocr_request", "error",
+                error_class=type(e).__name__, error_message=str(e)[:500],
             )
+            rtv_stage(item.document_id, item.release_set,
+                      docai_status="failed",
+                      docai_error=f"{type(e).__name__}: {str(e)[:400]}")
         return
 
     for item in batchable:
         out_prefix = outputs.get(item.document_id)
         if not out_prefix:
             log.warning("no output for %s", item.document_id)
+            rtv_stage(item.document_id, item.release_set,
+                      docai_status="failed", docai_error="no batch output")
             continue
         try:
             doc = _fetch_batch_outputs(out_prefix)
-            parsed = parse_document(item, gcs_pdfs[item.document_id], out_prefix, doc)
+            merged_uri = gcs_docai_merged_uri(item.document_id, item.release_set)
+            # Persist merged Document to the canonical by-naid path. Raw
+            # shards remain at out_prefix (under batch/{run_id}/) — bucket
+            # lifecycle moves them to coldline at 30d.
+            merged_bucket, merged_blob = _split_gcs_uri(merged_uri)
+            gcs.bucket(merged_bucket).blob(merged_blob).upload_from_string(
+                documentai.Document.to_json(doc), content_type="application/json"
+            )
+            parsed = parse_document(item, gcs_pdfs[item.document_id], merged_uri, doc)
             chunks = chunk_pages(item, parsed)
             load_parsed(parsed, chunks)
             log_step(item.document_id, item.release_set, "load", "ok")
+            rtv_stage(item.document_id, item.release_set,
+                      docai_status="complete",
+                      gcs_docai_uri=merged_uri,
+                      mean_page_conf=parsed["document"]["mean_page_confidence"],
+                      page_count=parsed["document"]["num_pages"])
             log.info(
                 "loaded %s | pages=%d chunks=%d conf=%.2f",
                 item.document_id,
@@ -879,13 +1155,12 @@ def process_batch_group(items: list[QueueItem], run_id: str) -> None:
         except Exception as e:
             log.exception("parse/load failed: %s", item.document_id)
             log_step(
-                item.document_id,
-                item.release_set,
-                "load",
-                "error",
-                error_class=type(e).__name__,
-                error_message=str(e)[:500],
+                item.document_id, item.release_set, "load", "error",
+                error_class=type(e).__name__, error_message=str(e)[:500],
             )
+            rtv_stage(item.document_id, item.release_set,
+                      docai_status="failed",
+                      docai_error=f"{type(e).__name__}: {str(e)[:400]}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -915,17 +1190,37 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="batch-mode run identifier; default is a UTC timestamp.",
     )
+    p.add_argument(
+        "--source",
+        choices=("release_text_versions", "backfill_queue"),
+        default="release_text_versions",
+        help="queue source. Default reads pending rows from "
+        "release_text_versions; legacy is the docai_backfill_queue view.",
+    )
+    p.add_argument(
+        "--release-set",
+        default=None,
+        help="restrict the queue to a single release_set "
+        "(e.g. 2021). Only honored with --source release_text_versions.",
+    )
     return p.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    items = fetch_queue(args.limit, mode=args.mode)
+    if args.source == "release_text_versions":
+        items = fetch_queue_v2(args.limit, mode=args.mode, release_set=args.release_set)
+    else:
+        if args.release_set:
+            log.warning("--release-set is ignored with --source backfill_queue")
+        items = fetch_queue(args.limit, mode=args.mode)
     log.info(
-        "%s: %d docs queued (limit=%d, dry_run=%s)",
+        "%s: %d docs queued (source=%s, limit=%d, release_set=%s, dry_run=%s)",
         args.mode,
         len(items),
+        args.source,
         args.limit,
+        args.release_set or "*",
         args.dry_run,
     )
 
@@ -943,7 +1238,7 @@ def main() -> None:
         if args.mode == "batch":
             run_id = args.run_id or now().strftime("%Y%m%dT%H%M%SZ")
             log.info(
-                "[dry-run] batch output would land at %s",
+                "[dry-run] batch shards would land at %s",
                 _batch_output_prefix(run_id),
             )
         return
@@ -962,6 +1257,9 @@ def main() -> None:
     else:
         run_id = args.run_id or now().strftime("%Y%m%dT%H%M%SZ")
         process_batch_group(items, run_id)
+
+    # Final flush of any buffered release_text_versions state updates.
+    rtv_flush()
 
 
 if __name__ == "__main__":
