@@ -342,6 +342,49 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     return () => window.removeEventListener("hashchange", handleHash);
   }, [events, zoomToEvent]);
 
+  // Live ref for keyboard handler — avoids re-attaching per zoom frame when
+  // transform changes 60fps during a drag.
+  const liveRef = useRef({ events, transform, activeCategories, selectedId, baseScale });
+  liveRef.current = { events, transform, activeCategories, selectedId, baseScale };
+
+  // Step to the next/prev visible (= category-active) event in chronological
+  // order, panning at the current zoom level. Wraps at the ends.
+  const stepEvent = useCallback(
+    (dir: 1 | -1) => {
+      const live = liveRef.current;
+      const list = live.events.filter((e) => live.activeCategories.has(e.category));
+      if (list.length === 0) return;
+      let idx = -1;
+      if (live.selectedId) {
+        idx = list.findIndex((e) => e.id === live.selectedId);
+      }
+      let nextIdx: number;
+      if (idx >= 0) {
+        nextIdx = (idx + dir + list.length) % list.length;
+      } else {
+        // No selection — find the first/last event past the current view center.
+        const xs = live.transform.rescaleX(live.baseScale);
+        const centerDate = xs.invert(MARGIN.left + PLOT_W / 2) as Date;
+        if (dir === 1) {
+          const found = list.findIndex((e) => e._t > centerDate);
+          nextIdx = found === -1 ? 0 : found;
+        } else {
+          let found = -1;
+          for (let i = list.length - 1; i >= 0; i--) {
+            if (list[i]._t < centerDate) { found = i; break; }
+          }
+          nextIdx = found === -1 ? list.length - 1 : found;
+        }
+      }
+      const target = list[nextIdx];
+      const k = live.transform.k;
+      const t = transformFromState({ k, centerDate: target._t }, live.baseScale);
+      applyTransform(t, true);
+      setSelectedId(target.id);
+    },
+    [applyTransform],
+  );
+
   // Keyboard shortcuts on the timeline container.
   const containerRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -370,6 +413,17 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
           ev.preventDefault();
           panBy(-60);
           break;
+        case "]":
+          // Step to next event — only useful once zoomed in (year+ levels).
+          if (levelFor(liveRef.current.transform.k) === "decade") break;
+          ev.preventDefault();
+          stepEvent(1);
+          break;
+        case "[":
+          if (levelFor(liveRef.current.transform.k) === "decade") break;
+          ev.preventDefault();
+          stepEvent(-1);
+          break;
         case "0":
           ev.preventDefault();
           resetZoom();
@@ -384,7 +438,7 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     };
     el.addEventListener("keydown", handler);
     return () => el.removeEventListener("keydown", handler);
-  }, [zoomBy, panBy, resetZoom, selectedId]);
+  }, [zoomBy, panBy, resetZoom, stepEvent, selectedId]);
 
   const xScale = useMemo(
     () => transform.rescaleX(baseScale),
@@ -902,7 +956,7 @@ function Legend({ visible, total }: { visible: number; total: number }) {
       <span aria-hidden="true">·</span>
       <span>Scroll / pinch to zoom · drag to pan · ★ = headline</span>
       <span aria-hidden="true">·</span>
-      <span>Keys: + − ← → 0</span>
+      <span>Keys: + − ← → 0 · [ ] step events</span>
     </div>
   );
 }
