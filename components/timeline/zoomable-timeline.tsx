@@ -217,10 +217,25 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
       });
     zoomRef.current = z;
     select(svgRef.current).call(z);
+
+    // Restore zoom from ?zoom=k&center=ISO if present. The hashchange effect
+    // runs after this and will override with #event-id when both are set.
+    const params = new URLSearchParams(window.location.search);
+    const zParam = params.get("zoom");
+    const cParam = params.get("center");
+    if (zParam && cParam) {
+      const k = parseFloat(zParam);
+      const centerDate = new Date(cParam);
+      if (Number.isFinite(k) && k >= 1 && !Number.isNaN(centerDate.getTime())) {
+        const t = transformFromState({ k, centerDate }, baseScale);
+        select(svgRef.current).call(z.transform, t);
+      }
+    }
+
     return () => {
       select(svgRef.current!).on(".zoom", null);
     };
-  }, []);
+  }, [baseScale]);
 
   // Apply zoom to the svg's stored transform when our state-driven transform
   // diverges from d3-zoom's internal one (e.g. on programmatic zoomTo).
@@ -278,6 +293,32 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     },
     [],
   );
+
+  // Persist zoom transform into ?zoom=&center= so the URL round-trips. Debounced
+  // because d3-zoom fires on every animation frame during a drag.
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const isIdentity = transform.k === 1 && transform.x === 0 && transform.y === 0;
+      if (isIdentity) {
+        params.delete("zoom");
+        params.delete("center");
+      } else {
+        const xs = transform.rescaleX(baseScale);
+        const centerDate = xs.invert(MARGIN.left + PLOT_W / 2) as Date;
+        params.set("zoom", transform.k.toFixed(2));
+        // Minute precision so hour-level views round-trip cleanly.
+        params.set("center", centerDate.toISOString().slice(0, 16) + "Z");
+      }
+      const qs = params.toString();
+      const next = `${window.location.pathname}${qs ? "?" + qs : ""}${window.location.hash}`;
+      const current = window.location.pathname + window.location.search + window.location.hash;
+      if (next !== current) {
+        window.history.replaceState(null, "", next);
+      }
+    }, 150);
+    return () => window.clearTimeout(handle);
+  }, [transform, baseScale]);
 
   // Hash → zoom-to-event on initial load and on subsequent hash changes.
   useEffect(() => {
