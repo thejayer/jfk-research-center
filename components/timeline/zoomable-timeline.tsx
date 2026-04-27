@@ -492,6 +492,43 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
 
   const showLabels = level === "day" || level === "hour";
 
+  // Greedy left-to-right tier assignment for headline labels. At hour level
+  // around Nov 22–25, labels cluster within a few px and overlap; bumping
+  // each colliding label to the next tier keeps them legible.
+  const labelTiers = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!showLabels) return map;
+    const items = visibleEvents
+      .filter((e) => e.importance >= HEADLINE_THRESHOLD)
+      .map((e) => {
+        const text = truncate(e.title, level === "hour" ? 42 : 30);
+        // ~5.8 px/char at fontSize=10.5 with default sans — close enough for
+        // collision detection without measuring the actual text.
+        const w = Math.max(24, text.length * 5.8);
+        return { id: e.id, x: xScale(e._t), w };
+      })
+      .sort((a, b) => a.x - b.x);
+    const tierEnds: number[] = [];
+    for (const it of items) {
+      const left = it.x - it.w / 2;
+      const right = it.x + it.w / 2;
+      let placed = false;
+      for (let i = 0; i < tierEnds.length; i++) {
+        if (tierEnds[i] + 4 < left) {
+          tierEnds[i] = right;
+          map.set(it.id, i);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        tierEnds.push(right);
+        map.set(it.id, tierEnds.length - 1);
+      }
+    }
+    return map;
+  }, [visibleEvents, showLabels, xScale, level]);
+
   // Marquee window x-positions in plot space (clipped if off-screen).
   const marqueeX1 = xScale(MARQUEE_START);
   const marqueeX2 = xScale(MARQUEE_END);
@@ -703,25 +740,42 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
                       opacity={0.45}
                     />
                   )}
-                  {showLabels && (isHeadline || isHovered || isSelected) && (
-                    <text
-                      x={0}
-                      y={-r - 6}
-                      fontSize={10.5}
-                      textAnchor="middle"
-                      fill="var(--text)"
-                      style={{
-                        fontFamily: "var(--font-serif)",
-                        pointerEvents: "none",
-                        paintOrder: "stroke",
-                        stroke: "var(--surface)",
-                        strokeWidth: 3,
-                        strokeLinejoin: "round",
-                      }}
-                    >
-                      {truncate(e.title, level === "hour" ? 42 : 30)}
-                    </text>
-                  )}
+                  {showLabels && (isHeadline || isHovered || isSelected) && (() => {
+                    const tier = labelTiers.get(e.id) ?? 0;
+                    const labelY = -r - 6 - tier * 14;
+                    return (
+                      <>
+                        {tier > 0 && (
+                          <line
+                            x1={0}
+                            x2={0}
+                            y1={-r - 2}
+                            y2={labelY + 4}
+                            stroke="var(--text-muted)"
+                            strokeWidth={0.75}
+                            opacity={0.45}
+                          />
+                        )}
+                        <text
+                          x={0}
+                          y={labelY}
+                          fontSize={10.5}
+                          textAnchor="middle"
+                          fill="var(--text)"
+                          style={{
+                            fontFamily: "var(--font-serif)",
+                            pointerEvents: "none",
+                            paintOrder: "stroke",
+                            stroke: "var(--surface)",
+                            strokeWidth: 3,
+                            strokeLinejoin: "round",
+                          }}
+                        >
+                          {truncate(e.title, level === "hour" ? 42 : 30)}
+                        </text>
+                      </>
+                    );
+                  })()}
                 </g>
               );
             })}
