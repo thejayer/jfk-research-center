@@ -278,8 +278,51 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-26 (3-F zoomable timeline)
+**Last updated:** 2026-04-27 (DocAI corpus-OCR foundation)
 
+- **DocAI corpus-OCR foundation (2026-04-27).** Schema + GCS layout
+  staged ahead of the full backlog OCR run that 5-B's redaction-diff
+  UI is gated on.
+  - **`jfk_curated.release_text_versions`** (`sql/48`). One row per
+    `(document_id, release_set)`. Tracks per-version PDF GCS URI,
+    sha256, page count, fetch state, DocAI status, OCR output URI,
+    and mean page confidence. Mutable / append-only — NOT a step in
+    `rebuild_warehouse.sh`. Distinct from `jfk_curated.document_versions`
+    (which is rebuilt from `nara_manifest` every warehouse rebuild
+    and holds metadata-only); join the two on
+    `(document_id, release_set)` for the public 5-B diff UI.
+  - **GCS layout.** PDFs at
+    `gs://jfk-vault-pdfs/by-naid/{naid}/{release}/document.pdf`;
+    DocAI output at
+    `gs://jfk-vault-ocr/by-naid/{naid}/{release}/docai/merged.json`
+    with raw batch shards as `*.shard.json` siblings. Existing
+    `redaction-prototype/` and `review/` prefixes (PIL detector work)
+    are unchanged.
+  - **Lifecycle on `gs://jfk-vault-ocr`.** Shards
+    (`matchesPrefix=by-naid/`, `matchesSuffix=.shard.json`) move to
+    COLDLINE at 30 days. No deletion — shards are kept indefinitely
+    as forensic backup against merger bugs (~$0.05/month at projected
+    backlog scale, not worth the recoverability cost). Merged JSON
+    and all other prefixes have no lifecycle.
+  - **Smoke-test migration.** The 12 DocAI-ed JSONs and 20 staged
+    PDFs from the April pilot moved from
+    `gs://jfk-vault-pdfs/2021/{naid}.pdf` and
+    `gs://jfk-vault-ocr/{naid}.json` to the new `by-naid/` layout.
+    `docai_documents.gcs_pdf_uri`/`gcs_response_uri` columns updated
+    in place; 20 rows backfilled into `release_text_versions`
+    (12 `docai_status='complete'`, 8 `docai_status='pending'`).
+  - **Cost outlook for the full corpus OCR.** 34,976 records /
+    ~430K pages across 2017-2018 / 2021 / 2022 / 2023 projects to
+    **~$650** at `pretrained-ocr-v2.1`'s $1.50/1k page tier. PDF URLs
+    are 100% present in `nara_manifest.pdf_url`. Pre-2017 releases
+    (1992-1994) are NOT in the manifest, so 5-B's diff reach is bounded
+    to the 2017-2025 era. 2025 PDFs need a separate acquisition path
+    (the ABBYY repo gave us OCR'd text but not PDFs).
+  - **Not yet built.** Orchestration script extending
+    `scripts/jfk_docai_ingest.py` to fan parallel fetch +
+    DocAI-batch over `release_text_versions` rows where
+    `fetch_status='pending' OR docai_status='pending'`. That is the
+    only remaining engineering work before the corpus OCR run.
 - **3-F zoomable D3 timeline (2026-04-26).** `/timeline` now defaults to
   a horizontal zoomable view; the previous chronological list is preserved
   at `/timeline?view=list` (also serves as the no-JS / screen-reader path).
@@ -974,14 +1017,17 @@ bq query --use_legacy_sql=false \
   cluster within ~5px and their labels overlap).
 - **5-B Redaction diff viewer (deferred from Phase 5 — internal side
   shipped 2026-04-20 in PR #16).** Public cross-release diff UI still
-  pending per-release OCR text, which the DocAI pilot starts to unlock
-  but hasn't scaled to. The internal human-in-the-loop review workflow
-  (`/admin/redactions`, `docai_review_queue`, PIL black-rect detector)
-  is live — it produces the `confirmed` detection signal that the
-  eventual public diff view will read from. To finish 5-B we still
-  need: (a) DocAI batch-processing path for >30-page docs; (b) a
-  `release_text_versions` table keyed by (naid, release_set); (c) the
-  public diff UI itself on `/document/[id]`.
+  pending per-release OCR text. Internal review workflow
+  (`/admin/redactions`, `docai_review_queue`, PIL detector) is live;
+  the schema + GCS layout for the full backlog OCR run were staged
+  2026-04-27 (see "DocAI corpus-OCR foundation" in Current state).
+  To finish 5-B we still need: (a) the orchestration script that
+  fans parallel fetch + DocAI-batch over `release_text_versions`
+  rows; (b) the actual ~$650 corpus OCR run (34,976 records / ~430K
+  pages); (c) the public diff UI itself on `/document/[id]`. The
+  original (a) "DocAI batch path for >30-page docs" was already
+  addressed in the 2026-04-20 docai-structure wave, and the original
+  (b) "release_text_versions table" landed 2026-04-27.
 - **DocAI v2.1 confidence parser (fixed 2026-04-20, backfilled
   2026-04-26 in PR #23).** `docai_documents.mean_page_confidence` used
   to read 0 because `pretrained-ocr-v2.1-2024-08-07` moved the signal
