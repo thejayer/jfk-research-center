@@ -342,8 +342,31 @@ gcloud run deploy jfk-research-center \
     100% in `nara_manifest.pdf_url`. Pre-2017 releases (1992-1994)
     are NOT in the manifest. 2025 PDFs need a separate acquisition
     path (the ABBYY repo gave us OCR'd text but not PDFs).
-  - **Not yet built.** Live shakedown on the 2021 slice (1,491 docs);
-    progress dashboard under `/admin/ocr-progress`; full corpus run.
+  - **Progress dashboard at `/admin/ocr-progress`.** HMAC-gated like
+    the redactions queue. Per-release table (total / fetched / OCR
+    running / complete / failed / pages / avg confidence / progress
+    bar), overall summary cards, recent failures table (only renders
+    when there are any). Server-rendered, auto-refresh every 10s via
+    `<meta http-equiv="refresh">`; no client JS. Backed by
+    `fetchOcrProgress()` in `lib/warehouse.ts`. Shipped 2026-04-27,
+    PR-direct-merge as commit `239eea0`.
+  - **2021 shakedown in progress (kicked off 2026-04-27 21:23 UTC).**
+    Sync mode against the 1,391 sync-eligible 2021 doc-versions plus
+    the 0-page-claimed band; running detached via nohup at PID
+    captured in `/tmp/ocr-2021-run.pid`, log at
+    `/tmp/ocr-2021-run.log`. Expected ~5 hour wall-clock at ~12s/doc
+    (slower than my earlier ~5s/doc estimate; many docs have ~14
+    pages each so the OCR call dominates). The 28 fast-failures so
+    far are all `PAGE_LIMIT_EXCEEDED` on manifest-says-0-pages docs
+    that turn out to be 30-200 pages — they need a follow-up
+    batch-mode run. The 93 already-known >30-page docs in 2021 also
+    need batch mode; not in this sync run.
+  - **Still to do after 2021 finishes.** (a) Batch-mode run covering
+    the ~93+28 over-30-page 2021 docs. (b) Repeat sync+batch for
+    2017-2018 (36,576) / 2022 (13,177) / 2023 (2,677). (c) Acquire
+    2025 PDFs (different path — not in `nara_manifest`). (d) Build
+    the public diff UI on `/document/[id]` reading from
+    `release_text_versions` × `merged.json`.
 - **3-F zoomable D3 timeline (2026-04-26).** `/timeline` now defaults to
   a horizontal zoomable view; the previous chronological list is preserved
   at `/timeline?view=list` (also serves as the no-JS / screen-reader path).
