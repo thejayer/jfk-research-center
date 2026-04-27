@@ -282,11 +282,27 @@ def rtv_flush() -> None:
     Uses a temp staging table loaded via load_table_from_json (one job per
     flush, ~5-10s) followed by a single MERGE statement, then drops the
     temp table. Per-row UPDATEs would have dominated runtime + scan cost.
+
+    Each call to rtv_stage adds a row to the buffer; one doc can produce
+    multiple rows (fetch ok, then ocr complete). Before MERGE, collapse
+    rows sharing the same (document_id, release_set) into one, with later
+    non-NULL values overriding earlier ones — matches the
+    orchestrator's call order, which is chronological. MERGE requires
+    at most one source row per target row.
     """
     global _RTV_BUFFER
     if not _RTV_BUFFER:
         return
-    updates = _RTV_BUFFER
+    collapsed: dict[tuple[str, str], dict] = {}
+    for row in _RTV_BUFFER:
+        key = (row["document_id"], row["release_set"])
+        if key not in collapsed:
+            collapsed[key] = dict(row)
+        else:
+            for k, v in row.items():
+                if v is not None:
+                    collapsed[key][k] = v
+    updates = list(collapsed.values())
     _RTV_BUFFER = []
 
     temp_id = uuid.uuid4().hex[:10]
@@ -314,7 +330,6 @@ def rtv_flush() -> None:
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
     )
     bq.load_table_from_json(updates, temp_table, job_config=job_config).result()
-
     merge_sql = f"""
     MERGE `{CURATED}.release_text_versions` t
     USING `{temp_table}` s
@@ -346,8 +361,10 @@ def rtv_flush() -> None:
       CURRENT_TIMESTAMP()
     )
     """
-    bq.query(merge_sql).result()
-    bq.delete_table(temp_table, not_found_ok=True)
+    try:
+        bq.query(merge_sql).result()
+    finally:
+        bq.delete_table(temp_table, not_found_ok=True)
     log.info("rtv: flushed %d state updates", len(updates))
 
 
