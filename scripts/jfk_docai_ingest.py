@@ -221,7 +221,9 @@ def fetch_queue_v2(
     2021 shakedown.
     """
     if mode == "sync":
-        page_clause = "(dv.num_pages BETWEEN 1 AND 30 OR dv.num_pages IS NULL)"
+        # Include num_pages=0 (manifest data-quality issue in some 2021 rows
+        # — real PDFs, just claimed-0 pages — DocAI tells us actual count).
+        page_clause = "(dv.num_pages <= 30 OR dv.num_pages IS NULL)"
     elif mode == "batch":
         page_clause = "dv.num_pages > 30"
     else:
@@ -405,8 +407,14 @@ def _nara_url_variants(url: str) -> list[str]:
     return variants
 
 
-def fetch_pdf(item: QueueItem) -> tuple[str, int, str]:
-    """Download PDF, upload to GCS. Returns (gcs_uri, bytes, sha256)."""
+def fetch_pdf(item: QueueItem) -> tuple[str, int, str | None]:
+    """Download PDF, upload to GCS. Returns (gcs_uri, bytes, sha256_hex_or_None).
+
+    sha256 is None when the PDF is already present in GCS — recomputing
+    would require re-downloading the blob just to hash it. The previously
+    persisted sha256 in release_text_versions stays untouched (rtv_flush
+    only overwrites with non-NULL values).
+    """
     t0 = time.time()
     uri = gcs_pdf_uri(item.document_id, item.release_set)
     bucket_name = uri.split("/")[2]
@@ -424,7 +432,7 @@ def fetch_pdf(item: QueueItem) -> tuple[str, int, str]:
             duration_ms=0,
         )
         blob.reload()
-        return uri, blob.size or 0, blob.md5_hash or ""
+        return uri, blob.size or 0, None
 
     data = None
     last_status = None
