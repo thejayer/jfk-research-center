@@ -92,7 +92,8 @@ bq = bigquery.Client(project=PROJECT)
 gcs = storage.Client(project=PROJECT)
 docai_client = documentai.DocumentProcessorServiceClient(
     client_options=ClientOptions(
-        api_endpoint=f"{DOCAI_LOCATION}-documentai.googleapis.com"
+        api_endpoint=f"{DOCAI_LOCATION}-documentai.googleapis.com",
+        quota_project_id=PROJECT,
     )
 )
 PROCESSOR_NAME = (
@@ -220,12 +221,24 @@ def fetch_queue_v2(
     release_set, if given, narrows to a single release — used for the
     2021 shakedown.
     """
+    # PAGE_LIMIT_EXCEEDED docs are batch-eligible regardless of manifest's
+    # num_pages — manifest claims 0 but DocAI proved they're 30+.
+    page_limit_clause = (
+        "(rtv.docai_status = 'failed' "
+        "AND rtv.docai_error LIKE '%PAGE_LIMIT_EXCEEDED%')"
+    )
+    pending_clause = "(rtv.fetch_status = 'pending' OR rtv.docai_status = 'pending')"
+
     if mode == "sync":
         # Include num_pages=0 (manifest data-quality issue in some 2021 rows
         # — real PDFs, just claimed-0 pages — DocAI tells us actual count).
         page_clause = "(dv.num_pages <= 30 OR dv.num_pages IS NULL)"
+        eligibility_clause = pending_clause
     elif mode == "batch":
-        page_clause = "dv.num_pages > 30"
+        # Batch picks up known-large docs OR prior PAGE_LIMIT failures
+        # (whose num_pages is unreliable but error proves they're >30).
+        page_clause = f"(dv.num_pages > 30 OR {page_limit_clause})"
+        eligibility_clause = f"({pending_clause} OR {page_limit_clause})"
     else:
         raise ValueError(f"unknown mode: {mode}")
 
@@ -240,7 +253,7 @@ def fetch_queue_v2(
     FROM `{CURATED}.release_text_versions` rtv
     JOIN `{CURATED}.document_versions` dv
       USING (document_id, release_set)
-    WHERE (rtv.fetch_status = 'pending' OR rtv.docai_status = 'pending')
+    WHERE {eligibility_clause}
       AND {page_clause}
       AND COALESCE(rtv.source_pdf_url, dv.pdf_url) IS NOT NULL
       {release_clause}
@@ -400,11 +413,19 @@ def gcs_docai_dir_prefix(document_id: str, release_set: str) -> str:
 
 
 def _nara_url_variants(url: str) -> list[str]:
-    """archives.gov serves /docid-* lowercase; jfk_records has /DOCID-* uppercase for some rows."""
-    variants = [url]
+    """archives.gov serves /docid-* lowercase + .pdf lowercase. The manifest
+    has /DOCID-* uppercase for some rows and .PDF uppercase for others; both
+    casings need to be flipped or those PDFs come back 404."""
+    seeds = [url]
     if "/DOCID-" in url:
-        variants.append(url.replace("/DOCID-", "/docid-"))
-    return variants
+        seeds.append(url.replace("/DOCID-", "/docid-"))
+    variants: list[str] = []
+    for seed in seeds:
+        variants.append(seed)
+        if seed.endswith(".PDF"):
+            variants.append(seed[:-4] + ".pdf")
+    seen: set[str] = set()
+    return [v for v in variants if not (v in seen or seen.add(v))]
 
 
 def fetch_pdf(item: QueueItem) -> tuple[str, int, str | None]:
@@ -565,10 +586,10 @@ def run_docai_batch(
 
     poll = 10.0
     max_poll = 120.0
-    deadline = time.time() + 3600
+    deadline = time.time() + 21600
     while not operation.done():
         if time.time() > deadline:
-            raise RuntimeError("batch LRO exceeded 1h deadline")
+            raise RuntimeError("batch LRO exceeded 6h deadline")
         time.sleep(poll)
         poll = min(poll * 1.5, max_poll)
 
@@ -576,10 +597,20 @@ def run_docai_batch(
         raise operation.exception()  # type: ignore[misc]
 
     metadata = operation.metadata
+    # Reverse the gcs_pdfs map (doc_id -> uri) so we can look doc_id back
+    # up by the input_gcs_source on each individual_process_status.
+    # Naively parsing the doc_id out of the path is brittle: the by-naid
+    # layout (`.../by-naid/{naid}/{release}/document.pdf`) renames every
+    # doc to `document.pdf`, so `rsplit("/")[-1]` produces "document" for
+    # all of them and the map collapses.
+    uri_to_doc_id = {uri: doc_id for doc_id, uri in gcs_pdfs.items()}
     out_map: dict[str, str] = {}
     for status in getattr(metadata, "individual_process_statuses", []):
         src = status.input_gcs_source
-        doc_id = src.rsplit("/", 1)[-1].removesuffix(".pdf")
+        doc_id = uri_to_doc_id.get(src)
+        if doc_id is None:
+            log.warning("batch status with unknown input source: %s", src)
+            continue
         # State is documentai.BatchProcessMetadata.IndividualProcessStatus.State
         state_name = getattr(status.status, "code", None)
         if state_name and state_name != 0:
@@ -937,12 +968,25 @@ def chunk_pages(item: QueueItem, parsed: dict) -> list[dict]:
 # ---------- stage 5: load to BQ ----------
 
 
+_INSERT_BATCH_ROWS = 500
+
+
 def insert_rows(table: str, rows: list[dict]) -> None:
+    """Streaming-insert rows in batches of 500.
+
+    BQ insertAll caps each request at ~10MB / 500 rows; multi-hundred-page
+    DocAI docs blow past that on `docai_tokens` (~50K tokens/doc) and the
+    server yanks the connection mid-request as SSLEOFError. Chunking keeps
+    every request well under the limits.
+    """
     if not rows:
         return
-    errors = bq.insert_rows_json(f"{STAGING}.{table}", rows)
-    if errors:
-        raise RuntimeError(f"BQ insert errors on {table}: {errors}")
+    target = f"{STAGING}.{table}"
+    for start in range(0, len(rows), _INSERT_BATCH_ROWS):
+        batch = rows[start : start + _INSERT_BATCH_ROWS]
+        errors = bq.insert_rows_json(target, batch)
+        if errors:
+            raise RuntimeError(f"BQ insert errors on {table}: {errors}")
 
 
 def load_parsed(parsed: dict, chunks: list[dict]) -> None:
