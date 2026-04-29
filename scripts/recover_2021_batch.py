@@ -22,6 +22,7 @@ No DocAI API calls — pure shard read + BQ load.
 from __future__ import annotations
 
 import argparse
+import gc
 import sys
 import time
 
@@ -84,6 +85,23 @@ def fetch_recovery_queue() -> list[QueueItem]:
 
 def shard_prefix(index: int) -> str:
     return f"{OUTPUT_BASE}/{index}/"
+
+
+def _fetch_completed_ids() -> set[str]:
+    """Doc_ids already docai_status='complete' for this run — to skip in re-runs.
+
+    Idempotency check has to be by doc_id, not by queue position: positions
+    map to GCS shard dirs and must not shift, but we want to no-op on docs
+    already loaded by a prior chunk.
+    """
+    sql = f"""
+    SELECT document_id
+    FROM `{CURATED}.release_text_versions`
+    WHERE release_set = '2021'
+      AND docai_run_id = '{RUN_ID}'
+      AND docai_status = 'complete'
+    """
+    return {r["document_id"] for r in bq.query(sql).result()}
 
 
 def recover_one(index: int, item: QueueItem) -> bool:
@@ -180,21 +198,39 @@ def main() -> int:
         log.error("no docs found with run_id=%s", RUN_ID)
         return 1
 
+    already_done = _fetch_completed_ids()
+    if already_done:
+        log.info("skip set: %d docs already docai_status='complete'", len(already_done))
+
     end = len(items) if args.limit is None else min(len(items), args.start + args.limit)
     t0 = time.time()
     ok = 0
     fail = 0
+    skip = 0
     for n in range(args.start, end):
         item = items[n]
+        if item.document_id in already_done:
+            skip += 1
+            continue
         if recover_one(n, item):
             ok += 1
+            # Flush rtv per-doc so a crash mid-run doesn't drop state for
+            # already-loaded docs (as happened on the 2026-04-29 OOM run).
+            rtv_flush()
+            # Drop large per-doc allocations explicitly. Python's allocator
+            # fragments badly on multi-hundred-page docs (50K+ token dicts)
+            # and won't return arenas to the OS without a forced collect;
+            # without this the loop OOMs on a 4GB VM around doc 22.
+            gc.collect()
         else:
             fail += 1
 
     rtv_flush()
     clear_recovered_errors()
-    log.info("recovery done in %ds: %d ok, %d failed (range %d..%d)",
-             int(time.time() - t0), ok, fail, args.start, end - 1)
+    log.info(
+        "recovery done in %ds: %d ok, %d failed, %d skipped (range %d..%d)",
+        int(time.time() - t0), ok, fail, skip, args.start, end - 1,
+    )
     return 0 if fail == 0 else 2
 
 
