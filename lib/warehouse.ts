@@ -310,7 +310,7 @@ function rowToCard(r: RecordRow, snippet?: string | null): DocumentCard {
 
 function rowToDetail(
   r: RecordRow,
-  ocr?: { chunkCount: number; firstChunk: string | null; hasAbbyy: boolean },
+  ocr?: { chunkCount: number; firstChunk: string | null; hasOcrText: boolean },
 ): DocumentDetail {
   const card = rowToCard(r);
   return {
@@ -326,7 +326,7 @@ function rowToDetail(
     pageCount: r.num_pages ?? r.pages_released ?? null,
     chunkCount: ocr?.chunkCount ?? 0,
     ocrExcerpt: ocr?.firstChunk ?? null,
-    hasOcr: ocr?.hasAbbyy ?? !!r.has_ocr,
+    hasOcr: ocr?.hasOcrText ?? !!r.has_ocr,
     citation: r.record_group
       ? `NAID ${r.naid} · ${r.record_group}`
       : `NAID ${r.naid} · JFK Assassination Records Collection`,
@@ -900,7 +900,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
          c.document_id, c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
          ROW_NUMBER() OVER (PARTITION BY c.document_id ORDER BY c.chunk_order) AS rn
        FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c, alias_regex
-       WHERE c.source_type = 'abbyy_ocr'
+       WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
          AND REGEXP_CONTAINS(LOWER(c.chunk_text), CONCAT(r'\\b(', alternation, r')\\b'))
      )
      SELECT document_id, chunk_id, chunk_order, chunk_text, page_label
@@ -1166,20 +1166,23 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
     })
     .filter((e): e is EntityCard => !!e);
 
-  const abbyyChunks = ocrChunks.filter((c) => c.source_type === "abbyy_ocr");
-  const hasAbbyy = abbyyChunks.length > 0;
+  const ocrTextChunks = ocrChunks.filter(
+    (c) => c.source_type === "abbyy_ocr" || c.source_type === "docai_ocr",
+  );
+  const hasOcrText = ocrTextChunks.length > 0;
 
-  // When ABBYY OCR is available, surface real passages that contain an alias.
-  // Otherwise fall back to the entity-map row with the NARA description/title.
+  // When real OCR (abbyy or docai) is available, surface passages that
+  // contain an alias. Otherwise fall back to the entity-map row with the
+  // NARA description/title.
   const mentions: MentionExcerpt[] = [];
 
-  if (hasAbbyy) {
+  if (hasOcrText) {
     for (const m of mapRows) {
       const e = entities.find((x) => x.entity_id === m.entity_id);
       const aliases = e?.aliases ?? [];
       const aliasRe = buildAliasRegex(aliases);
       const hit = aliasRe
-        ? abbyyChunks.find((c) => aliasRe.test(c.chunk_text))
+        ? ocrTextChunks.find((c) => aliasRe.test(c.chunk_text))
         : null;
       if (hit) {
         mentions.push({
@@ -1229,9 +1232,9 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
 
   return {
     document: rowToDetail(doc, {
-      chunkCount: abbyyChunks.length,
-      firstChunk: abbyyChunks[0]?.chunk_text ?? null,
-      hasAbbyy,
+      chunkCount: ocrTextChunks.length,
+      firstChunk: ocrTextChunks[0]?.chunk_text ?? null,
+      hasOcrText,
     }),
     mentions: mentions.slice(0, 8),
     relatedEntities,
@@ -1349,7 +1352,7 @@ export async function fetchSearch({
     WITH doc_with_ocr_hit AS (
       SELECT document_id, ANY_VALUE(chunk_text) AS hit_text
         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
-       WHERE source_type = 'abbyy_ocr' AND @qNorm != '' AND LOWER(chunk_text) LIKE @qLike
+       WHERE source_type IN ('abbyy_ocr', 'docai_ocr') AND @qNorm != '' AND LOWER(chunk_text) LIKE @qLike
        GROUP BY document_id
     ),
     scored AS (
@@ -1420,7 +1423,7 @@ export async function fetchSearch({
            FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
            JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
              USING (document_id)
-          WHERE c.source_type = 'abbyy_ocr'
+          WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
             AND LOWER(c.chunk_text) LIKE @qLike
           ORDER BY c.document_id, c.chunk_order
           LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
@@ -1429,7 +1432,7 @@ export async function fetchSearch({
       query<{ n: number }>(
         `SELECT COUNT(*) AS n
            FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-          WHERE c.source_type = 'abbyy_ocr'
+          WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
             AND LOWER(c.chunk_text) LIKE @qLike`,
         params,
       ),
