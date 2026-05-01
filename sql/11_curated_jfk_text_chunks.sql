@@ -2,23 +2,29 @@
 --
 -- Purpose:
 --   Build `jfk_curated.jfk_text_chunks`: one row per searchable passage.
---   ABBYY OCR is the preferred source; the NARA description field is
---   the fallback when no ABBYY chunks are available for a document.
+--   ABBYY OCR is preferred; DocAI OCR fills in for documents not in the
+--   2025 ABBYY re-release; NARA description is last-resort fallback.
 --
 -- Dependencies:
 --   - jfk_staging.abbyy_text_chunks     (loaded by scripts/ingest_abbyy.py)
 --   - jfk_staging.abbyy_to_nara_map     (sql/05)
+--   - jfk_staging.docai_text_chunks     (loaded by scripts/jfk_docai_ingest.py)
 --   - jfk_curated.jfk_records           (sql/10)
 --
 -- source_type values:
 --   'abbyy_ocr'   — per-page text from ABBYY-enhanced PDF, chunked at ~1,200 chars
+--   'docai_ocr'   — Document AI OCR over the original release PDF, ~1,000 char
+--                   chunks with 100-char overlap (chunker in jfk_docai_ingest.py)
 --   'description' — fallback: a single chunk holding the NARA description
 --   'nara_ocr'    — reserved for future use if NARA ever adds an OCR layer
 --
 -- Precedence:
---   For any given document_id, if at least one ABBYY chunk exists, the
---   description fallback is NOT produced. This avoids double-counting
---   the same content across source_types in downstream entity matching.
+--   ABBYY > DocAI > description. If a doc has ABBYY chunks, its DocAI
+--   chunks (if any) and description fallback are dropped — ABBYY is the
+--   2025 image-enhanced re-OCR and wins on quality. If no ABBYY but
+--   DocAI is present, description fallback is dropped. The DocAI chunks
+--   themselves stay in jfk_staging.docai_text_chunks regardless, so
+--   nothing is destroyed by the precedence rule.
 
 -- Rebuild uses truncate+insert so search indexes on this table survive a
 -- rebuild. Schema changes (adding/renaming columns) still require a drop
@@ -48,6 +54,27 @@ begin
   docs_with_abbyy as (
     select distinct document_id from abbyy_chunks
   ),
+  docai_chunks as (
+    -- DocAI staging chunks for any doc not already covered by ABBYY.
+    -- naid hydrated from jfk_records (staging chunks have it null).
+    select
+      c.document_id,
+      r.naid,
+      c.chunk_order,
+      c.chunk_text,
+      c.chunk_chars,
+      c.token_estimate,
+      c.page_label,
+      cast(null as string) as abbyy_doc_id
+    from jfk_staging.docai_text_chunks c
+    join jfk_curated.jfk_records r using (document_id)
+    where c.document_id not in (select document_id from docs_with_abbyy)
+  ),
+  docs_with_text as (
+    select document_id from docs_with_abbyy
+    union distinct
+    select distinct document_id from docai_chunks
+  ),
   description_fallback as (
     select
       r.document_id,
@@ -61,13 +88,18 @@ begin
     from jfk_curated.jfk_records r
     where r.description is not null
       and length(trim(r.description)) >= 20
-      and r.document_id not in (select document_id from docs_with_abbyy)
+      and r.document_id not in (select document_id from docs_with_text)
   ),
   all_chunks as (
     select
       *,
       'abbyy_ocr' as source_type
     from abbyy_chunks
+    union all
+    select
+      *,
+      'docai_ocr' as source_type
+    from docai_chunks
     union all
     select
       *,

@@ -13,10 +13,11 @@
 --     model gets registered here so it's co-located with its usage.
 --
 -- Cost:
---   ~186k chunks × ~300 tokens/chunk ≈ 56M tokens. Vertex text-embedding-005
---   billing is ~$0.025 per 1M input tokens, so one full rebuild costs
---   ~$1.40. Subsequent incremental runs over only new chunks would be
---   cheaper; this file does a full rebuild each time for simplicity.
+--   ~148k OCR chunks (abbyy_ocr + docai_ocr) × ~250-300 tokens/chunk
+--   ≈ 40M tokens. Vertex text-embedding-005 billing is ~$0.025 per 1M
+--   input tokens, so one full rebuild costs ~$1. Subsequent incremental
+--   runs over only new chunks would be cheaper; this file does a full
+--   rebuild each time for simplicity.
 --
 -- Runtime:
 --   ML.GENERATE_EMBEDDING batches under the hood but the full generation
@@ -71,7 +72,7 @@ from ml.generate_embedding(
       source_type,
       chunk_text as content
     from `jfk-vault.jfk_curated.jfk_text_chunks`
-    where source_type = 'abbyy_ocr'
+    where source_type in ('abbyy_ocr', 'docai_ocr')
       and chunk_text is not null
       and length(trim(chunk_text)) >= 40
   ),

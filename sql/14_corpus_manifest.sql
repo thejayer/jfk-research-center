@@ -23,7 +23,7 @@ select
   (select count(distinct document_id) from jfk_curated.jfk_records)         as total_records,
   (select countif(has_ocr)             from jfk_curated.jfk_records)         as records_with_ocr,
   (select count(*) from jfk_curated.jfk_text_chunks
-    where source_type = 'abbyy_ocr')                                         as ocr_passages,
+    where source_type in ('abbyy_ocr', 'docai_ocr'))                         as ocr_passages,
   (select max(release_date)            from jfk_curated.jfk_records)         as latest_indexed_release_date,
 
   -- Per-release presence flags, derived from document_versions (the

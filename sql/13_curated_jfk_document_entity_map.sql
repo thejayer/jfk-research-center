@@ -43,7 +43,10 @@ title_desc_hits as (
   group by d.document_id, ae.entity_id
 ),
 ocr_hits as (
-  -- Alias presence in any ABBYY-sourced chunk for the document.
+  -- Alias presence in any OCR-sourced chunk for the document.
+  -- Both abbyy_ocr (2025 re-OCR) and docai_ocr (Document AI over the
+  -- original release PDFs) count as OCR for tier purposes — the
+  -- confidence tier is "we found it in OCR text" regardless of engine.
   select
     c.document_id,
     ae.entity_id,
@@ -51,7 +54,7 @@ ocr_hits as (
   from jfk_curated.jfk_text_chunks c
   join alias_expansion ae
     on regexp_contains(lower(c.chunk_text), format(r'\b%s\b', ae.alias_re))
-  where c.source_type = 'abbyy_ocr'
+  where c.source_type in ('abbyy_ocr', 'docai_ocr')
   group by c.document_id, ae.entity_id
 ),
 combined as (
