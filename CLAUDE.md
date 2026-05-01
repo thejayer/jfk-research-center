@@ -278,7 +278,7 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-27 (DocAI corpus-OCR foundation)
+**Last updated:** 2026-04-28 (2021 shakedown completed)
 
 - **DocAI corpus-OCR foundation (2026-04-27).** Schema + GCS layout
   staged ahead of the full backlog OCR run that 5-B's redaction-diff
@@ -350,23 +350,57 @@ gcloud run deploy jfk-research-center \
     `<meta http-equiv="refresh">`; no client JS. Backed by
     `fetchOcrProgress()` in `lib/warehouse.ts`. Shipped 2026-04-27,
     PR-direct-merge as commit `239eea0`.
-  - **2021 shakedown in progress (kicked off 2026-04-27 21:23 UTC).**
-    Sync mode against the 1,391 sync-eligible 2021 doc-versions plus
-    the 0-page-claimed band; running detached via nohup at PID
-    captured in `/tmp/ocr-2021-run.pid`, log at
-    `/tmp/ocr-2021-run.log`. Expected ~5 hour wall-clock at ~12s/doc
-    (slower than my earlier ~5s/doc estimate; many docs have ~14
-    pages each so the OCR call dominates). The 28 fast-failures so
-    far are all `PAGE_LIMIT_EXCEEDED` on manifest-says-0-pages docs
-    that turn out to be 30-200 pages — they need a follow-up
-    batch-mode run. The 93 already-known >30-page docs in 2021 also
-    need batch mode; not in this sync run.
-  - **Still to do after 2021 finishes.** (a) Batch-mode run covering
-    the ~93+28 over-30-page 2021 docs. (b) Repeat sync+batch for
-    2017-2018 (36,576) / 2022 (13,177) / 2023 (2,677). (c) Acquire
-    2025 PDFs (different path — not in `nara_manifest`). (d) Build
-    the public diff UI on `/document/[id]` reading from
-    `release_text_versions` × `merged.json`.
+  - **2021 shakedown completed (2026-04-27 21:23 → 2026-04-28 06:00 UTC,
+    ~8h 36m wall-clock).** Sync mode ran the full 1,391-doc 2021
+    queue end-to-end. Outcome breakdown:
+    - **1,238 OK** (89% success) — text + chunks loaded.
+    - **90 `PAGE_LIMIT_EXCEEDED`** — over the 30-page sync API
+      limit; need batch-mode. (Materially larger than my pre-launch
+      28 estimate — the 0-page manifest band has more buried 30-200
+      page docs than expected.)
+    - **47 fetch-404** — *fetcher casing bug*, not real archives.gov
+      gaps. Script tried only `DOCID-XXX.PDF` / `docid-XXX.PDF`;
+      lowercase `.pdf` returns 200 OK for all spot-checked docs. URL
+      variant fallback in `scripts/jfk_docai_ingest.py` needs to flip
+      extension casing too. Same bug almost certainly affects
+      2017-2018 / 2022 / 2023 — fix before those runs.
+    - **15 `DeadlineExceeded`** (DocAI 504s) — transient, just retry.
+    - **1 `INVALID_ARGUMENT`** — `124-10183-10253`, needs a look.
+    - Last doc (`124-10306-10025`) timed out at 06:00:08, was logged
+      as a normal failure, then the script flushed final RTV state
+      and exited cleanly. The "crash" appearance was just that
+      timeout being the last log entry.
+    - Per-doc cost ~22s (vs 12s estimate) — retries on bad docs
+      dominated. Healthy-only avg is closer to ~15s.
+    - 93 already-known >30-page 2021 docs still excluded — additive
+      to batch-mode list (total ~183 = 93 + 90).
+  - **2021 retry run (2026-04-28 14:05 → 14:31 UTC, ~26 min).** After
+    patching `_nara_url_variants` in `scripts/jfk_docai_ingest.py` to
+    flip `.PDF`/`.pdf` extension casing alongside `DOCID`/`docid`,
+    relaunched against the 47 fetch-failed + 16 reset (15 deadline + 1
+    invalid-arg) = 63 docs. Outcome: **61/63 loaded (97%).**
+    - **All 47 casing-bug fetch-404s recovered cleanly.** The patched
+      variant generator emits up to 4 URLs (DOCID.PDF → DOCID.pdf →
+      docid.PDF → docid.pdf); archives.gov serves the lowercase form.
+    - **14/15 DeadlineExceeded retries succeeded.** One re-flaked
+      (`124-90107-10343`) — another retry would likely clear it.
+    - **`124-10183-10253` failed `INVALID_ARGUMENT` again** —
+      deterministic, not transient. Probably a corrupt PDF or
+      unsupported variant; needs manual inspection.
+    - **Net 2021 state:** 1,306 complete (87.6%) / 93 pending-batch
+      (>30pp) / 90 PAGE_LIMIT (also batch) / 1 invalid-arg / 1
+      deadline-flake. **0 fetch-failed.**
+  - **Still to do.** (a) ~~Patch fetcher .pdf/.PDF fallback~~ ✅ done.
+    (b) ~~Re-run the 47 fetch-404s + 15 DeadlineExceeded~~ ✅ done
+    (61/63 cleared). (c) Triage `124-10183-10253` INVALID_ARGUMENT
+    + retry `124-90107-10343` deadline flake (one more time).
+    (d) Batch-mode run for the ~183 over-30-page 2021 docs (93
+    already-known + 90 PAGE_LIMIT). (e) Repeat sync+batch for
+    2017-2018 (36,576) / 2022 (13,177) / 2023 (2,677) — fetcher fix
+    benefits all of these. (f) Acquire 2025 PDFs (different path —
+    not in `nara_manifest`). (g) Build the public diff UI on
+    `/document/[id]` reading from `release_text_versions` ×
+    `merged.json`.
 - **3-F zoomable D3 timeline (2026-04-26).** `/timeline` now defaults to
   a horizontal zoomable view; the previous chronological list is preserved
   at `/timeline?view=list` (also serves as the no-JS / screen-reader path).
