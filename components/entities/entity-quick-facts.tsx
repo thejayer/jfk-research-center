@@ -78,17 +78,7 @@ export function EntityQuickFacts({ facts }: { facts: EntityFact[] }) {
       >
         Quick facts
       </div>
-      <dl
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(140px, auto) 1fr",
-          rowGap: 10,
-          columnGap: 18,
-          margin: 0,
-          fontSize: "0.92rem",
-          lineHeight: 1.5,
-        }}
-      >
+      <dl className="entity-quick-facts-grid">
         {facts.map((f, i) => (
           <div key={i} style={{ display: "contents" }}>
             <dt

@@ -4,6 +4,7 @@ import { fetchCaseTimeline } from "@/lib/api-client";
 import { formatDate } from "@/lib/format";
 import { ListView } from "@/components/timeline/list-view";
 import { ZoomableTimeline } from "@/components/timeline/zoomable-timeline";
+import { DallasView } from "@/components/timeline/dallas-view";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,8 @@ export const metadata: Metadata = {
     "Case-wide timeline from 1939 to present — Oswald biography, Cold War context, Nov 22-25 1963 hour-by-hour, investigative milestones, and declassification releases.",
 };
 
+type View = "zoom" | "list" | "dallas";
+
 type Props = {
   searchParams: Promise<{ view?: string }>;
 };
@@ -20,7 +23,8 @@ type Props = {
 export default async function TimelinePage({ searchParams }: Props) {
   const data = await fetchCaseTimeline();
   const sp = await searchParams;
-  const isList = sp.view === "list";
+  const view: View =
+    sp.view === "list" ? "list" : sp.view === "dallas" ? "dallas" : "zoom";
 
   let latestDate = "";
   for (const e of data.events) if (e.date > latestDate) latestDate = e.date;
@@ -70,23 +74,29 @@ export default async function TimelinePage({ searchParams }: Props) {
           style={{
             marginTop: 16,
             display: "inline-flex",
+            flexWrap: "wrap",
             border: "1px solid var(--border-strong)",
             borderRadius: 999,
             overflow: "hidden",
           }}
         >
-          <ViewToggleLink href="/timeline" active={!isList}>
+          <ViewToggleLink href="/timeline" active={view === "zoom"}>
             Zoom
           </ViewToggleLink>
-          <ViewToggleLink href="/timeline?view=list" active={isList}>
+          <ViewToggleLink href="/timeline?view=dallas" active={view === "dallas"}>
+            72h Dallas
+          </ViewToggleLink>
+          <ViewToggleLink href="/timeline?view=list" active={view === "list"}>
             List
           </ViewToggleLink>
         </div>
       </header>
 
-      {isList ? <ListView data={data} /> : <ZoomableTimeline data={data} />}
+      {view === "list" && <ListView data={data} />}
+      {view === "dallas" && <DallasView data={data} />}
+      {view === "zoom" && <ZoomableTimeline data={data} />}
 
-      {!isList && (
+      {view === "zoom" && (
         <p
           className="muted"
           style={{

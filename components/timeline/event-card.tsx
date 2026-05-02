@@ -12,11 +12,11 @@ const CATEGORY_LABEL: Record<CaseTimelineCategory, string> = {
 };
 
 const CATEGORY_COLOR: Record<CaseTimelineCategory, string> = {
-  biographical: "var(--text)",
-  operational: "var(--text)",
-  investigation: "var(--text-muted)",
-  release: "var(--text-muted)",
-  death: "var(--text-muted)",
+  biographical: "var(--cat-biographical)",
+  operational: "var(--cat-operational)",
+  investigation: "var(--cat-investigation)",
+  release: "var(--cat-release)",
+  death: "var(--cat-death)",
 };
 
 function hostLabel(url: string): string {

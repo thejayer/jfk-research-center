@@ -12,13 +12,14 @@ export function TopicDocumentGrid({
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(260px, 100%), 1fr))",
         gap: 16,
       }}
     >
       {documents.map((d) => (
         <Link
           key={d.id}
+          className="topic-doc-card"
           href={d.href}
           style={{
             display: "flex",

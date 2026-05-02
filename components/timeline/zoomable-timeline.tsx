@@ -54,29 +54,37 @@ const CATEGORY_LANE: Record<CaseTimelineCategory, number> = {
   death: 4,
 };
 
-// Stop colors aren't used directly — we render with currentColor against
-// per-category opacity to stay theme-friendly.
 const CATEGORY_STYLE: Record<
   CaseTimelineCategory,
   { fill: string; stroke: string }
 > = {
-  biographical: { fill: "var(--text)", stroke: "var(--text)" },
-  operational: { fill: "var(--text)", stroke: "var(--text)" },
-  investigation: { fill: "var(--text-muted)", stroke: "var(--text-muted)" },
-  release: { fill: "var(--text-muted)", stroke: "var(--text-muted)" },
-  death: { fill: "var(--accent, #c44)", stroke: "var(--accent, #c44)" },
+  biographical: { fill: "var(--cat-biographical)", stroke: "var(--cat-biographical)" },
+  operational: { fill: "var(--cat-operational)", stroke: "var(--cat-operational)" },
+  investigation: { fill: "var(--cat-investigation)", stroke: "var(--cat-investigation)" },
+  release: { fill: "var(--cat-release)", stroke: "var(--cat-release)" },
+  death: { fill: "var(--cat-death)", stroke: "var(--cat-death)" },
 };
 
 type ZoomLevel = "decade" | "year" | "day" | "hour";
-
-const MARQUEE_START = new Date(Date.UTC(1963, 10, 22, 0, 0)); // Nov 22 1963
-const MARQUEE_END = new Date(Date.UTC(1963, 10, 25, 23, 59)); // Nov 25 1963
 
 function levelFor(k: number): ZoomLevel {
   if (k < 4) return "decade";
   if (k < 30) return "year";
   if (k < 250) return "day";
   return "hour";
+}
+
+function labelMaxChars(level: ZoomLevel): number {
+  switch (level) {
+    case "decade":
+      return 24;
+    case "year":
+      return 28;
+    case "day":
+      return 30;
+    case "hour":
+      return 42;
+  }
 }
 
 function parseEventDate(e: CaseTimelineEvent): Date {
@@ -265,16 +273,6 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     },
     [applyTransform, baseScale],
   );
-
-  const zoomToMarquee = useCallback(() => {
-    const center = new Date(
-      (MARQUEE_START.getTime() + MARQUEE_END.getTime()) / 2,
-    );
-    // k=2800 puts the visible window at ~11 days, so Nov 22–25's events
-    // spread across ~40% of the chart instead of clustering in <120px.
-    const t = transformFromState({ k: 2800, centerDate: center }, baseScale);
-    applyTransform(t, true);
-  }, [applyTransform, baseScale]);
 
   const resetZoom = useCallback(() => {
     applyTransform(zoomIdentity, true);
@@ -490,18 +488,17 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
     });
   };
 
-  const showLabels = level === "day" || level === "hour";
+  const isCloseLevel = level === "day" || level === "hour";
 
-  // Greedy left-to-right tier assignment for headline labels. At hour level
-  // around Nov 22–25, labels cluster within a few px and overlap; bumping
-  // each colliding label to the next tier keeps them legible.
+  // Headline labels always show, even at decade/year level — without them the
+  // chart at first load is just opaque dots. Hover/selected labels only kick
+  // in once the user has zoomed in past year level.
   const labelTiers = useMemo(() => {
     const map = new Map<string, number>();
-    if (!showLabels) return map;
     const items = visibleEvents
       .filter((e) => e.importance >= HEADLINE_THRESHOLD)
       .map((e) => {
-        const text = truncate(e.title, level === "hour" ? 42 : 30);
+        const text = truncate(e.title, labelMaxChars(level));
         // ~5.8 px/char at fontSize=10.5 with default sans — close enough for
         // collision detection without measuring the actual text.
         const w = Math.max(24, text.length * 5.8);
@@ -527,11 +524,7 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
       }
     }
     return map;
-  }, [visibleEvents, showLabels, xScale, level]);
-
-  // Marquee window x-positions in plot space (clipped if off-screen).
-  const marqueeX1 = xScale(MARQUEE_START);
-  const marqueeX2 = xScale(MARQUEE_END);
+  }, [visibleEvents, xScale, level]);
 
   return (
     <div
@@ -546,7 +539,6 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
         onZoomIn={() => zoomBy(1.5)}
         onZoomOut={() => zoomBy(1 / 1.5)}
         onReset={resetZoom}
-        onMarquee={zoomToMarquee}
         countByCategory={countCategories(events)}
       />
 
@@ -658,24 +650,6 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
             </g>
           )}
 
-          {/* Marquee window highlight */}
-          {marqueeX2 > MARGIN.left && marqueeX1 < MARGIN.left + PLOT_W && (
-            <g clipPath="url(#timeline-plot-clip)">
-              <rect
-                x={Math.max(marqueeX1, MARGIN.left)}
-                y={MARGIN.top}
-                width={Math.max(
-                  1.5,
-                  Math.min(marqueeX2, MARGIN.left + PLOT_W) -
-                    Math.max(marqueeX1, MARGIN.left),
-                )}
-                height={PLOT_H}
-                fill="var(--text)"
-                opacity={0.06}
-              />
-            </g>
-          )}
-
           {/* Category lane labels (visible at year+ level) */}
           {level !== "decade" &&
             CATEGORIES.map((c, i) => {
@@ -740,9 +714,10 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
                       opacity={0.45}
                     />
                   )}
-                  {showLabels && (isHeadline || isHovered || isSelected) && (() => {
+                  {(isHeadline || ((isHovered || isSelected) && isCloseLevel)) && (() => {
                     const tier = labelTiers.get(e.id) ?? 0;
-                    const labelY = -r - 6 - tier * 14;
+                    const fontSize = level === "decade" ? 9.5 : 10.5;
+                    const labelY = -r - 6 - tier * (fontSize + 3);
                     return (
                       <>
                         {tier > 0 && (
@@ -759,7 +734,7 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
                         <text
                           x={0}
                           y={labelY}
-                          fontSize={10.5}
+                          fontSize={fontSize}
                           textAnchor="middle"
                           fill="var(--text)"
                           style={{
@@ -771,7 +746,7 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
                             strokeLinejoin: "round",
                           }}
                         >
-                          {truncate(e.title, level === "hour" ? 42 : 30)}
+                          {truncate(e.title, labelMaxChars(level))}
                         </text>
                       </>
                     );
@@ -856,7 +831,6 @@ function Toolbar({
   onZoomIn,
   onZoomOut,
   onReset,
-  onMarquee,
   countByCategory,
 }: {
   level: ZoomLevel;
@@ -865,7 +839,6 @@ function Toolbar({
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
-  onMarquee: () => void;
   countByCategory: Record<CaseTimelineCategory, number>;
 }) {
   return (
@@ -924,9 +897,6 @@ function Toolbar({
         >
           {level}
         </span>
-        <ToolbarButton onClick={onMarquee} title="Zoom into Nov 22–25, 1963">
-          72h Dallas
-        </ToolbarButton>
         <ToolbarButton onClick={onZoomOut} title="Zoom out (−)">
           −
         </ToolbarButton>
@@ -1026,19 +996,7 @@ function SidePanel({
     <div
       role="dialog"
       aria-label="Selected timeline event"
-      style={{
-        position: "fixed",
-        right: 0,
-        top: "var(--header-height, 64px)",
-        bottom: 0,
-        width: "min(440px, 96vw)",
-        zIndex: 60,
-        background: "var(--bg)",
-        borderLeft: "1px solid var(--border-strong)",
-        boxShadow: "0 0 24px rgba(0,0,0,0.18)",
-        padding: 18,
-        overflowY: "auto",
-      }}
+      className="timeline-side-panel"
     >
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
         <button

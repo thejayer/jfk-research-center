@@ -117,40 +117,75 @@
   background: var(--bg);
 }
 
+.menuBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--motion), border-color var(--motion);
+}
+
+.menuBtn:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+
+.mobilePanel {
+  display: none;
+}
+
+.mobileLink {
+  display: block;
+  padding: 14px 24px;
+  font-size: 1rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+
+.mobileLink:hover {
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.mobileLink[aria-current="page"] {
+  color: var(--accent);
+}
+
 @media (max-width: 719.98px) {
-  /* Stack the nav onto a second row and let it scroll horizontally so all
-     seven items stay reachable on phones. Keeping the existing sticky
-     header position; /search consumers read --header-height from globals. */
   .inner {
-    flex-wrap: wrap;
-    height: auto;
-    padding-top: 10px;
-    padding-bottom: 8px;
     gap: 12px;
-    row-gap: 6px;
-  }
-  .brand {
-    order: 1;
-  }
-  .actions {
-    order: 2;
-    margin-left: auto;
   }
   .nav {
-    order: 3;
-    flex-basis: 100%;
-    margin-left: 0;
-    gap: 16px;
-    overflow-x: auto;
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-    padding-bottom: 2px;
-  }
-  .nav::-webkit-scrollbar {
     display: none;
   }
   .brandSub {
     display: none;
+  }
+  .brandLine {
+    font-size: 0.95rem;
+  }
+  .searchBtn {
+    display: none;
+  }
+  .menuBtn {
+    display: inline-flex;
+  }
+  .mobilePanel {
+    display: block;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    max-height: calc(100vh - var(--header-height, 64px));
+    overflow-y: auto;
+  }
+  .mobileLink {
+    padding-left: 32px;
+    padding-right: 32px;
   }
 }
 
