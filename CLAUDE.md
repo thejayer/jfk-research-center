@@ -278,8 +278,99 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-04-28 (2021 shakedown completed)
+**Last updated:** 2026-05-02 (timeline rework + mobile nav + responsive polish)
 
+- **Timeline rework (2026-05-02).** Three pain points reported on the
+  zoomable view: decade level was opaque dots with no labels, the "72h
+  Dallas" jump-target felt grafted onto the chart, and the side panel
+  on mobile covered the whole timeline. Restructured the page around
+  three top-level views and added category color + decade-level labels
+  to the zoom view itself.
+  - **Three-way view toggle.** `app/timeline/page.tsx` now switches on
+    `searchParams.view ∈ {undefined, "dallas", "list"}` (default = zoom).
+    The toggle pill renders Zoom / 72h Dallas / List. The "switch to
+    list view" footer hint only shows on the zoom view; the other two
+    are self-evidently lists.
+  - **`/timeline?view=dallas`.** New `components/timeline/dallas-view.tsx`
+    (server component) renders the 8 hour-by-hour Nov 22–25 1963 events
+    grouped by day (Friday → Monday) with a 56px left-aligned time
+    gutter and weekday-named day headers. Reuses `EventCard` for body
+    rendering so related-entity / document-link / source affordances
+    stay consistent across views. Replaces the old "72h Dallas"
+    toolbar button on the zoom view (which targeted k=2800 on the same
+    SVG and inherited the chart's tier-collision noise).
+  - **Per-category dot colors.** Five new theme-aware CSS vars in
+    `app/globals.css` — `--cat-biographical`, `--cat-operational`,
+    `--cat-investigation`, `--cat-release`, `--cat-death` — each with a
+    light + dark value. Light palette is desaturated (#3a5d7a blue-gray
+    / #8a5a1c amber / #4d6b3a olive / #5e4a7a violet / #6d2f2f red,
+    matching the existing `--accent`); dark theme lifts toward pastels
+    so they read on the warm-cream `--bg`. `CATEGORY_STYLE` in
+    `zoomable-timeline.tsx` and `CATEGORY_COLOR` in `event-card.tsx`
+    both consume the vars, so dots, EventCard category labels, and the
+    Dallas/list views all stay color-coordinated.
+  - **Headline labels at decade level.** Previously labels only rendered
+    at day/hour zoom (`showLabels = level === "day" || level === "hour"`);
+    decade view was just dots + a per-year density histogram. Now any
+    event with `importance >= 5` renders its truncated title at every
+    zoom level, with per-level char limits via new `labelMaxChars()`
+    helper (decade=24, year=28, day=30, hour=42) and a smaller fontSize
+    at decade (9.5px vs 10.5px) so multi-tier stacking stays compact.
+    The greedy left-to-right tier assignment was already in place —
+    tier spacing is now derived from `fontSize + 3` instead of a fixed
+    14px so decade labels stack tighter.
+  - **Marquee band removed.** The Nov 22–25 highlight rect on the zoom
+    SVG is gone; the per-year histogram already telegraphs the 1963
+    spike, and the dedicated Dallas view is the proper jump target. The
+    `MARQUEE_START` / `MARQUEE_END` Date constants and the
+    `zoomToMarquee` callback were dropped.
+  - **Bottom-sheet panel on mobile.** SidePanel was a `position:fixed;
+    right:0; top:var(--header-height); bottom:0; width:min(440px,96vw)`
+    drawer that effectively covered the whole chart on phones. Replaced
+    inline styles with a `.timeline-side-panel` class in `globals.css`;
+    at `<720px` the panel anchors to bottom (rounded top corners,
+    `max-height: 70vh`, slide-up shadow) so the timeline stays visible
+    behind it.
+  - **Supersedes** parts of the 2026-04-26 zoomable-timeline entry below
+    (specifically: the marquee-band visualization, the "72h Dallas"
+    toolbar jump-button, and the mobile side-panel behavior). The four
+    zoom levels, d3 stack, permalink interop, and a11y mirror list are
+    unchanged.
+- **Mobile nav rework + responsive polish (2026-05-02).** Replaced the
+  two-row scroll-nav added in the 2026-04-19 polish pass with a proper
+  hamburger menu — the horizontal-swipe nav on phones was hiding items
+  off-screen and burning ~100px of vertical real estate.
+  - `components/layout/site-header.tsx` is now a client component
+    (`"use client"`) with a `useState` open/close, `usePathname` effect
+    that closes on navigation, and an Escape-key handler.
+  - On `<720px`: horizontal nav is hidden, a 44×44 hamburger button is
+    shown in the actions strip, and the redundant "Search" pill is
+    hidden (Search is the first item in the dropdown panel anyway).
+    Brand line shrinks to 0.95rem; brand subtitle stays hidden.
+  - Open state renders a full-width `<nav>` panel directly under the
+    header with one row per item, 14px vertical padding (≥44px tap
+    target), `aria-current="page"` on the active route, and
+    `max-height: calc(100vh - var(--header-height))` + `overflow-y:auto`
+    so a small phone in landscape can still scroll the menu.
+  - **`--header-height` is now 64px at all viewport sizes** — the
+    100px mobile override that compensated for the two-row header is
+    gone. Sticky bands on `/search` and `/timeline` (and the
+    `scrollMarginTop` calcs in `search-result-card.tsx` /
+    `timeline/event-card.tsx`) automatically tighten up.
+  - Same pass also fixed three responsive gaps not covered by the
+    2026-04-19 mobile sweep: entity quick-facts dl stacks to a single
+    column below 520px (was a 140px-floor 2-col grid that crushed
+    values on phones); topic document grid switched to
+    `minmax(min(260px, 100%), 1fr)` so cards never exceed viewport
+    width on tiny phones; OCR panel side padding drops from 28px to
+    18px below 480px to recover ~20px of reading width on
+    `/document/[id]`. New helper classes
+    `.entity-quick-facts-grid`, `.ocr-panel-section`,
+    `.ocr-panel-empty`, `.topic-doc-card` live in `app/globals.css`
+    under a "Mobile responsive overrides for inline-styled components"
+    block since the project doesn't use Tailwind.
+  - Supersedes the "Mobile primary nav" bullet under Polish follow-ups
+    (2026-04-19) below.
 - **DocAI corpus-OCR foundation (2026-04-27).** Schema + GCS layout
   staged ahead of the full backlog OCR run that 5-B's redaction-diff
   UI is gated on.
@@ -401,9 +492,12 @@ gcloud run deploy jfk-research-center \
     not in `nara_manifest`). (g) Build the public diff UI on
     `/document/[id]` reading from `release_text_versions` ×
     `merged.json`.
-- **3-F zoomable D3 timeline (2026-04-26).** `/timeline` now defaults to
-  a horizontal zoomable view; the previous chronological list is preserved
-  at `/timeline?view=list` (also serves as the no-JS / screen-reader path).
+- **3-F zoomable D3 timeline (2026-04-26).** *(Marquee band, "72h
+  Dallas" toolbar button, and mobile side-panel behavior superseded
+  2026-05-02 — see top of Current state. Everything else still
+  current.)* `/timeline` now defaults to a horizontal zoomable view;
+  the previous chronological list is preserved at `/timeline?view=list`
+  (also serves as the no-JS / screen-reader path).
   - **Stack.** `d3-scale` (time scale), `d3-zoom` (semantic zoom), `d3-time`
     (tick generators), `d3-selection` + `d3-transition` (animated programmatic
     zoom). All deps tree-shake; `/timeline` route bundle is 27.8 kB (137 kB
@@ -679,14 +773,16 @@ gcloud run deploy jfk-research-center \
     migrations, not pipeline steps.
 - **Polish follow-ups (2026-04-19).** Three loose ends closed after
   Phase 5-E:
-  - **Mobile primary nav.** Site header's 7-item nav used to vanish
-    below 720px. `.inner` now wraps to two rows on mobile; the nav
-    gets `overflow-x: auto` with the scrollbar hidden so every item
-    stays reachable by horizontal swipe. Brand subtitle hidden on
-    mobile. New `--header-height` CSS var (64px desktop / 100px
-    mobile) keeps the `/search` sticky band flush under the now-
-    taller mobile header. 4-J's "Mobile primary nav" follow-up is
-    closed.
+  - **Mobile primary nav.** *(Superseded 2026-05-02 by the hamburger
+    rework — see top of Current state.)* Originally: site header's
+    7-item nav used to vanish below 720px; `.inner` wrapped to two
+    rows on mobile and the nav got `overflow-x: auto` with the
+    scrollbar hidden so every item stayed reachable by horizontal
+    swipe. New `--header-height` CSS var (64px desktop / 100px
+    mobile) kept the `/search` sticky band flush under the now-taller
+    mobile header. 4-J's "Mobile primary nav" follow-up was closed.
+    The horizontal-swipe pattern was annoying in practice and got
+    replaced; `--header-height` is back to a single 64px value.
   - **Copy-NAID button** next to the NAID display in document
     headers. navigator.clipboard.writeText + brief "✓ copied" state.
   - **Search empty-state copy** now mentions Semantic mode alongside
