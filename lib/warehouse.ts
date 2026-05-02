@@ -992,7 +992,7 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
   const t = TOPIC_CATALOG[slug];
   if (!t) return null;
 
-  const [docs, count, entityCoOcc, aiRows, articleRows] = await Promise.all([
+  const [docs, count, entityCoOcc, aiRows, articleRows, addendaRows] = await Promise.all([
     query<RecordRow>(
       `SELECT r.*
          FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\` r
@@ -1032,6 +1032,19 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
       `SELECT article, model, generated_at, source_doc_count
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_articles\`
         WHERE slug = @slug`,
+      { slug },
+    ).catch(() => []),
+    query<{
+      release_set: string;
+      article: string;
+      model: string;
+      generated_at: { value: string } | string;
+      source_doc_count: number;
+    }>(
+      `SELECT release_set, article, model, generated_at, source_doc_count
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_topic_release_addenda\`
+        WHERE slug = @slug
+        ORDER BY release_set DESC`,
       { slug },
     ).catch(() => []),
   ]);
@@ -1091,12 +1104,40 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
       : undefined,
   };
 
+  const releaseAddenda = addendaRows.map((r) => ({
+    releaseSet: r.release_set,
+    releaseLabel: releaseLabelFor(r.release_set),
+    text: r.article,
+    model: r.model,
+    generatedAt:
+      typeof r.generated_at === "string" ? r.generated_at : r.generated_at.value,
+    sourceDocCount: r.source_doc_count,
+  }));
+
   return {
     topic,
     relatedEntities,
     topDocuments: docs.map((r) => rowToCard(r)),
     mentionExcerpts,
+    releaseAddenda,
   };
+}
+
+function releaseLabelFor(releaseSet: string): string {
+  switch (releaseSet) {
+    case "2017-2018":
+      return "2017–2018 release";
+    case "2021":
+      return "October 2021 release";
+    case "2022":
+      return "2022 release";
+    case "2023":
+      return "2023 release";
+    case "2025":
+      return "2025 release";
+    default:
+      return `${releaseSet} release`;
+  }
 }
 
 // ---------------------------------------------------------------------------

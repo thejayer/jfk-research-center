@@ -1432,6 +1432,7 @@ export function buildTopicResponse(slug: string): TopicResponse | null {
     relatedEntities,
     topDocuments,
     mentionExcerpts: mentions,
+    releaseAddenda: [],
   };
 }
 

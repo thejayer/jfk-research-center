@@ -244,11 +244,21 @@ export type EntityResponse = {
   facts: EntityFact[];
 };
 
+export type TopicReleaseAddendum = {
+  releaseSet: string;
+  releaseLabel: string;
+  text: string;
+  model: string;
+  generatedAt: string;
+  sourceDocCount: number;
+};
+
 export type TopicResponse = {
   topic: TopicDetail;
   relatedEntities: EntityCard[];
   topDocuments: DocumentCard[];
   mentionExcerpts: MentionExcerpt[];
+  releaseAddenda: TopicReleaseAddendum[];
 };
 
 export type DocumentResponse = {

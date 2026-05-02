@@ -5,6 +5,7 @@ import type { TopicDetail } from "@/lib/api-types";
 import { fetchTopic } from "@/lib/api-client";
 import { TopicHero } from "@/components/topics/topic-hero";
 import { TopicBody } from "@/components/topics/topic-body";
+import { ReleaseAddendum } from "@/components/topics/release-addendum";
 import { TopicDocumentGrid } from "@/components/topics/topic-document-grid";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
@@ -142,6 +143,9 @@ export default async function TopicPage({
                   description="A synthesized view of this topic, with inline citations to the underlying records."
                 />
                 <TopicBody topic={data.topic} />
+                {data.releaseAddenda.map((a) => (
+                  <ReleaseAddendum key={a.releaseSet} addendum={a} />
+                ))}
               </div>
             )}
             {data.mentionExcerpts.length > 0 && (
