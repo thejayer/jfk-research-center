@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Storage } from "@google-cloud/storage";
+import { GoogleAuth } from "google-auth-library";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +10,22 @@ export const dynamic = "force-dynamic";
 
 const BUCKET = process.env.REDACTION_REVIEW_BUCKET || "jfk-vault-ocr";
 
-let _storage: Storage | null = null;
-function gcs(): Storage {
-  if (!_storage) _storage = new Storage();
-  return _storage;
+let _auth: GoogleAuth | null = null;
+function gcsAuth(): GoogleAuth {
+  if (!_auth) {
+    _auth = new GoogleAuth({
+      scopes: ["https://www.googleapis.com/auth/devstorage.read_only"],
+    });
+  }
+  return _auth;
+}
+
+async function accessToken(): Promise<string> {
+  const client = await gcsAuth().getClient();
+  const token = await client.getAccessToken();
+  const value = typeof token === "string" ? token : token?.token;
+  if (!value) throw new Error("missing GCS access token");
+  return value;
 }
 
 export async function GET(
@@ -38,12 +50,26 @@ export async function GET(
   const objectPath = `review/${document_id}/page_${padded}_overlay.png`;
 
   try {
-    const [exists] = await gcs().bucket(BUCKET).file(objectPath).exists();
-    if (!exists) {
+    const token = await accessToken();
+    const url = new URL(
+      `https://storage.googleapis.com/storage/v1/b/${encodeURIComponent(
+        BUCKET,
+      )}/o/${encodeURIComponent(objectPath)}`,
+    );
+    url.searchParams.set("alt", "media");
+
+    const res = await fetch(url, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (res.status === 404) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }
-    const [buf] = await gcs().bucket(BUCKET).file(objectPath).download();
-    return new NextResponse(buf, {
+    if (!res.ok) {
+      throw new Error(`GCS media fetch failed: ${res.status}`);
+    }
+
+    const body = new Uint8Array(await res.arrayBuffer());
+    return new NextResponse(body, {
       status: 200,
       headers: {
         "content-type": "image/png",
