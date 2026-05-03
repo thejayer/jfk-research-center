@@ -28,7 +28,7 @@ export function SearchBar({
     const mode = params?.get("mode");
     const next = new URLSearchParams();
     if (q) next.set("q", q);
-    if (mode === "mention") next.set("mode", "mention");
+    if (mode === "mention" || mode === "semantic") next.set("mode", mode);
     router.push(`/search?${next.toString()}`);
   }
 
@@ -72,6 +72,7 @@ export function SearchBar({
         aria-label="Search query"
         style={{
           flex: 1,
+          minWidth: 0,
           border: "none",
           outline: "none",
           background: "transparent",
@@ -92,11 +93,17 @@ export function SearchBar({
           style={{
             color: "var(--text-muted)",
             marginRight: 6,
-            padding: "6px 8px",
-            fontSize: "0.82rem",
+            width: 30,
+            height: 30,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "50%",
+            fontSize: "1rem",
+            lineHeight: 1,
           }}
         >
-          clear
+          <span aria-hidden>×</span>
         </button>
       )}
       <button

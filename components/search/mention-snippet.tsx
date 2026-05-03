@@ -21,12 +21,18 @@ export function MentionSnippet({
     <article
       data-search-result="true"
       tabIndex={-1}
-      className="search-result-focusable"
+      className={layout === "compact" ? undefined : "search-result-focusable"}
       style={{
-        borderLeft: "2px solid var(--accent)",
-        paddingLeft: layout === "compact" ? 14 : 18,
-        paddingTop: layout === "compact" ? 4 : 6,
-        paddingBottom: layout === "compact" ? 6 : 10,
+        borderWidth: layout === "compact" ? "0 0 0 3px" : "1px 1px 1px 3px",
+        borderStyle: "solid",
+        borderColor: layout === "compact" ? "var(--accent)" : undefined,
+        borderLeftColor: "var(--accent)",
+        borderRadius: layout === "compact" ? 0 : "var(--radius-md)",
+        background: layout === "compact" ? "transparent" : "var(--surface)",
+        paddingLeft: layout === "compact" ? 14 : 20,
+        paddingRight: layout === "compact" ? 0 : 20,
+        paddingTop: layout === "compact" ? 4 : 18,
+        paddingBottom: layout === "compact" ? 6 : 18,
         scrollMarginTop: 120,
       }}
     >
@@ -37,6 +43,7 @@ export function MentionSnippet({
           lineHeight: 1.55,
           color: "var(--text)",
           maxWidth: "68ch",
+          margin: 0,
         }}
         dangerouslySetInnerHTML={{
           __html: `“${highlightHTML(mention.excerpt, terms)}”`,

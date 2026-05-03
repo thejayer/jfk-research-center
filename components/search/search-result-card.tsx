@@ -22,9 +22,14 @@ export function SearchResultCard({
       tabIndex={-1}
       className="search-result-focusable"
       style={{
-        padding: "22px 0",
-        borderTop: "1px solid var(--border)",
+        padding: "20px",
+        borderWidth: 1,
+        borderStyle: "solid",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
         scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
+        transition:
+          "border-color var(--motion), box-shadow var(--motion), transform var(--motion)",
       }}
     >
       <div
@@ -36,6 +41,7 @@ export function SearchResultCard({
           marginBottom: 10,
           color: "var(--text-muted)",
           fontSize: "0.82rem",
+          lineHeight: 1.4,
         }}
       >
         {document.agency && <span>{document.agency}</span>}
@@ -108,7 +114,12 @@ export function SearchResultCard({
         {mentionCount > 0 && (
           <span
             className="muted"
-            style={{ fontSize: "0.82rem", marginLeft: "auto" }}
+            style={{
+              fontSize: "0.82rem",
+              marginLeft: "auto",
+              padding: "4px 0",
+              whiteSpace: "nowrap",
+            }}
           >
             {mentionCount} {mentionCount === 1 ? "mention" : "mentions"}
           </span>
