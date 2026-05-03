@@ -48,10 +48,11 @@ export default async function SearchPage({
           position: "sticky",
           top: "var(--header-height)",
           zIndex: 30,
-          background: "color-mix(in srgb, var(--bg) 92%, transparent)",
-          backdropFilter: "saturate(1.2) blur(8px)",
-          WebkitBackdropFilter: "saturate(1.2) blur(8px)",
+          background: "color-mix(in srgb, var(--surface) 92%, transparent)",
+          backdropFilter: "saturate(1.15) blur(10px)",
+          WebkitBackdropFilter: "saturate(1.15) blur(10px)",
           borderBottom: "1px solid var(--border)",
+          boxShadow: "0 10px 24px rgba(42, 32, 24, 0.06)",
         }}
       >
         <div
@@ -61,7 +62,7 @@ export default async function SearchPage({
             paddingBottom: 16,
             display: "flex",
             flexDirection: "column",
-            gap: 10,
+            gap: 12,
           }}
         >
           <SearchBar autoFocus />
@@ -79,7 +80,7 @@ export default async function SearchPage({
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr)",
           gap: 32,
-          marginTop: 32,
+          marginTop: 28,
           marginBottom: 80,
         }}
       >
@@ -138,17 +139,19 @@ export default async function SearchPage({
                 />
               ) : mode === "document" ? (
                 <div>
-                  {response.results.map((r) =>
-                    r.kind === "document" ? (
-                      <SearchResultCard
-                        key={r.document.id}
-                        document={r.document}
-                        mentionCount={r.mentionCount}
-                        confidence={r.confidence}
-                        query={q}
-                      />
-                    ) : null,
-                  )}
+                  <div style={{ display: "grid", gap: 14 }}>
+                    {response.results.map((r) =>
+                      r.kind === "document" ? (
+                        <SearchResultCard
+                          key={r.document.id}
+                          document={r.document}
+                          mentionCount={r.mentionCount}
+                          confidence={r.confidence}
+                          query={q}
+                        />
+                      ) : null,
+                    )}
+                  </div>
                   {q && (
                     <PaginationControls
                       q={q}
@@ -162,7 +165,7 @@ export default async function SearchPage({
                 </div>
               ) : (
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 22 }}
+                  style={{ display: "flex", flexDirection: "column", gap: 14 }}
                 >
                   {response.results.map((r) =>
                     r.kind === "mention" ? (
@@ -194,8 +197,20 @@ export default async function SearchPage({
       <style>{`
         @media (min-width: 920px) {
           .search-layout {
-            grid-template-columns: 260px minmax(0, 1fr) !important;
-            gap: 48px !important;
+            grid-template-columns: 280px minmax(0, 1fr) !important;
+            gap: 36px !important;
+            align-items: start;
+          }
+          .search-aside {
+            position: sticky;
+            top: calc(var(--header-height) + 104px);
+          }
+        }
+        @media (max-width: 540px) {
+          [data-search-result-total="true"] {
+            flex-basis: 100%;
+            margin-left: 0 !important;
+            padding-top: 4px !important;
           }
         }
       `}</style>
@@ -218,7 +233,17 @@ function ModeTabs({
     <div
       role="tablist"
       aria-label="Search mode"
-      style={{ display: "flex", gap: 4, alignItems: "center" }}
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 4,
+        alignItems: "center",
+        padding: 4,
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface-2)",
+        width: "100%",
+      }}
     >
       <TabLink
         label="Documents"
@@ -238,7 +263,13 @@ function ModeTabs({
       {q && (
         <span
           className="muted"
-          style={{ marginLeft: "auto", fontSize: "0.82rem" }}
+          data-search-result-total="true"
+          style={{
+            marginLeft: "auto",
+            padding: "0 10px",
+            fontSize: "0.82rem",
+            whiteSpace: "nowrap",
+          }}
         >
           {formatNumber(total)} results
         </span>
@@ -263,12 +294,12 @@ function TabLink({
       aria-selected={active}
       style={{
         padding: "6px 12px",
-        borderRadius: 999,
+        borderRadius: "var(--radius-sm)",
         fontSize: "0.88rem",
-        color: active ? "var(--text)" : "var(--text-muted)",
+        color: active ? "var(--bg)" : "var(--text-muted)",
         border: "1px solid",
-        borderColor: active ? "var(--border-strong)" : "transparent",
-        background: active ? "var(--surface)" : "transparent",
+        borderColor: active ? "var(--text)" : "transparent",
+        background: active ? "var(--text)" : "transparent",
         transition: "background var(--motion), color var(--motion), border-color var(--motion)",
       }}
     >
@@ -293,7 +324,7 @@ function ResultHeading({
       <div
         style={{
           marginBottom: 24,
-          paddingBottom: 16,
+          padding: "22px 0 18px",
           borderBottom: "1px solid var(--border)",
         }}
       >
@@ -308,14 +339,28 @@ function ResultHeading({
             fontFamily: "var(--font-serif)",
             fontSize: "1.7rem",
             letterSpacing: "-0.01em",
+            lineHeight: 1.2,
+            maxWidth: "22ch",
           }}
         >
-          Full-text search covers{" "}
-          {formatNumber(manifest.recordsWithOcr)} records and{" "}
-          {formatNumber(manifest.ocrPassages)} OCR passages. The remaining{" "}
-          {formatNumber(manifest.totalRecords - manifest.recordsWithOcr)}{" "}
-          metadata-only records are searchable by title, agency, and NAID.
+          Search the release by person, agency, phrase, date, or record number.
         </h1>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: 12,
+            marginTop: 18,
+            maxWidth: 680,
+          }}
+        >
+          <ArchiveStat label="OCR records" value={manifest.recordsWithOcr} />
+          <ArchiveStat label="OCR passages" value={manifest.ocrPassages} />
+          <ArchiveStat
+            label="Metadata records"
+            value={manifest.totalRecords - manifest.recordsWithOcr}
+          />
+        </div>
       </div>
     );
   }
@@ -323,8 +368,8 @@ function ResultHeading({
   return (
     <div
       style={{
-        marginBottom: 20,
-        paddingBottom: 12,
+        marginBottom: 18,
+        paddingBottom: 4,
       }}
     >
       <div
@@ -358,6 +403,35 @@ function ResultHeading({
           {q}
         </span>
       </h1>
+    </div>
+  );
+}
+
+function ArchiveStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      style={{
+        borderLeft: "2px solid var(--accent)",
+        paddingLeft: 12,
+      }}
+    >
+      <div
+        className="num"
+        style={{
+          color: "var(--text)",
+          fontSize: "1.05rem",
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {formatNumber(value)}
+      </div>
+      <div
+        className="eyebrow"
+        style={{ color: "var(--text-muted)", fontSize: "0.66rem" }}
+      >
+        {label}
+      </div>
     </div>
   );
 }

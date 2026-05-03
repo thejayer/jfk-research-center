@@ -64,7 +64,11 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
     <aside
       aria-label="Search filters"
       style={{
-        borderTop: "1px solid var(--border)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        padding: "4px 16px 8px",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div
@@ -139,7 +143,7 @@ function buildClearUrl(params: URLSearchParams | null | ReturnType<typeof useSea
   if (q) sp.set("q", q);
   if (mode) sp.set("mode", mode);
   // yearFrom/yearTo are not list-type, so they already get dropped when we
-  // start with an empty URLSearchParams — no further cleanup needed.
+  // start with an empty URLSearchParams; no further cleanup needed.
   const qs = sp.toString();
   return qs ? `/search?${qs}` : "/search";
 }

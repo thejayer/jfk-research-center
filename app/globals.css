@@ -425,6 +425,16 @@ hr {
   line-clamp: 3;
   overflow: hidden;
 }
+.search-result-focusable:hover,
+.search-result-focusable:focus-within {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+@media (max-width: 640px) {
+  .search-result-focusable {
+    padding: 16px !important;
+  }
+}
 
 /* ----- Per-event timeline permalink affordance (TimelinePermalink) ----- */
 .timeline-permalink {
