@@ -1362,7 +1362,9 @@ export async function fetchSearch({
   /** Document mode only. Mention/semantic ignore this. */
   offset?: number;
 }): Promise<SearchResponse> {
-  if (useMockData()) return buildSearchResponse({ query: q, mode });
+  if (useMockData()) {
+    return buildSearchResponse({ query: q, mode, filters, limit, offset });
+  }
 
   if (mode === "semantic") {
     return fetchSemanticSearch({ query: q, limit });

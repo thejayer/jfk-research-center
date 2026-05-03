@@ -28,7 +28,8 @@ fall back to description-only chunking.
 
 ```bash
 npm install
-gcloud auth application-default login    # one-time, for BigQuery access
+# Required only for BigQuery-backed dev (`npm run dev`)
+gcloud auth application-default login
 npm run dev
 ```
 
@@ -46,7 +47,8 @@ npm run dev:mock
 
 Mock mode sets `JFK_DATA_SOURCE=mock` and serves home, search, topic,
 entity, document, entities, topics, and corpus-manifest API responses from
-local fixtures. BigQuery remains the default for `npm run dev`.
+local fixtures. It runs offline without `gcloud` ADC authentication. BigQuery
+remains the default for `npm run dev`.
 
 ### Scripts
 
