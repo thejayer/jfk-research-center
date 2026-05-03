@@ -28,7 +28,8 @@ fall back to description-only chunking.
 
 ```bash
 npm install
-gcloud auth application-default login    # one-time, for BigQuery access
+# Required only for BigQuery-backed dev (`npm run dev`)
+gcloud auth application-default login
 npm run dev
 ```
 
@@ -38,17 +39,27 @@ endpoints read from BigQuery via `lib/warehouse.ts`. Set `JFK_BQ_PROJECT`
 if your project is not `jfk-vault`.
 
 For offline demos without a BigQuery connection, `lib/mock-data.ts` is still
-in the tree and can be swapped back into an API route handler; the shape
-is identical to the warehouse response.
+in the tree and can be enabled for the core public pages:
+
+```bash
+npm run dev:mock
+```
+
+Mock mode sets `JFK_DATA_SOURCE=mock` and serves home, search, topic,
+entity, document, entities, topics, and corpus-manifest API responses from
+local fixtures. It runs offline without `gcloud` ADC authentication. BigQuery
+remains the default for `npm run dev`.
 
 ### Scripts
 
 | Script | Purpose |
 |---|---|
 | `npm run dev` | Start the Next.js dev server |
+| `npm run dev:mock` | Start the dev server with local fixture data |
 | `npm run build` | Production build |
 | `npm run start` | Run the production build |
 | `npm run typecheck` | `tsc --noEmit` against the project |
+| `npm run test` | Run Vitest tests |
 
 ## Project layout
 

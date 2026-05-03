@@ -17,6 +17,7 @@ import type {
   MentionExcerpt,
   SearchResponse,
   SearchResult,
+  SearchFilterInput,
   TopicCard,
   TopicDetail,
   TimelineEvent,
@@ -1473,9 +1474,15 @@ export function buildDocumentResponse(id: string): DocumentResponse | null {
 export function buildSearchResponse({
   query,
   mode,
+  filters: appliedFilters = {},
+  limit = 50,
+  offset = 0,
 }: {
   query: string;
   mode: "document" | "mention" | "semantic";
+  filters?: SearchFilterInput;
+  limit?: number;
+  offset?: number;
 }): SearchResponse {
   const q = query.trim().toLowerCase();
 
@@ -1490,7 +1497,7 @@ export function buildSearchResponse({
     "Department of State",
     "Department of Defense",
   ];
-  const filters = {
+  const facets = {
     years: mockYears,
     yearCounts: Object.fromEntries(mockYears.map((y) => [y, 0])),
     yearBounds: { min: 1950, max: 2005 },
@@ -1512,8 +1519,10 @@ export function buildSearchResponse({
   let results: SearchResult[] = [];
 
   if (mode === "document") {
-    const matches = DOCUMENT_SEEDS.filter((d) => matchesDocument(d, q));
-    results = matches.map<SearchResult>((d) => ({
+    const matches = DOCUMENT_SEEDS.filter((d) =>
+      matchesDocument(d, q) && matchesDocumentFilters(d, q, appliedFilters),
+    );
+    results = matches.slice(offset, offset + limit).map<SearchResult>((d) => ({
       kind: "document",
       document: documentToCard(d),
       mentionCount: MENTION_SEEDS.filter((m) => m.documentId === d.id).length,
@@ -1521,19 +1530,30 @@ export function buildSearchResponse({
     }));
   } else {
     const matches = MENTION_SEEDS.filter((m) =>
-      q.length === 0
-        ? true
-        : m.excerpt.toLowerCase().includes(q) ||
-          m.matchedTerms.some((t) => t.toLowerCase().includes(q)),
+      q.length > 0 &&
+      matchesMention(m, q) &&
+      matchesMentionFilters(m, q, appliedFilters),
     );
-    results = matches.map<SearchResult>((m) => ({ kind: "mention", mention: m }));
+    results = matches.slice(offset, offset + limit).map<SearchResult>((m) => ({
+      kind: "mention",
+      mention: m,
+    }));
   }
 
   return {
-    query,
+    query: q,
     mode,
-    total: results.length,
-    filters,
+    total:
+      mode === "document"
+        ? DOCUMENT_SEEDS.filter((d) =>
+            matchesDocument(d, q) && matchesDocumentFilters(d, q, appliedFilters),
+          ).length
+        : MENTION_SEEDS.filter((m) =>
+            q.length > 0 &&
+            matchesMention(m, q) &&
+            matchesMentionFilters(m, q, appliedFilters),
+          ).length,
+    filters: facets,
     results,
   };
 }
@@ -1562,4 +1582,64 @@ function confidenceForDoc(d: DocumentSeed, q: string): ConfidenceLevel {
   if (desc.includes(q)) return "medium";
   if (ocr.includes(q)) return "low";
   return "low";
+}
+
+function matchesMention(m: MentionSeed, q: string): boolean {
+  return (
+    m.excerpt.toLowerCase().includes(q) ||
+    m.matchedTerms.some((t) => t.toLowerCase().includes(q))
+  );
+}
+
+function documentYear(d: DocumentSeed): number | null {
+  const value = d.startDate ?? d.date ?? d.endDate;
+  if (!value) return null;
+  const year = Number(value.slice(0, 4));
+  return Number.isFinite(year) ? year : null;
+}
+
+function matchesDocumentFilters(
+  d: DocumentSeed,
+  q: string,
+  filters: SearchFilterInput,
+): boolean {
+  if (filters.agencies?.length && !filters.agencies.includes(d.agency ?? "")) {
+    return false;
+  }
+
+  const year = documentYear(d);
+  if (typeof filters.yearFrom === "number" && (year === null || year < filters.yearFrom)) {
+    return false;
+  }
+  if (typeof filters.yearTo === "number" && (year === null || year > filters.yearTo)) {
+    return false;
+  }
+
+  if (filters.entities?.length && !d.entities.some((e) => filters.entities!.includes(e))) {
+    return false;
+  }
+  if (filters.topics?.length && !d.topics.some((t) => filters.topics!.includes(t))) {
+    return false;
+  }
+
+  if (q && filters.confidence?.length && !filters.confidence.includes(confidenceForDoc(d, q))) {
+    return false;
+  }
+
+  return true;
+}
+
+function matchesMentionFilters(
+  m: MentionSeed,
+  q: string,
+  filters: SearchFilterInput,
+): boolean {
+  const doc = getDocument(m.documentId);
+  if (!doc || !matchesDocumentFilters(doc, q, filters)) return false;
+
+  if (filters.confidence?.length && !filters.confidence.includes(m.confidence)) {
+    return false;
+  }
+
+  return true;
 }

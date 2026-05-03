@@ -1,9 +1,21 @@
 const DATE_LOCALE = "en-US";
+const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function parseCalendarDate(value: string): Date | null {
+  const match = DATE_ONLY_RE.exec(value);
+  if (match) {
+    const [, year, month, day] = match;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 export function formatDate(value: string | null | undefined): string | null {
   if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
+  const d = parseCalendarDate(value);
+  if (!d) return value;
   return d.toLocaleDateString(DATE_LOCALE, {
     year: "numeric",
     month: "long",
@@ -25,8 +37,10 @@ export function formatYearRange(
   start: string | null | undefined,
   end: string | null | undefined,
 ): string | null {
-  const s = start ? new Date(start).getFullYear() : null;
-  const e = end ? new Date(end).getFullYear() : null;
+  const startDate = start ? parseCalendarDate(start) : null;
+  const endDate = end ? parseCalendarDate(end) : null;
+  const s = startDate ? startDate.getFullYear() : null;
+  const e = endDate ? endDate.getFullYear() : null;
   if (s && e && s !== e) return `${s}–${e}`;
   if (s) return String(s);
   if (e) return String(e);
