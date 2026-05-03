@@ -52,7 +52,7 @@ export default async function SearchPage({
           backdropFilter: "saturate(1.15) blur(10px)",
           WebkitBackdropFilter: "saturate(1.15) blur(10px)",
           borderBottom: "1px solid var(--border)",
-          boxShadow: "0 10px 24px rgba(42, 32, 24, 0.06)",
+          boxShadow: "var(--shadow-sticky-band)",
         }}
       >
         <div

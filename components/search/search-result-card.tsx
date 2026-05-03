@@ -23,10 +23,10 @@ export function SearchResultCard({
       className="search-result-focusable"
       style={{
         padding: "20px",
-        border: "1px solid var(--border)",
+        borderWidth: 1,
+        borderStyle: "solid",
         borderRadius: "var(--radius-md)",
         background: "var(--surface)",
-        boxShadow: "var(--shadow-sm)",
         scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
         transition:
           "border-color var(--motion), box-shadow var(--motion), transform var(--motion)",

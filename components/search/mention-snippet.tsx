@@ -21,17 +21,18 @@ export function MentionSnippet({
     <article
       data-search-result="true"
       tabIndex={-1}
-      className="search-result-focusable"
+      className={layout === "compact" ? undefined : "search-result-focusable"}
       style={{
-        border: layout === "compact" ? "none" : "1px solid var(--border)",
-        borderLeft: "3px solid var(--accent)",
+        borderWidth: layout === "compact" ? "0 0 0 3px" : "1px 1px 1px 3px",
+        borderStyle: "solid",
+        borderColor: layout === "compact" ? "var(--accent)" : undefined,
+        borderLeftColor: "var(--accent)",
         borderRadius: layout === "compact" ? 0 : "var(--radius-md)",
         background: layout === "compact" ? "transparent" : "var(--surface)",
         paddingLeft: layout === "compact" ? 14 : 20,
         paddingRight: layout === "compact" ? 0 : 20,
         paddingTop: layout === "compact" ? 4 : 18,
         paddingBottom: layout === "compact" ? 6 : 18,
-        boxShadow: layout === "compact" ? "none" : "var(--shadow-sm)",
         scrollMarginTop: 120,
       }}
     >
