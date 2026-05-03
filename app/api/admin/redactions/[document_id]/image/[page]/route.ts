@@ -9,15 +9,16 @@ export const dynamic = "force-dynamic";
 // Bandwidth is trivial at admin-tool scale.
 
 const BUCKET = process.env.REDACTION_REVIEW_BUCKET || "jfk-vault-ocr";
+const GCS_FETCH_TIMEOUT_MS = 10_000;
 
-let _auth: GoogleAuth | null = null;
+let authClient: GoogleAuth | null = null;
 function gcsAuth(): GoogleAuth {
-  if (!_auth) {
-    _auth = new GoogleAuth({
+  if (!authClient) {
+    authClient = new GoogleAuth({
       scopes: ["https://www.googleapis.com/auth/devstorage.read_only"],
     });
   }
-  return _auth;
+  return authClient;
 }
 
 async function accessToken(): Promise<string> {
@@ -60,6 +61,7 @@ export async function GET(
 
     const res = await fetch(url, {
       headers: { authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(GCS_FETCH_TIMEOUT_MS),
     });
     if (res.status === 404) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
@@ -79,6 +81,12 @@ export async function GET(
     });
   } catch (err) {
     console.error("[api/admin/redactions/:doc/image/:p] download failed", err);
+    if (err instanceof DOMException && err.name === "TimeoutError") {
+      return NextResponse.json(
+        { error: "image fetch timed out" },
+        { status: 504 },
+      );
+    }
     return NextResponse.json(
       { error: "image fetch failed" },
       { status: 500 },
