@@ -74,10 +74,26 @@ import type {
   TopicResponse,
 } from "./api-types";
 import { formatDate } from "./format";
+import {
+  buildDocumentResponse,
+  buildEntityResponse,
+  buildHomeResponse,
+  buildSearchResponse,
+  buildTopicResponse,
+  listEntities as listMockEntities,
+  listTopics as listMockTopics,
+  entityToCard as mockEntityToCard,
+  topicToCard as mockTopicToCard,
+} from "./mock-data";
 
 const PROJECT = process.env.JFK_BQ_PROJECT || "jfk-vault";
 const DATASET_CURATED = "jfk_curated";
 const DATASET_MVP = "jfk_mvp";
+const DATA_SOURCE = process.env.JFK_DATA_SOURCE?.toLowerCase();
+
+function useMockData(): boolean {
+  return DATA_SOURCE === "mock";
+}
 
 let _bq: BigQuery | null = null;
 function bq(): BigQuery {
@@ -579,6 +595,8 @@ const MVP_QUERYABLE_TOPIC_SLUGS = TOPIC_DISPLAY_ORDER.filter(
 // ---------------------------------------------------------------------------
 
 export async function fetchHome(): Promise<HomeResponse> {
+  if (useMockData()) return buildHomeResponse();
+
   const [stats, entities, topicCounts, recent, manifest] = await Promise.all([
     query<{ records: number; entities: number; mapped: number }>(
       `SELECT
@@ -656,6 +674,8 @@ type ManifestRow = {
 };
 
 export async function fetchCorpusManifest(): Promise<CorpusManifest> {
+  if (useMockData()) return buildHomeResponse().corpusManifest;
+
   const rows = await query<ManifestRow>(
     `SELECT * FROM \`${PROJECT}.${DATASET_CURATED}.corpus_manifest\``,
   );
@@ -732,6 +752,8 @@ function topicToCard(slug: string, count: number): TopicCard {
 }
 
 export async function fetchAllTopics(): Promise<TopicCard[]> {
+  if (useMockData()) return listMockTopics().map(mockTopicToCard);
+
   const counts = await topicCountsMap();
   return TOPIC_DISPLAY_ORDER.map((slug) =>
     topicToCard(slug, counts.get(slug) ?? 0),
@@ -739,6 +761,8 @@ export async function fetchAllTopics(): Promise<TopicCard[]> {
 }
 
 export async function fetchAllEntities(): Promise<EntityCard[]> {
+  if (useMockData()) return listMockEntities().map(mockEntityToCard);
+
   const entities = await loadEntities();
   const counts = await query<{ entity_id: string; n: number }>(
     `SELECT entity_id, COUNT(*) AS n
@@ -761,6 +785,8 @@ export async function fetchAllEntities(): Promise<EntityCard[]> {
 // ---------------------------------------------------------------------------
 
 export async function fetchEntity(slug: string): Promise<EntityResponse | null> {
+  if (useMockData()) return buildEntityResponse(slug);
+
   const entities = await loadEntities();
   const entity = entities.find((e) => e.entity_id === slug);
   if (!entity) return null;
@@ -989,6 +1015,8 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
 // ---------------------------------------------------------------------------
 
 export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
+  if (useMockData()) return buildTopicResponse(slug);
+
   const t = TOPIC_CATALOG[slug];
   if (!t) return null;
 
@@ -1145,6 +1173,8 @@ function releaseLabelFor(releaseSet: string): string {
 // ---------------------------------------------------------------------------
 
 export async function fetchDocument(id: string): Promise<DocumentResponse | null> {
+  if (useMockData()) return buildDocumentResponse(id);
+
   const rows = await query<RecordRow>(
     `SELECT * FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` WHERE document_id = @id`,
     { id },
@@ -1332,6 +1362,8 @@ export async function fetchSearch({
   /** Document mode only. Mention/semantic ignore this. */
   offset?: number;
 }): Promise<SearchResponse> {
+  if (useMockData()) return buildSearchResponse({ query: q, mode });
+
   if (mode === "semantic") {
     return fetchSemanticSearch({ query: q, limit });
   }
