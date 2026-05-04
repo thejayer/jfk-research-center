@@ -8,13 +8,16 @@ export function SearchResultCard({
   mentionCount,
   confidence,
   query,
+  returnHref,
 }: {
   document: DocumentCard;
   mentionCount: number;
   confidence: ConfidenceLevel;
   query: string;
+  returnHref?: string;
 }) {
   const terms = query.trim() ? [query.trim()] : [];
+  const href = withReturnHref(document.href, returnHref);
 
   return (
     <article
@@ -73,7 +76,7 @@ export function SearchResultCard({
         }}
       >
         <Link
-          href={document.href}
+          href={href}
           style={{ color: "var(--text)" }}
           dangerouslySetInnerHTML={{
             __html: highlightHTML(document.title, terms),
@@ -127,6 +130,12 @@ export function SearchResultCard({
       </div>
     </article>
   );
+}
+
+function withReturnHref(href: string, returnHref?: string): string {
+  if (!returnHref || !returnHref.startsWith("/search")) return href;
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}from=${encodeURIComponent(returnHref)}`;
 }
 
 function Dot() {
