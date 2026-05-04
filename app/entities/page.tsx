@@ -15,11 +15,14 @@ export const metadata: Metadata = {
 
 export default async function EntitiesIndexPage() {
   const entities = await fetchEntities();
-  const peopleCount = entities.filter((entity) => entity.type === "person").length;
-  const orgCount = entities.filter((entity) => entity.type === "org").length;
-  const mentionCount = entities.reduce(
-    (total, entity) => total + (entity.mentionCount ?? 0),
-    0,
+  const { peopleCount, orgCount, mentionCount } = entities.reduce(
+    (stats, entity) => {
+      if (entity.type === "person") stats.peopleCount += 1;
+      if (entity.type === "org") stats.orgCount += 1;
+      stats.mentionCount += entity.mentionCount ?? 0;
+      return stats;
+    },
+    { peopleCount: 0, orgCount: 0, mentionCount: 0 },
   );
 
   return (

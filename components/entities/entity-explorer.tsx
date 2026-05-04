@@ -82,7 +82,6 @@ export function EntityExplorer({ entities }: { entities: EntityCard[] }) {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            onInput={(event) => setQuery(event.currentTarget.value)}
             placeholder="Filter by name, alias, agency, or summary"
             aria-label="Filter entities"
             style={{
@@ -99,12 +98,14 @@ export function EntityExplorer({ entities }: { entities: EntityCard[] }) {
           {query && (
             <button
               type="button"
+              className="entity-clear-button"
               onClick={() => setQuery("")}
               aria-label="Clear entity filter"
               style={{
                 width: 30,
                 height: 30,
                 borderRadius: "50%",
+                background: "transparent",
                 color: "var(--text-muted)",
                 fontSize: "1rem",
                 lineHeight: 1,
@@ -116,8 +117,8 @@ export function EntityExplorer({ entities }: { entities: EntityCard[] }) {
         </div>
 
         <div
-          role="list"
-          aria-label="Entity type filters"
+          role="group"
+          aria-label="Filter by entity type"
           style={{
             display: "flex",
             flexWrap: "wrap",
@@ -143,6 +144,7 @@ export function EntityExplorer({ entities }: { entities: EntityCard[] }) {
           {hasFilters && (
             <button
               type="button"
+              className="entity-reset-button"
               onClick={() => {
                 setQuery("");
                 setActiveType("all");
@@ -151,6 +153,7 @@ export function EntityExplorer({ entities }: { entities: EntityCard[] }) {
                 color: "var(--text-muted)",
                 fontSize: "0.84rem",
                 padding: "6px 2px",
+                background: "transparent",
               }}
             >
               Reset
