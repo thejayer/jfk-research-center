@@ -260,6 +260,13 @@ hr {
   border-radius: 4px;
 }
 
+.entity-clear-button:focus-visible,
+.entity-reset-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  background: var(--surface-2) !important;
+}
+
 /* --- Reveal animation --- */
 @keyframes reveal-up {
   from {
