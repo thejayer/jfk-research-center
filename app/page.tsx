@@ -26,7 +26,11 @@ export default async function HomePage() {
       <div className="container" style={{ paddingTop: 16 }}>
         <ScopeBanner manifest={data.corpusManifest} />
       </div>
-      <Hero />
+      <Hero
+        recordsWithOcr={data.corpusManifest.recordsWithOcr}
+        ocrPassages={data.corpusManifest.ocrPassages}
+        entityCount={data.stats.entityCount}
+      />
 
       {recentReleases.length > 0 && (
         <section
@@ -117,7 +121,7 @@ export default async function HomePage() {
           eyebrow="Featured people & organizations"
           title="Entities"
           description="The people and institutions whose records structure every JFK inquiry: defendants, investigators, and the agencies that hold the files."
-          actionHref="/entity/oswald"
+          actionHref="/entities"
           actionLabel="Browse all entities"
         />
         <div
@@ -409,20 +413,29 @@ export default async function HomePage() {
   );
 }
 
-function Hero() {
+function Hero({
+  recordsWithOcr,
+  ocrPassages,
+  entityCount,
+}: {
+  recordsWithOcr: number;
+  ocrPassages: number;
+  entityCount: number;
+}) {
   return (
     <section
       style={{
-        paddingTop: 72,
-        paddingBottom: 72,
+        paddingTop: 56,
+        paddingBottom: 64,
       }}
     >
       <div
         className="container"
+        data-home-hero="true"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 40,
+          gap: 28,
         }}
       >
         <div>
@@ -482,8 +495,170 @@ function Hero() {
             <Link href="/search?q=Castro">Castro</Link>
           </div>
         </div>
+
+        <aside
+          aria-label="Archive entry points"
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            padding: "22px",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <div className="eyebrow" style={{ marginBottom: 14 }}>
+            Start here
+          </div>
+          <div style={{ display: "grid", gap: 8 }}>
+            <HeroPath
+              href="/search?q=Oswald"
+              title="Search the record"
+              body="Find records, OCR passages, names, agencies, or NAIDs."
+            />
+            <HeroPath
+              href="/entities"
+              title="Browse people and organizations"
+              body="Follow entity pages into the documents that mention them."
+            />
+            <HeroPath
+              href="/timeline"
+              title="Use the timeline"
+              body="Move through events, releases, and investigation milestones."
+            />
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 12,
+              marginTop: 22,
+              paddingTop: 18,
+              borderTop: "1px solid var(--border)",
+            }}
+          >
+            <HeroStat label="OCR records" value={recordsWithOcr} />
+            <HeroStat label="Passages" value={ocrPassages} />
+            <HeroStat label="Entities" value={entityCount} />
+          </div>
+        </aside>
       </div>
+
+      <style>{`
+        @media (min-width: 960px) {
+          [data-home-hero="true"] {
+            grid-template-columns: minmax(0, 1fr) 360px !important;
+            align-items: end;
+          }
+        }
+      `}</style>
     </section>
+  );
+}
+
+function HeroPath({
+  href,
+  title,
+  body,
+}: {
+  href: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) auto",
+        gap: 14,
+        alignItems: "center",
+        padding: "12px 0",
+        color: "var(--text)",
+        borderBottom: "1px solid var(--border)",
+      }}
+    >
+      <span style={{ minWidth: 0 }}>
+        <span
+          style={{
+            display: "block",
+            fontFamily: "var(--font-serif)",
+            fontSize: "1.08rem",
+            letterSpacing: "-0.005em",
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </span>
+        <span
+          className="muted"
+          style={{
+            display: "block",
+            fontSize: "0.84rem",
+            lineHeight: 1.45,
+            marginTop: 3,
+          }}
+        >
+          {body}
+        </span>
+      </span>
+      <ArrowRightIcon />
+    </Link>
+  );
+}
+
+function HeroStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div
+        className="num"
+        style={{
+          fontWeight: 600,
+          fontSize: "1rem",
+          lineHeight: 1.2,
+          color: "var(--text)",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {formatNumber(value)}
+      </div>
+      <div
+        className="eyebrow"
+        style={{
+          color: "var(--text-muted)",
+          fontSize: "0.62rem",
+          marginTop: 4,
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      style={{ color: "var(--text-muted)", flexShrink: 0 }}
+    >
+      <path
+        d="M3 8h9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="m8.75 4.25 3.75 3.75-3.75 3.75"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
