@@ -35,6 +35,7 @@ export default async function SearchPage({
   const { q, mode, filters, page } = parseSearchParams(params);
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
   const offset = mode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
+  const returnHref = buildSearchUrl(q, mode, filters, page);
   const [response, manifest] = await Promise.all([
     fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
@@ -148,6 +149,7 @@ export default async function SearchPage({
                           mentionCount={r.mentionCount}
                           confidence={r.confidence}
                           query={q}
+                          returnHref={returnHref}
                         />
                       ) : null,
                     )}

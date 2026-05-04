@@ -29,12 +29,20 @@ export async function generateMetadata({
 
 export default async function DocumentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
+  const resolvedSearchParams = await searchParams;
   const data = await fetchDocument(id);
   if (!data) notFound();
+  const returnHref = parseReturnHref(resolvedSearchParams.from);
+  const releaseHistory = data.document.releaseHistory ?? [];
+  const hasReleaseHistory = releaseHistory.length > 0;
+  const hasRelatedEntities = data.relatedEntities.length > 0;
+  const hasRelatedDocuments = data.relatedDocuments.length > 0;
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -46,7 +54,13 @@ export default async function DocumentPage({
           fontSize: "0.85rem",
         }}
       >
-        <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
+        {returnHref ? (
+          <Link href={returnHref} style={{ color: "var(--link)", fontWeight: 500 }}>
+            Back to results
+          </Link>
+        ) : (
+          <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
+        )}
         <span aria-hidden style={{ margin: "0 6px" }}>/</span>
         <Link href="/search" style={{ color: "var(--text-muted)" }}>Records</Link>
         <span aria-hidden style={{ margin: "0 6px" }}>/</span>
@@ -57,8 +71,8 @@ export default async function DocumentPage({
 
       <DocumentHeader doc={data.document} />
 
-      {data.document.releaseHistory && data.document.releaseHistory.length > 0 && (
-        <ReleaseHistory entries={data.document.releaseHistory} />
+      {hasReleaseHistory && (
+        <ReleaseHistory entries={releaseHistory} />
       )}
 
       <div
@@ -73,8 +87,8 @@ export default async function DocumentPage({
         <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
           <OcrPanel doc={data.document} mentions={data.mentions} />
 
-          {data.relatedEntities.length > 0 && (
-            <section aria-label="Related entities">
+          {hasRelatedEntities && (
+            <section id="related-entities" aria-label="Related entities">
               <SectionHeading
                 eyebrow="Entities"
                 title="Mentioned in this record"
@@ -83,8 +97,8 @@ export default async function DocumentPage({
             </section>
           )}
 
-          {data.relatedDocuments.length > 0 && (
-            <section aria-label="Related documents">
+          {hasRelatedDocuments && (
+            <section id="related-records" aria-label="Related documents">
               <SectionHeading
                 eyebrow="Related records"
                 title="Appear in the same topics or entities"
@@ -95,14 +109,25 @@ export default async function DocumentPage({
         </div>
 
         <aside
+          className="document-aside"
           style={{
             display: "flex",
             flexDirection: "column",
             gap: 16,
           }}
         >
-          <MetadataPanel doc={data.document} />
-          <SourceLinks doc={data.document} />
+          <DocumentJumpNav
+            returnHref={returnHref}
+            hasReleaseHistory={hasReleaseHistory}
+            hasRelatedEntities={hasRelatedEntities}
+            hasRelatedDocuments={hasRelatedDocuments}
+          />
+          <div id="metadata">
+            <MetadataPanel doc={data.document} />
+          </div>
+          <div id="source">
+            <SourceLinks doc={data.document} />
+          </div>
         </aside>
       </div>
 
@@ -112,8 +137,133 @@ export default async function DocumentPage({
             grid-template-columns: minmax(0, 1fr) 320px !important;
             gap: 48px !important;
           }
+          .document-aside {
+            position: sticky;
+            top: calc(var(--header-height) + 24px);
+            align-self: start;
+          }
         }
       `}</style>
     </div>
   );
+}
+
+function DocumentJumpNav({
+  returnHref,
+  hasReleaseHistory,
+  hasRelatedEntities,
+  hasRelatedDocuments,
+}: {
+  returnHref: string | null;
+  hasReleaseHistory: boolean;
+  hasRelatedEntities: boolean;
+  hasRelatedDocuments: boolean;
+}) {
+  const links = [
+    hasReleaseHistory ? { href: "#release-history", label: "Release history" } : null,
+    { href: "#ocr-text", label: "OCR text" },
+    hasRelatedEntities ? { href: "#related-entities", label: "Entities" } : null,
+    hasRelatedDocuments ? { href: "#related-records", label: "Related records" } : null,
+    { href: "#metadata", label: "Metadata" },
+    { href: "#source", label: "Source" },
+  ].filter(Boolean) as Array<{ href: string; label: string }>;
+
+  return (
+    <nav
+      aria-label="Document sections"
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        padding: "16px 18px",
+      }}
+    >
+      <div className="eyebrow" style={{ marginBottom: 10 }}>
+        On this record
+      </div>
+      <ul
+        style={{
+          listStyle: "none",
+          padding: 0,
+          margin: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
+        {links.map((link) => (
+          <li key={link.href}>
+            <a
+              href={link.href}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+                padding: "7px 0",
+                color: "var(--text)",
+                fontSize: "0.88rem",
+              }}
+            >
+              <span>{link.label}</span>
+              <ArrowDownIcon />
+            </a>
+          </li>
+        ))}
+      </ul>
+      {returnHref && (
+        <Link
+          href={returnHref}
+          style={{
+            display: "inline-flex",
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: "1px solid var(--border)",
+            width: "100%",
+            color: "var(--link)",
+            fontSize: "0.86rem",
+            fontWeight: 500,
+          }}
+        >
+          Back to results
+        </Link>
+      )}
+    </nav>
+  );
+}
+
+function ArrowDownIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      style={{ color: "var(--text-muted)", flexShrink: 0 }}
+    >
+      <path
+        d="M8 3.5v8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M4.75 8.75 8 12l3.25-3.25"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function parseReturnHref(
+  from: string | string[] | undefined,
+): string | null {
+  const value = Array.isArray(from) ? from[0] : from;
+  if (!value || !value.startsWith("/search")) return null;
+  if (value.startsWith("//") || value.includes("://")) return null;
+  return value;
 }

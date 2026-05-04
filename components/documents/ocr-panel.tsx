@@ -14,6 +14,7 @@ export function OcrPanel({
     return (
       <section
         className="ocr-panel-empty"
+        id="ocr-text"
         style={{
           padding: "28px 28px",
           border: "1px dashed var(--border-strong)",
@@ -40,6 +41,7 @@ export function OcrPanel({
   return (
     <section
       className="ocr-panel-section"
+      id="ocr-text"
       style={{
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",

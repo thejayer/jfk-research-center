@@ -18,6 +18,7 @@ export function ReleaseHistory({
   return (
     <section
       aria-label="Release history"
+      id="release-history"
       style={{
         marginTop: 32,
         padding: "16px 18px",
