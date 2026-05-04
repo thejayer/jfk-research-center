@@ -282,7 +282,7 @@ hr {
 .entity-document-row:focus-visible .entity-document-open {
   border-color: var(--border-strong) !important;
   color: var(--text) !important;
-  background: var(--surface-2);
+  background: var(--surface-2) !important;
 }
 
 @media (max-width: 780px) {

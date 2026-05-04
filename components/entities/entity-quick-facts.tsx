@@ -92,6 +92,7 @@ export function EntityQuickFacts({ facts }: { facts: EntityFact[] }) {
               <span>{f.value}</span>
               <span
                 title={`Source: ${f.sourceType} | ${f.sourceRef} | confidence: ${f.confidence}`}
+                aria-label={`Source ${f.sourceType}, reference ${f.sourceRef}, confidence ${f.confidence}`}
                 style={{
                   marginLeft: 8,
                   fontSize: "0.72rem",

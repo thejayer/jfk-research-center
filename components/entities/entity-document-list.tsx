@@ -74,13 +74,9 @@ export function EntityDocumentList({
                 }}
               >
                 {document.dateLabel && <span>{document.dateLabel}</span>}
-                {document.documentType && (
-                  <>
-                    {document.dateLabel && <Separator />}
-                    <span>{document.documentType}</span>
-                  </>
-                )}
-                <Separator />
+                {document.dateLabel && document.documentType && <Separator />}
+                {document.documentType && <span>{document.documentType}</span>}
+                {(document.dateLabel || document.documentType) && <Separator />}
                 <span>
                   NAID <span className="num">{document.naid}</span>
                 </span>
@@ -129,6 +125,7 @@ function Separator() {
     <span
       aria-hidden="true"
       style={{
+        display: "inline-block",
         width: 3,
         height: 3,
         borderRadius: "50%",
