@@ -44,7 +44,7 @@ export function EntityTimeline({ events }: { events: TimelineEvent[] }) {
             style={{
               fontFamily: "var(--font-serif)",
               fontSize: "1.15rem",
-              letterSpacing: "-0.005em",
+              letterSpacing: 0,
               marginBottom: 6,
             }}
           >
@@ -71,9 +71,13 @@ export function EntityTimeline({ events }: { events: TimelineEvent[] }) {
                   href={`/document/${id}`}
                   style={{
                     color: "var(--text-muted)",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
                   }}
                 >
-                  → document
+                  <ArrowRightIcon />
+                  document
                 </Link>
               ))}
             </div>
@@ -81,5 +85,25 @@ export function EntityTimeline({ events }: { events: TimelineEvent[] }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

@@ -267,6 +267,40 @@ hr {
   background: var(--surface-2) !important;
 }
 
+.entity-profile-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 32px;
+  align-items: start;
+}
+
+.entity-evidence-trail {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.45fr);
+}
+
+.entity-document-row:hover .entity-document-open,
+.entity-document-row:focus-visible .entity-document-open {
+  border-color: var(--border-strong) !important;
+  color: var(--text) !important;
+  background: var(--surface-2);
+}
+
+@media (max-width: 780px) {
+  .entity-profile-hero,
+  .entity-evidence-trail {
+    grid-template-columns: 1fr !important;
+  }
+
+  .entity-evidence-trail aside {
+    border-left: 0 !important;
+    border-top: 1px solid var(--border);
+  }
+
+  .entity-document-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* --- Reveal animation --- */
 @keyframes reveal-up {
   from {

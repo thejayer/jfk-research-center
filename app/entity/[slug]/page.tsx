@@ -2,15 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchEntity } from "@/lib/api-client";
-import { EntityHero } from "@/components/entities/entity-hero";
-import { EntityTimeline } from "@/components/entities/entity-timeline";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
+import { EntityEvidenceTrail } from "@/components/entities/entity-evidence-trail";
+import { EntityHero } from "@/components/entities/entity-hero";
 import { EntityQuickFacts } from "@/components/entities/entity-quick-facts";
 import { EntitySources } from "@/components/entities/entity-sources";
+import { EntityTimeline } from "@/components/entities/entity-timeline";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { MentionSnippet } from "@/components/search/mention-snippet";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { LinkButton } from "@/components/ui/button";
+import { SectionHeading } from "@/components/ui/section-heading";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
 
 export const dynamic = "force-dynamic";
@@ -39,6 +40,8 @@ export default async function EntityPage({
   if (!data) notFound();
 
   const searchHref = `/search?q=${encodeURIComponent(data.entity.name)}&mode=mention`;
+  const documentsHref = `/search?entity=${encodeURIComponent(data.entity.slug)}`;
+  const hasDocuments = (data.entity.documentCount ?? 0) > 0;
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -50,22 +53,38 @@ export default async function EntityPage({
           fontSize: "0.85rem",
         }}
       >
-        <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
-        <Link href="/search" style={{ color: "var(--text-muted)" }}>Entities</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
+        <Link href="/" style={{ color: "var(--text-muted)" }}>
+          Home
+        </Link>
+        <span aria-hidden="true" style={{ margin: "0 6px" }}>
+          /
+        </span>
+        <Link href="/entities" style={{ color: "var(--text-muted)" }}>
+          Entities
+        </Link>
+        <span aria-hidden="true" style={{ margin: "0 6px" }}>
+          /
+        </span>
         <span style={{ color: "var(--text)" }}>{data.entity.name}</span>
       </nav>
 
-      <EntityHero entity={data.entity} />
+      <EntityHero
+        entity={data.entity}
+        searchHref={searchHref}
+        documentsHref={hasDocuments ? documentsHref : undefined}
+      />
 
       {data.facts.length > 0 && <EntityQuickFacts facts={data.facts} />}
 
+      <EntityEvidenceTrail
+        events={data.timeline}
+        documents={data.topDocuments}
+        documentsHref={hasDocuments ? documentsHref : undefined}
+        entityName={data.entity.name}
+      />
+
       {data.timeline.length > 0 && (
-        <section
-          aria-label="Timeline"
-          style={{ marginTop: 56 }}
-        >
+        <section aria-label="Timeline" style={{ marginTop: 56 }}>
           <SectionHeading
             eyebrow="Timeline"
             title="Chronology"
@@ -76,13 +95,10 @@ export default async function EntityPage({
       )}
 
       {data.relatedTopics.length > 0 && (
-        <section
-          aria-label="Related topics"
-          style={{ marginTop: 72 }}
-        >
+        <section aria-label="Related topics" style={{ marginTop: 72 }}>
           <SectionHeading
-            eyebrow="Topics"
-            title="Where this entity appears"
+            eyebrow="Research lanes"
+            title="Topics connected to this profile"
           />
           <div
             style={{
@@ -91,16 +107,17 @@ export default async function EntityPage({
               gap: 12,
             }}
           >
-            {data.relatedTopics.map((t) => (
+            {data.relatedTopics.map((topic) => (
               <Link
-                key={t.slug}
-                href={t.href}
+                key={topic.slug}
+                href={topic.href}
                 style={{
                   padding: "14px 16px",
                   border: "1px solid var(--border)",
                   borderRadius: "var(--radius-md)",
                   background: "var(--surface)",
                   color: "var(--text)",
+                  textDecoration: "none",
                   display: "flex",
                   flexDirection: "column",
                   gap: 4,
@@ -110,16 +127,13 @@ export default async function EntityPage({
                   style={{
                     fontFamily: "var(--font-serif)",
                     fontSize: "1.05rem",
-                    letterSpacing: "-0.005em",
+                    letterSpacing: 0,
                   }}
                 >
-                  {t.title}
+                  {topic.title}
                 </span>
-                <span
-                  className="muted num"
-                  style={{ fontSize: "0.8rem" }}
-                >
-                  {t.documentCount.toLocaleString()} documents
+                <span className="muted num" style={{ fontSize: "0.8rem" }}>
+                  {topic.documentCount.toLocaleString()} documents
                 </span>
               </Link>
             ))}
@@ -128,10 +142,7 @@ export default async function EntityPage({
       )}
 
       {data.topDocuments.length > 0 && (
-        <section
-          aria-label="Top documents"
-          style={{ marginTop: 72 }}
-        >
+        <section aria-label="Top documents" style={{ marginTop: 72 }}>
           <SectionHeading
             eyebrow="Documents"
             title="Top documents"
@@ -141,11 +152,18 @@ export default async function EntityPage({
           {(data.entity.documentCount ?? 0) > data.topDocuments.length && (
             <div style={{ marginTop: 18 }}>
               <Link
-                href={`/search?entity=${encodeURIComponent(data.entity.slug)}`}
-                style={{ fontSize: "0.95rem", fontWeight: 500 }}
+                href={documentsHref}
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 500,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
               >
                 View all {(data.entity.documentCount ?? 0).toLocaleString()}{" "}
-                documents mentioning {data.entity.name} →
+                documents mentioning {data.entity.name}
+                <ArrowRightIcon />
               </Link>
             </div>
           )}
@@ -153,30 +171,22 @@ export default async function EntityPage({
       )}
 
       {data.mentionExcerpts.length > 0 && (
-        <section
-          aria-label="Mention excerpts"
-          style={{ marginTop: 72 }}
-        >
+        <section aria-label="Mention excerpts" style={{ marginTop: 72 }}>
           <SectionHeading
             eyebrow="Excerpts"
             title="Matched passages"
             description="Short OCR passages drawn directly from the source documents."
           />
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: 22 }}
-          >
-            {data.mentionExcerpts.map((m) => (
-              <MentionSnippet key={m.id} mention={m} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+            {data.mentionExcerpts.map((mention) => (
+              <MentionSnippet key={mention.id} mention={mention} />
             ))}
           </div>
         </section>
       )}
 
       {data.relatedEntities.length > 0 && (
-        <section
-          aria-label="Related entities"
-          style={{ marginTop: 72 }}
-        >
+        <section aria-label="Related entities" style={{ marginTop: 72 }}>
           <SectionHeading
             eyebrow="Related"
             title="Connected people & organizations"
@@ -186,14 +196,11 @@ export default async function EntityPage({
       )}
 
       {data.sources.length > 0 && (
-        <section
-          aria-label="Sources"
-          style={{ marginTop: 72 }}
-        >
+        <section aria-label="Sources" style={{ marginTop: 72 }}>
           <SectionHeading
             eyebrow="Sources"
             title="Primary documents and references"
-            description="Curated list of the archival materials and allowlisted secondary references that ground this entity's biography and timeline."
+            description="Curated archival materials and allowlisted secondary references that ground this entity's biography and timeline."
           />
           <EntitySources sources={data.sources} />
         </section>
@@ -218,7 +225,7 @@ export default async function EntityPage({
             style={{
               fontFamily: "var(--font-serif)",
               fontSize: "1.25rem",
-              letterSpacing: "-0.005em",
+              letterSpacing: 0,
               marginBottom: 6,
             }}
           >
@@ -230,7 +237,8 @@ export default async function EntityPage({
           </p>
         </div>
         <LinkButton href={searchHref} variant="primary">
-          Open mention search →
+          Open mention search
+          <ArrowRightIcon />
         </LinkButton>
       </section>
 
@@ -238,5 +246,25 @@ export default async function EntityPage({
         <ReportErrorLink surface="entity_bio" targetId={data.entity.slug} />
       </div>
     </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
