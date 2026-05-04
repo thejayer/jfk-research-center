@@ -263,7 +263,9 @@ function parseReturnHref(
   from: string | string[] | undefined,
 ): string | null {
   const value = Array.isArray(from) ? from[0] : from;
-  if (!value || !value.startsWith("/search")) return null;
+  // Navigation-safety guard: only canonical internal search paths can
+  // become document-page return links.
+  if (!value || !/^\/search(?:[?#]|$)/.test(value)) return null;
   if (value.startsWith("//") || value.includes("://")) return null;
   return value;
 }
