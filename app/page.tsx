@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { DocumentCard, EntityCard, TopicCard } from "@/lib/api-types";
 import { fetchCaseTimeline, fetchHome } from "@/lib/api-client";
 import { SearchBar } from "@/components/search/search-bar";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -32,6 +33,14 @@ export default async function HomePage() {
         entityCount={data.stats.entityCount}
       />
 
+      <ResearchRoutes
+        primaryEntity={data.featuredEntities[0]}
+        primaryTopic={data.featuredTopics[0]}
+        recentDocument={data.recentDocuments[0]}
+        documentCount={data.corpusManifest.totalRecords}
+        ocrPassages={data.corpusManifest.ocrPassages}
+      />
+
       {recentReleases.length > 0 && (
         <section
           className="container"
@@ -55,9 +64,15 @@ export default async function HomePage() {
             <Link
               href="/releases"
               className="muted"
-              style={{ fontSize: "0.85rem" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.85rem",
+              }}
             >
-              All releases &rarr;
+              All releases
+              <ArrowRightIcon />
             </Link>
           </div>
           <ol
@@ -99,7 +114,7 @@ export default async function HomePage() {
                     style={{
                       fontFamily: "var(--font-serif)",
                       fontSize: "1rem",
-                      letterSpacing: "-0.005em",
+                      letterSpacing: 0,
                       lineHeight: 1.3,
                     }}
                   >
@@ -162,7 +177,7 @@ export default async function HomePage() {
                 style={{
                   fontFamily: "var(--font-serif)",
                   fontSize: "1.4rem",
-                  letterSpacing: "-0.005em",
+                  letterSpacing: 0,
                   lineHeight: 1.2,
                 }}
               >
@@ -177,7 +192,7 @@ export default async function HomePage() {
                 }}
               >
                 {e.summary.length > 150
-                  ? `${e.summary.slice(0, 150).trim()}…`
+                  ? `${e.summary.slice(0, 150).trim()}...`
                   : e.summary}
               </p>
             </Link>
@@ -223,7 +238,7 @@ export default async function HomePage() {
                 style={{
                   fontFamily: "var(--font-serif)",
                   fontSize: "1.2rem",
-                  letterSpacing: "-0.005em",
+                  letterSpacing: 0,
                   lineHeight: 1.2,
                 }}
               >
@@ -234,7 +249,7 @@ export default async function HomePage() {
                 style={{ fontSize: "0.88rem", lineHeight: 1.5 }}
               >
                 {t.summary.length > 120
-                  ? `${t.summary.slice(0, 120).trim()}…`
+                  ? `${t.summary.slice(0, 120).trim()}...`
                   : t.summary}
               </span>
               <span
@@ -339,13 +354,13 @@ export default async function HomePage() {
                     {d.agency && <span>{d.agency}</span>}
                     {d.dateLabel && (
                       <>
-                        <span aria-hidden>·</span>
+                        <span aria-hidden>|</span>
                         <span>{d.dateLabel}</span>
                       </>
                     )}
                     {d.documentType && (
                       <>
-                        <span aria-hidden>·</span>
+                        <span aria-hidden>|</span>
                         <span>{d.documentType}</span>
                       </>
                     )}
@@ -354,7 +369,7 @@ export default async function HomePage() {
                     style={{
                       fontFamily: "var(--font-serif)",
                       fontSize: "1.1rem",
-                      letterSpacing: "-0.005em",
+                      letterSpacing: 0,
                     }}
                   >
                     {d.title}
@@ -413,6 +428,185 @@ export default async function HomePage() {
   );
 }
 
+function ResearchRoutes({
+  primaryEntity,
+  primaryTopic,
+  recentDocument,
+  documentCount,
+  ocrPassages,
+}: {
+  primaryEntity?: EntityCard;
+  primaryTopic?: TopicCard;
+  recentDocument?: DocumentCard;
+  documentCount: number;
+  ocrPassages: number;
+}) {
+  const routes = [
+    {
+      href: "/search?q=Oswald&mode=document",
+      label: "Search the archive",
+      title: "Start with a name, agency, place, or NAID",
+      body: `${formatNumber(documentCount)} records indexed across metadata, OCR, and curated topic lanes.`,
+    },
+    primaryTopic
+      ? {
+          href: primaryTopic.href,
+          label: "Open a topic dossier",
+          title: primaryTopic.title,
+          body: `${formatNumber(primaryTopic.documentCount)} records gathered into a single research lane.`,
+        }
+      : {
+          href: "/topics",
+          label: "Open a topic dossier",
+          title: "Browse topic dossiers",
+          body: "Move through investigations, agencies, locations, and evidence groups.",
+        },
+    primaryEntity
+      ? {
+          href: primaryEntity.href,
+          label: "Follow an entity",
+          title: primaryEntity.name,
+          body: `${formatNumber(primaryEntity.mentionCount ?? primaryEntity.documentCount ?? 0)} indexed mentions across records.`,
+        }
+      : {
+          href: "/entities",
+          label: "Follow an entity",
+          title: "Browse people and organizations",
+          body: "Use entity pages to connect people, agencies, and the records that mention them.",
+        },
+    recentDocument
+      ? {
+          href: recentDocument.href,
+          label: "Read a source record",
+          title: recentDocument.title,
+          body: `Open NAID ${recentDocument.naid} with metadata, OCR, related entities, and research context.`,
+        }
+      : {
+          href: "/search",
+          label: "Read a source record",
+          title: "Browse processed records",
+          body: `${formatNumber(ocrPassages)} OCR passages are available for close reading.`,
+        },
+  ];
+
+  return (
+    <section
+      className="container"
+      aria-label="Research routes"
+      style={{ marginTop: -24 }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 0.8fr) minmax(0, 1.2fr)",
+          gap: 24,
+          alignItems: "stretch",
+          borderTop: "1px solid var(--border)",
+          borderBottom: "1px solid var(--border)",
+          padding: "28px 0",
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div className="eyebrow" style={{ marginBottom: 10 }}>
+            Research routes
+          </div>
+          <h2
+            style={{
+              fontSize: "clamp(1.45rem, 1.2rem + 0.85vw, 2.1rem)",
+              letterSpacing: 0,
+              marginBottom: 10,
+            }}
+          >
+            Pick up the archive from the angle you have.
+          </h2>
+          <p
+            className="muted"
+            style={{
+              maxWidth: "46ch",
+              fontSize: "0.95rem",
+              lineHeight: 1.6,
+            }}
+          >
+            The fastest path depends on what you know first: a name, a subject,
+            a date, or a primary source.
+          </p>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+            gap: 12,
+          }}
+        >
+          {routes.map((route) => (
+            <Link
+              key={`${route.label}-${route.href}`}
+              href={route.href}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) auto",
+                gap: 14,
+                alignItems: "start",
+                minHeight: 148,
+                padding: "16px 18px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                background: "var(--surface)",
+                color: "var(--text)",
+                textDecoration: "none",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <span style={{ minWidth: 0 }}>
+                <span
+                  className="eyebrow"
+                  style={{ display: "block", marginBottom: 10 }}
+                >
+                  {route.label}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "1.14rem",
+                    lineHeight: 1.22,
+                    letterSpacing: 0,
+                  }}
+                >
+                  {route.title}
+                </span>
+                <span
+                  className="muted"
+                  style={{
+                    display: "block",
+                    marginTop: 8,
+                    fontSize: "0.84rem",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  {route.body.length > 118
+                    ? `${route.body.slice(0, 118).trim()}...`
+                    : route.body}
+                </span>
+              </span>
+              <ArrowRightIcon />
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 880px) {
+          [aria-label="Research routes"] > div {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </section>
+  );
+}
+
 function Hero({
   recordsWithOcr,
   ocrPassages,
@@ -443,12 +637,12 @@ function Hero({
             className="eyebrow"
             style={{ marginBottom: 18, color: "var(--text-muted)" }}
           >
-            JFK Research Center · Archival Study
+            JFK Research Center | Archival Study
           </div>
           <h1
             style={{
               fontFamily: "var(--font-serif)",
-              letterSpacing: "-0.02em",
+              letterSpacing: 0,
               fontWeight: 500,
               maxWidth: "18ch",
               lineHeight: 1.05,
@@ -472,7 +666,7 @@ function Hero({
           </p>
 
           <div style={{ maxWidth: 720, marginBottom: 16 }}>
-            <SearchBar size="lg" placeholder="Search records, people, agencies…" />
+            <SearchBar size="lg" placeholder="Search records, people, agencies..." />
           </div>
 
           <div
@@ -583,7 +777,7 @@ function HeroPath({
             display: "block",
             fontFamily: "var(--font-serif)",
             fontSize: "1.08rem",
-            letterSpacing: "-0.005em",
+            letterSpacing: 0,
             lineHeight: 1.2,
           }}
         >
@@ -689,7 +883,7 @@ function HowToStep({
           fontFamily: "var(--font-serif)",
           fontSize: "1.6rem",
           color: "var(--accent)",
-          letterSpacing: "-0.01em",
+          letterSpacing: 0,
           lineHeight: 1,
         }}
       >
@@ -699,7 +893,7 @@ function HowToStep({
         style={{
           fontFamily: "var(--font-serif)",
           fontSize: "1.15rem",
-          letterSpacing: "-0.005em",
+          letterSpacing: 0,
         }}
       >
         {title}
