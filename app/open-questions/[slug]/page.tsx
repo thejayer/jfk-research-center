@@ -41,9 +41,9 @@ export default async function OpenQuestionsTopicPage({
     (t) => t.status === "partially_resolved",
   ).length;
   const resolvedCount = data.threads.filter((t) => t.status === "resolved").length;
-  const evidenceDocCount = new Set(
-    data.threads.flatMap((thread) => thread.supportingDocIds),
-  ).size;
+  const evidenceDocCount =
+    data.article?.sourceDocCount ??
+    new Set(data.threads.flatMap((thread) => thread.supportingDocIds)).size;
   const tensionCounts = new Map<string, number>();
   for (const thread of data.threads) {
     const key = thread.tensionType ?? "other";
