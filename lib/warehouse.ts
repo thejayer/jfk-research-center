@@ -80,6 +80,8 @@ import {
   buildEntityResponse,
   buildEstablishedFactsIndex,
   buildHomeResponse,
+  buildOpenQuestionsIndex,
+  buildOpenQuestionsTopic,
   buildPhysicalEvidenceIndex,
   buildPhysicalEvidenceItem,
   buildSearchResponse,
@@ -1919,6 +1921,8 @@ function rowToOpenQuestionsTopicCard(
 }
 
 export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexResponse> {
+  if (useMockData()) return buildOpenQuestionsIndex();
+
   const [globalRows, topicRows] = await Promise.all([
     query<{
       article: string | null;
@@ -1960,6 +1964,8 @@ export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexRespo
 export async function fetchOpenQuestionsTopic(
   slug: string,
 ): Promise<OpenQuestionsTopicResponse | null> {
+  if (useMockData()) return buildOpenQuestionsTopic(slug);
+
   const catalog = TOPIC_CATALOG[slug];
   if (!catalog) return null;
 

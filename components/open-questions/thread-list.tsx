@@ -55,7 +55,7 @@ export function OpenQuestionsThreadList({
                 style={{
                   fontFamily: "var(--font-serif)",
                   fontSize: "1.2rem",
-                  letterSpacing: "-0.005em",
+                  letterSpacing: 0,
                   fontWeight: 500,
                 }}
               >

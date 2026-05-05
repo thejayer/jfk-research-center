@@ -71,10 +71,9 @@ export function OpenQuestionsArticleBody({
         }}
       >
         Synthesized by {article.model} from {formatNumber(article.sourceDocCount)}{" "}
-        cited records on {generated}. May contain inaccuracies — cross-check
-        with the primary documents. {citationMap.size} inline citations →
-        linked documents. &nbsp;·&nbsp;
-        <a href="/about/methodology">Methodology &rarr;</a>
+        cited records on {generated}. May contain inaccuracies; cross-check
+        with the primary documents. {citationMap.size} inline citations linked
+        to documents. <a href="/about/methodology">Methodology</a>
       </div>
     </div>
   );
@@ -90,7 +89,7 @@ function toISODate(raw: string): string {
 /**
  * Parse article text into paragraphs of ReactNodes, replacing
  * [doc:<id>] tokens with numbered superscript links. Mirrors the
- * logic in components/topics/topic-body.tsx — kept local to avoid a
+ * logic in components/topics/topic-body.tsx. Kept local to avoid a
  * shared client-component dependency.
  */
 function parseArticle(text: string): {

@@ -35,11 +35,11 @@ export function OpenQuestionsTopicCardLink({
         style={{
           fontFamily: "var(--font-serif)",
           fontSize: "1.22rem",
-          letterSpacing: "-0.005em",
+          letterSpacing: 0,
           lineHeight: 1.25,
         }}
       >
-        Open Questions — {card.title}
+        Open Questions: {card.title}
       </span>
       <span
         className="muted"
@@ -73,7 +73,7 @@ export function OpenQuestionsTopicCardLink({
                 background: "var(--bg)",
               }}
             >
-              {tensionLabel(t.type)} · <span className="num">{t.count}</span>
+              {tensionLabel(t.type)} <span className="num">{t.count}</span>
             </span>
           ))}
         </div>
@@ -87,7 +87,7 @@ export function OpenQuestionsTopicCardLink({
           paddingTop: 4,
         }}
       >
-        {formatNumber(card.questionCount)} threads ·{" "}
+        {formatNumber(card.questionCount)} threads /{" "}
         {formatNumber(card.sourceDocCount)} cited documents
       </span>
     </Link>
