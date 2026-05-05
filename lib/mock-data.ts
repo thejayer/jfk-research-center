@@ -1871,7 +1871,7 @@ const EVIDENCE_DETAIL_SEEDS: PhysicalEvidenceDetail[] = [
       .map((slug) => ENTITY_TABLE[slug])
       .filter((entity): entity is EntityDetail => !!entity)
       .map(entityToCard),
-    canonicalCopyUrl: "https://catalog.archives.gov/id/305138",
+    canonicalCopyUrl: "https://catalog.archives.gov/id/305144",
     canonicalCopyHost: "National Archives",
   },
   {
@@ -1935,7 +1935,7 @@ const EVIDENCE_DETAIL_SEEDS: PhysicalEvidenceDetail[] = [
     ],
     referencedNaids: ["180-10110-10009"],
     referencedWcTestimony: [],
-    relatedEntities: ["dealey-plaza", "arrb"]
+    relatedEntities: ["warren-commission", "hsca"]
       .map((slug) => ENTITY_TABLE[slug])
       .filter((entity): entity is EntityDetail => !!entity)
       .map(entityToCard),
@@ -1966,7 +1966,7 @@ const EVIDENCE_DETAIL_SEEDS: PhysicalEvidenceDetail[] = [
     referencedWcTestimony: [
       { volume: 6, witness: "Governor John B. Connally", page: 129 },
     ],
-    relatedEntities: ["warren-commission", "dealey-plaza"]
+    relatedEntities: ["warren-commission", "hsca"]
       .map((slug) => ENTITY_TABLE[slug])
       .filter((entity): entity is EntityDetail => !!entity)
       .map(entityToCard),
