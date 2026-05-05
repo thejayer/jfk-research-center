@@ -32,6 +32,10 @@ const CONFIDENCE_DESCRIPTION: Record<EstablishedFactConfidence, string> = {
 
 export default async function EstablishedFactsPage() {
   const data = await fetchEstablishedFactsIndex();
+  const totalFacts = data.facts.length;
+  const topicCount = new Set(
+    data.facts.map((fact) => fact.topicId),
+  ).size;
 
   const byConfidence = new Map<EstablishedFactConfidence, EstablishedFact[]>();
   for (const f of data.facts) {
@@ -42,41 +46,112 @@ export default async function EstablishedFactsPage() {
 
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 96 }}>
-      <header style={{ maxWidth: "68ch", marginBottom: 40 }}>
-        <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-          Established Facts
+      <header
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+          gap: 24,
+          alignItems: "stretch",
+          marginBottom: 34,
+        }}
+      >
+        <div style={{ maxWidth: "68ch" }}>
+          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
+            Established Facts
+          </div>
+          <h1
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "2.2rem",
+              letterSpacing: 0,
+              marginTop: 8,
+              marginBottom: 18,
+              lineHeight: 1.1,
+            }}
+          >
+            What the record agrees on
+          </h1>
+          <p
+            className="muted"
+            style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
+          >
+            This catalog is the counterweight to{" "}
+            <Link href="/open-questions">Open Questions</Link>. It lists the
+            findings the Warren Commission, HSCA, ARRB, Church Committee, and
+            independent review panels substantially agree on, alongside a
+            smaller set of claims where the official record itself is
+            inconsistent. Each fact is grouped by a confidence tier and
+            sourced to the citation registry.
+          </p>
         </div>
-        <h1
+        <aside
+          aria-label="Confidence profile"
           style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "2.2rem",
-            letterSpacing: "-0.02em",
-            marginTop: 8,
-            marginBottom: 18,
-            lineHeight: 1.1,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            padding: 18,
+            display: "grid",
+            gap: 14,
+            alignContent: "start",
           }}
         >
-          What the record agrees on
-        </h1>
-        <p
-          className="muted"
-          style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
-        >
-          This catalog is the counterweight to{" "}
-          <Link href="/open-questions">Open Questions</Link>. It lists the
-          findings the Warren Commission, HSCA, ARRB, Church Committee, and
-          independent review panels substantially agree on — alongside a
-          smaller set of claims where the official record itself is
-          inconsistent. Each fact is grouped by a confidence tier and
-          sourced to the citation registry.
-        </p>
+          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
+            Confidence profile
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 10,
+            }}
+          >
+            {[
+              ["Facts", totalFacts],
+              ["Topics", topicCount],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "10px 8px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  className="num"
+                  style={{ fontSize: "1.25rem", color: "var(--text)" }}
+                >
+                  {value}
+                </div>
+                <div
+                  className="muted"
+                  style={{
+                    fontSize: "0.68rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginTop: 2,
+                  }}
+                >
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+            Confidence labels separate settled ground from unresolved record
+            conflicts, so open questions do not blur into established findings.
+          </p>
+        </aside>
       </header>
 
       <nav
         aria-label="Confidence tiers"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
           gap: 10,
           marginBottom: 40,
         }}
@@ -88,15 +163,21 @@ export default async function EstablishedFactsPage() {
               key={c.confidence}
               href={`#tier-${c.confidence.toLowerCase().replace(/-/g, "")}`}
               style={{
-                padding: "8px 16px",
-                border: "1px solid var(--border-strong)",
-                borderRadius: 999,
+                display: "grid",
+                gap: 6,
+                padding: "12px 14px",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                background: "var(--surface)",
                 fontSize: "0.86rem",
                 color: "var(--text)",
                 textDecoration: "none",
               }}
             >
-              {c.confidence} · {c.count}
+              <span>{c.confidence}</span>
+              <span className="muted" style={{ lineHeight: 1.45 }}>
+                {c.count} facts. {CONFIDENCE_DESCRIPTION[c.confidence]}
+              </span>
             </a>
           ))}
       </nav>
@@ -113,7 +194,7 @@ export default async function EstablishedFactsPage() {
           >
             <SectionHeading
               eyebrow={tier}
-              title={`${tier} — ${facts.length} facts`}
+              title={`${tier} facts`}
               description={CONFIDENCE_DESCRIPTION[tier]}
             />
             <ol
@@ -178,7 +259,7 @@ export default async function EstablishedFactsPage() {
                       fontFamily: "var(--font-serif)",
                       fontSize: "1.15rem",
                       lineHeight: 1.35,
-                      letterSpacing: "-0.005em",
+                      letterSpacing: 0,
                       color: "var(--text)",
                       marginBottom: 10,
                     }}

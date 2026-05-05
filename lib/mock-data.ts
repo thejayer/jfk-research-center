@@ -25,6 +25,15 @@ import type {
   TopicResponse,
   DocumentResponse,
   ConfidenceLevel,
+  BibliographyIndex,
+  CitationEntry,
+  CitationType,
+  EstablishedFact,
+  EstablishedFactConfidence,
+  EstablishedFactsIndex,
+  PhysicalEvidenceCard,
+  PhysicalEvidenceCategory,
+  PhysicalEvidenceIndex,
 } from "./api-types";
 
 // ----------------------------------------------------------------------------
@@ -1561,6 +1570,276 @@ export function buildSearchResponse({
           ).length,
     filters: facets,
     results,
+  };
+}
+
+// ----------------------------------------------------------------------------
+// Reference surfaces
+// ----------------------------------------------------------------------------
+
+const CITATION_SEEDS: CitationEntry[] = [
+  {
+    id: "wc-report",
+    type: "WC",
+    bluebook: "President's Comm'n on the Assassination of President Kennedy, Report (1964).",
+    chicago:
+      "President's Commission on the Assassination of President Kennedy. Report. Washington, DC: Government Printing Office, 1964.",
+    apa: "President's Commission on the Assassination of President Kennedy. (1964). Report.",
+    url: "https://www.archives.gov/research/jfk/warren-commission-report",
+    author: "President's Commission on the Assassination of President Kennedy",
+    title: "Warren Commission Report",
+    publisher: "Government Printing Office",
+    year: 1964,
+  },
+  {
+    id: "hsca-report",
+    type: "HSCA",
+    bluebook: "H.R. Select Comm. on Assassinations, Final Report, H.R. Rep. No. 95-1828 (1979).",
+    chicago:
+      "House Select Committee on Assassinations. Final Report. Washington, DC: Government Printing Office, 1979.",
+    apa: "House Select Committee on Assassinations. (1979). Final report.",
+    url: "https://www.archives.gov/research/jfk/select-committee-report",
+    author: "House Select Committee on Assassinations",
+    title: "HSCA Final Report",
+    publisher: "Government Printing Office",
+    year: 1979,
+  },
+  {
+    id: "arrb-final-report",
+    type: "ARRB",
+    bluebook: "Assassination Records Review Bd., Final Report (1998).",
+    chicago:
+      "Assassination Records Review Board. Final Report. Washington, DC: Government Printing Office, 1998.",
+    apa: "Assassination Records Review Board. (1998). Final report.",
+    url: "https://www.archives.gov/research/jfk/review-board",
+    author: "Assassination Records Review Board",
+    title: "ARRB Final Report",
+    publisher: "Government Printing Office",
+    year: 1998,
+  },
+  {
+    id: "church-book-v",
+    type: "CHURCH",
+    bluebook: "S. Select Comm. to Study Governmental Operations, Book V: The Investigation of the Assassination of President J.F.K. (1976).",
+    chicago:
+      "Senate Select Committee to Study Governmental Operations. Book V: The Investigation of the Assassination of President John F. Kennedy. 1976.",
+    apa: "Senate Select Committee to Study Governmental Operations. (1976). Book V.",
+    url: "https://www.intelligence.senate.gov/sites/default/files/94755_V.pdf",
+    author: "Church Committee",
+    title: "Book V: The Investigation of the Assassination of President John F. Kennedy",
+    publisher: "U.S. Senate",
+    year: 1976,
+  },
+  {
+    id: "nara-jfk-collection",
+    type: "NARA",
+    bluebook: "National Archives, President John F. Kennedy Assassination Records Collection.",
+    chicago:
+      "National Archives. President John F. Kennedy Assassination Records Collection.",
+    apa: "National Archives. (n.d.). President John F. Kennedy Assassination Records Collection.",
+    url: "https://www.archives.gov/research/jfk",
+    author: "National Archives",
+    title: "President John F. Kennedy Assassination Records Collection",
+    publisher: "National Archives",
+    year: null,
+  },
+  {
+    id: "naid-193887",
+    type: "NAID",
+    bluebook: "National Archives Identifier 193887.",
+    chicago: "National Archives Identifier 193887.",
+    apa: "National Archives Identifier 193887.",
+    url: "https://catalog.archives.gov/id/193887",
+    author: "National Archives",
+    title: "Records of the President's Commission on the Assassination of President Kennedy",
+    publisher: "National Archives",
+    year: null,
+  },
+];
+
+const CITATION_TYPE_ORDER: CitationType[] = [
+  "WC",
+  "HSCA",
+  "ARRB",
+  "CHURCH",
+  "REPORT",
+  "NARA",
+  "BOOK",
+  "JOURNAL",
+  "NEWS",
+  "NAID",
+];
+
+export function buildBibliographyIndex(): BibliographyIndex {
+  return {
+    citations: CITATION_SEEDS,
+    countsByType: CITATION_TYPE_ORDER.map((type) => ({
+      type,
+      count: CITATION_SEEDS.filter((c) => c.type === type).length,
+    })).filter((c) => c.count > 0),
+  };
+}
+
+const ESTABLISHED_FACT_SEEDS: EstablishedFact[] = [
+  {
+    id: "oswald-employed-tsbd",
+    topicId: "warren-commission",
+    topicTitle: "Warren Commission",
+    topicHref: "/topic/warren-commission",
+    claim: "Lee Harvey Oswald was employed at the Texas School Book Depository on November 22, 1963.",
+    longForm:
+      "Employment records and witness testimony place Oswald at the Texas School Book Depository during the period immediately before the assassination.",
+    supportingNaids: ["193887"],
+    supportingCitations: ["wc-report"],
+    category: "chronology",
+    confidence: "Settled",
+  },
+  {
+    id: "ruby-shot-oswald",
+    topicId: "warren-commission",
+    topicTitle: "Warren Commission",
+    topicHref: "/topic/warren-commission",
+    claim: "Jack Ruby shot Lee Harvey Oswald during the Dallas Police transfer.",
+    longForm:
+      "Ruby's shooting of Oswald was witnessed publicly, filmed, prosecuted in Texas court, and examined by federal investigators.",
+    supportingNaids: ["124-10223-10008"],
+    supportingCitations: ["wc-report"],
+    category: "legal",
+    confidence: "Settled",
+  },
+  {
+    id: "hsca-probable-conspiracy",
+    topicId: "hsca",
+    topicTitle: "HSCA",
+    topicHref: "/topic/hsca",
+    claim: "The HSCA concluded that President Kennedy was probably assassinated as a result of a conspiracy.",
+    longForm:
+      "The committee's final report adopted that conclusion while leaving the identity and structure of any conspiracy unresolved.",
+    supportingNaids: ["7582727"],
+    supportingCitations: ["hsca-report"],
+    category: "documentary",
+    confidence: "Well-supported",
+  },
+  {
+    id: "acoustic-record",
+    topicId: "hsca",
+    topicTitle: "HSCA",
+    topicHref: "/topic/hsca",
+    claim: "The HSCA acoustic evidence remains contested within the official record.",
+    longForm:
+      "The HSCA relied on acoustic analysis, while later official and technical reviews challenged the timing and evidentiary value of the recording.",
+    supportingNaids: ["7582729"],
+    supportingCitations: ["hsca-report"],
+    category: "ballistic",
+    confidence: "Contested",
+  },
+];
+
+const CONFIDENCE_ORDER: EstablishedFactConfidence[] = [
+  "Settled",
+  "Well-supported",
+  "Contested",
+];
+
+export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
+  return {
+    facts: ESTABLISHED_FACT_SEEDS,
+    countsByConfidence: CONFIDENCE_ORDER.map((confidence) => ({
+      confidence,
+      count: ESTABLISHED_FACT_SEEDS.filter((fact) => fact.confidence === confidence)
+        .length,
+    })),
+export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
+  const topicMap = new Map<string, { title: string | null; count: number }>();
+  for (const fact of ESTABLISHED_FACT_SEEDS) {
+    const current = topicMap.get(fact.topicId) ?? { title: fact.topicTitle, count: 0 };
+    current.count += 1;
+    topicMap.set(fact.topicId, current);
+  }
+
+  return {
+    facts: ESTABLISHED_FACT_SEEDS,
+    countsByConfidence: CONFIDENCE_ORDER.map((confidence) => ({
+      confidence,
+      count: ESTABLISHED_FACT_SEEDS.filter((fact) => fact.confidence === confidence)
+        .length,
+    })),
+    countsByTopic: Array.from(topicMap.entries())
+      .map(([topicId, value]) => ({
+        topicId,
+        topicTitle: value.title,
+        count: value.count,
+      }))
+      .sort((a, b) => b.count - a.count),
+  };
+}
+  };
+}
+
+const EVIDENCE_SEEDS: PhysicalEvidenceCard[] = [
+  {
+    id: "ce-399",
+    category: "ballistic",
+    shortName: "Commission Exhibit 399",
+    href: "/evidence/ce-399",
+    shortDescription:
+      "Bullet recovered at Parkland Hospital and examined in the Warren Commission and later forensic reviews.",
+    imageUrl: null,
+    imageCredit: null,
+    imageAlt: null,
+  },
+  {
+    id: "carcano-rifle",
+    category: "firearm",
+    shortName: "Mannlicher-Carcano rifle",
+    href: "/evidence/carcano-rifle",
+    shortDescription:
+      "Rifle recovered from the Texas School Book Depository and entered as a central firearms exhibit.",
+    imageUrl: null,
+    imageCredit: null,
+    imageAlt: null,
+  },
+  {
+    id: "zapruder-film",
+    category: "photographic",
+    shortName: "Zapruder film",
+    href: "/evidence/zapruder-film",
+    shortDescription:
+      "Amateur film of the assassination used by medical, photographic, and trajectory reviewers.",
+    imageUrl: null,
+    imageCredit: null,
+    imageAlt: null,
+  },
+  {
+    id: "connally-clothing",
+    category: "clothing",
+    shortName: "Governor Connally clothing",
+    href: "/evidence/connally-clothing",
+    shortDescription:
+      "Clothing evidence examined for wound paths, damage patterns, and physical trace context.",
+    imageUrl: null,
+    imageCredit: null,
+    imageAlt: null,
+  },
+];
+
+const EVIDENCE_CATEGORY_ORDER: PhysicalEvidenceCategory[] = [
+  "ballistic",
+  "firearm",
+  "photographic",
+  "medical",
+  "documentary",
+  "clothing",
+  "environmental",
+];
+
+export function buildPhysicalEvidenceIndex(): PhysicalEvidenceIndex {
+  return {
+    items: EVIDENCE_SEEDS,
+    categories: EVIDENCE_CATEGORY_ORDER.map((category) => ({
+      category,
+      count: EVIDENCE_SEEDS.filter((item) => item.category === category).length,
+    })).filter((category) => category.count > 0),
   };
 }
 
