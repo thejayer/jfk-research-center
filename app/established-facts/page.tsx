@@ -34,7 +34,7 @@ export default async function EstablishedFactsPage() {
   const data = await fetchEstablishedFactsIndex();
   const totalFacts = data.facts.length;
   const topicCount = new Set(
-    data.facts.map((fact) => fact.topicTitle).filter(Boolean),
+    data.facts.map((fact) => fact.topicId),
   ).size;
 
   const byConfidence = new Map<EstablishedFactConfidence, EstablishedFact[]>();
