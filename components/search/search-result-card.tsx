@@ -70,7 +70,7 @@ export function SearchResultCard({
         style={{
           fontFamily: "var(--font-serif)",
           fontSize: "1.35rem",
-          letterSpacing: "-0.005em",
+          letterSpacing: 0,
           lineHeight: 1.2,
           marginBottom: 8,
         }}
@@ -141,7 +141,7 @@ function withReturnHref(href: string, returnHref?: string): string {
 function Dot() {
   return (
     <span aria-hidden style={{ color: "var(--border-strong)" }}>
-      ·
+      |
     </span>
   );
 }
