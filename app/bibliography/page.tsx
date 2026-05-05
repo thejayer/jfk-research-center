@@ -211,11 +211,13 @@ export default async function BibliographyPage() {
               {list.map((c) => (
                 <li
                   key={c.id}
+                  id={c.id}
                   style={{
                     padding: "16px 18px",
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius-md)",
                     background: "var(--surface)",
+                    scrollMarginTop: "calc(var(--header-height) + 20px)",
                   }}
                 >
                   <div
