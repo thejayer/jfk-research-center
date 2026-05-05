@@ -401,9 +401,11 @@ export default async function EvidenceItemPage({
               >
                 {data.referencedNaids.map((naid) => (
                   <li key={naid}>
-                    <Link
-                      href={`/document/${encodeURIComponent(naid)}`}
+                    <a
+                      href={`https://catalog.archives.gov/id/${encodeURIComponent(naid)}`}
                       className="num"
+                      target="_blank"
+                      rel="noopener noreferrer"
                       style={{
                         display: "block",
                         border: "1px solid var(--border)",
@@ -416,7 +418,7 @@ export default async function EvidenceItemPage({
                       }}
                     >
                       NAID {naid}
-                    </Link>
+                    </a>
                   </li>
                 ))}
               </ul>
