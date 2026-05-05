@@ -95,10 +95,17 @@ export default async function BibliographyPage() {
     byType.set(citation.type, list);
   }
 
-  const orderedCounts = TYPE_ORDER.map((type) => ({
+  const orderedTypes = [
+    ...TYPE_ORDER.filter((type) => (byType.get(type)?.length ?? 0) > 0),
+    ...Array.from(byType.keys())
+      .filter((type) => !TYPE_ORDER.includes(type))
+      .sort(),
+  ];
+
+  const orderedCounts = orderedTypes.map((type) => ({
     type,
-    count: data.countsByType.find((c) => c.type === type)?.count ?? 0,
-  })).filter((c) => c.count > 0);
+    count: byType.get(type)?.length ?? 0,
+  }));
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 96 }}>
@@ -414,7 +421,8 @@ function CitationCard({
         gridTemplateColumns: "44px minmax(0, 1fr)",
         gap: 16,
         padding: "18px 20px 18px 18px",
-        border: "1px solid var(--border)",
+        borderWidth: 1,
+        borderStyle: "solid",
         borderRadius: "var(--radius-md)",
         background: "var(--surface)",
         scrollMarginTop: "calc(var(--header-height) + 20px)",
