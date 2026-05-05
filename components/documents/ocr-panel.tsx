@@ -1,5 +1,5 @@
 import type { DocumentDetail, MentionExcerpt } from "@/lib/api-types";
-import { highlightHTML } from "@/lib/format";
+import { formatNumber, highlightHTML } from "@/lib/format";
 import { ChunkActions } from "./chunk-actions";
 import { ChunkHashHandler } from "./chunk-hash-handler";
 
@@ -34,9 +34,7 @@ export function OcrPanel({
     );
   }
 
-  const terms = Array.from(
-    new Set(mentions.flatMap((m) => m.matchedTerms)),
-  );
+  const terms = Array.from(new Set(mentions.flatMap((m) => m.matchedTerms)));
 
   return (
     <section
@@ -61,21 +59,15 @@ export function OcrPanel({
       >
         <div>
           <div className="eyebrow" style={{ marginBottom: 4 }}>
-            OCR Excerpt
+            OCR reader
           </div>
-          <div
-            className="muted"
-            style={{ fontSize: "0.84rem" }}
-          >
-            Machine-generated — may contain transcription errors.
+          <div className="muted" style={{ fontSize: "0.84rem" }}>
+            Machine-generated text; may contain transcription errors.
           </div>
         </div>
         {doc.chunkCount !== undefined && doc.chunkCount !== null && (
-          <span
-            className="muted num"
-            style={{ fontSize: "0.84rem" }}
-          >
-            {doc.chunkCount} chunks indexed
+          <span className="muted num" style={{ fontSize: "0.84rem" }}>
+            {formatNumber(doc.chunkCount)} chunks indexed
           </span>
         )}
       </div>
@@ -94,7 +86,7 @@ export function OcrPanel({
             maxWidth: "68ch",
           }}
           dangerouslySetInnerHTML={{
-            __html: `“${highlightHTML(doc.ocrExcerpt, terms)}”`,
+            __html: `"${highlightHTML(doc.ocrExcerpt, terms)}"`,
           }}
         />
       )}
@@ -102,26 +94,25 @@ export function OcrPanel({
       {mentions.length > 0 && (
         <div>
           <ChunkHashHandler />
-          <div
-            className="eyebrow"
-            style={{ marginBottom: 12 }}
-          >
+          <div className="eyebrow" style={{ marginBottom: 12 }}>
             Matched passages in this record
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {mentions.map((m) => {
+            {mentions.map((mention) => {
               const anchorId =
-                m.chunkOrder != null ? `chunk-${m.chunkOrder}` : `chunk-${m.id}`;
+                mention.chunkOrder != null
+                  ? `chunk-${mention.chunkOrder}`
+                  : `chunk-${mention.id}`;
               return (
                 <div
-                  key={m.id}
+                  key={mention.id}
                   id={anchorId}
                   className="ocr-chunk"
                   style={{
                     paddingLeft: 14,
                     paddingRight: 8,
                     paddingTop: 4,
-                    paddingBottom: 4,
+                    paddingBottom: 8,
                     borderLeft: "1px solid var(--border)",
                     scrollMarginTop: 80,
                   }}
@@ -133,9 +124,10 @@ export function OcrPanel({
                       lineHeight: 1.55,
                       color: "var(--text)",
                       maxWidth: "66ch",
+                      margin: 0,
                     }}
                     dangerouslySetInnerHTML={{
-                      __html: `“${highlightHTML(m.excerpt, m.matchedTerms)}”`,
+                      __html: `"${highlightHTML(mention.excerpt, mention.matchedTerms)}"`,
                     }}
                   />
                   <div
@@ -149,14 +141,14 @@ export function OcrPanel({
                     }}
                   >
                     <span>
-                      {m.chunkOrder != null ? `chunk ${m.chunkOrder} · ` : ""}
-                      {m.pageLabel ? `${m.pageLabel} · ` : ""}source:{" "}
-                      {m.source}
+                      {formatPassageMeta(mention)}
+                      {formatPassageMeta(mention) ? " | " : ""}
+                      source: {mention.source}
                     </span>
-                    {m.chunkOrder != null && (
+                    {mention.chunkOrder != null && (
                       <ChunkActions
                         naid={doc.naid}
-                        chunkOrder={m.chunkOrder}
+                        chunkOrder={mention.chunkOrder}
                         citationInput={{
                           title: doc.title,
                           naid: doc.naid,
@@ -178,4 +170,11 @@ export function OcrPanel({
       )}
     </section>
   );
+}
+
+function formatPassageMeta(mention: MentionExcerpt): string {
+  const parts = [];
+  if (mention.chunkOrder != null) parts.push(`chunk ${mention.chunkOrder}`);
+  if (mention.pageLabel) parts.push(mention.pageLabel);
+  return parts.join(" | ");
 }

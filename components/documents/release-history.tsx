@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/format";
  * Renders the per-record release history as a compact left-to-right strip.
  * Earliest appearance on the left, latest on the right. The 2025 OCR-source
  * node is highlighted so readers see where the indexed text actually came
- * from — key disclosure when an older "released 2018" tag sits next to
+ * from, a key disclosure when an older "released 2018" tag sits next to
  * content that only became readable after the March 2025 unredaction.
  */
 export function ReleaseHistory({
@@ -104,11 +104,11 @@ export function ReleaseHistory({
             </div>
             {i < entries.length - 1 && (
               <span
-                aria-hidden
+                aria-hidden="true"
                 className="muted"
-                style={{ fontSize: "0.85rem" }}
+                style={{ display: "inline-flex", color: "var(--text-muted)" }}
               >
-                &rarr;
+                <ArrowRightIcon />
               </span>
             )}
           </li>
@@ -130,5 +130,25 @@ export function ReleaseHistory({
         </p>
       )}
     </section>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
