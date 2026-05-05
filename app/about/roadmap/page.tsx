@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ROADMAP, type RoadmapStatus } from "@/lib/roadmap";
+import { AboutHero, BackLink, ArrowRightIcon } from "../about-components";
 
 export const dynamic = "force-dynamic";
 
@@ -39,33 +40,89 @@ const STATUS_TONE: Record<
 
 export default function RoadmapPage() {
   const groups: RoadmapStatus[] = ["in_progress", "planned", "shipped"];
+  const counts = Object.fromEntries(
+    groups.map((status) => [
+      status,
+      ROADMAP.filter((item) => item.status === status).length,
+    ]),
+  ) as Record<RoadmapStatus, number>;
+
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 96 }}>
-      <div style={{ maxWidth: "72ch" }}>
-        <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-          About
-        </div>
-        <h1
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "2.2rem",
-            letterSpacing: "-0.015em",
-            marginTop: 8,
-            marginBottom: 14,
-            lineHeight: 1.15,
-          }}
-        >
-          Roadmap
-        </h1>
-        <p
-          className="muted"
-          style={{ fontSize: "1.05rem", lineHeight: 1.6, maxWidth: "64ch" }}
-        >
-          The site is built in waves. If you&rsquo;ve probed a route like{" "}
+      <AboutHero
+        title="Roadmap"
+        aside={
+          <aside
+            aria-label="Roadmap counts"
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--surface)",
+              padding: 18,
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <div className="eyebrow" style={{ marginBottom: 14 }}>
+              Status counts
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {groups.map((status) => (
+                <div
+                  key={status}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    borderBottom: "1px solid var(--border)",
+                    paddingBottom: 10,
+                  }}
+                >
+                  <span>{STATUS_LABEL[status]}</span>
+                  <span className="num">{counts[status]}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
+        }
+      >
+        <p>
+          The site is built in waves. If you have probed a route like{" "}
           <code>/ask</code> or <code>/compare</code> and seen a 404, this page
-          tells you whether it&rsquo;s coming. Items grouped by status, then
-          by gameplan phase.
+          tells you whether it is coming. Items are grouped by status, then by
+          gameplan phase.
         </p>
+      </AboutHero>
+
+      <div
+        style={{
+          marginTop: 30,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {groups.map((status) => (
+          <a
+            key={status}
+            href={`#${status}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 14,
+              padding: "12px 14px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--surface)",
+              color: "var(--text)",
+              textDecoration: "none",
+            }}
+          >
+            <span>{STATUS_LABEL[status]}</span>
+            <span className="muted num">{counts[status]}</span>
+          </a>
+        ))}
       </div>
 
       {groups.map((status) => {
@@ -75,8 +132,9 @@ export default function RoadmapPage() {
         return (
           <section
             key={status}
+            id={status}
             aria-label={STATUS_LABEL[status]}
-            style={{ marginTop: 40 }}
+            style={{ marginTop: 42, scrollMarginTop: 96 }}
           >
             <div
               style={{
@@ -90,7 +148,7 @@ export default function RoadmapPage() {
                 style={{
                   fontFamily: "var(--font-serif)",
                   fontSize: "1.4rem",
-                  letterSpacing: "-0.005em",
+                  letterSpacing: 0,
                   margin: 0,
                 }}
               >
@@ -159,7 +217,7 @@ export default function RoadmapPage() {
                       style={{
                         fontFamily: "var(--font-serif)",
                         fontSize: "1.1rem",
-                        letterSpacing: "-0.005em",
+                        letterSpacing: 0,
                         marginBottom: 4,
                       }}
                     >
@@ -199,8 +257,14 @@ export default function RoadmapPage() {
                           href={item.trackingUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
                         >
-                          Tracking issue &rarr;
+                          Tracking issue
+                          <ArrowRightIcon />
                         </a>
                       </div>
                     )}
@@ -212,9 +276,7 @@ export default function RoadmapPage() {
         );
       })}
 
-      <div style={{ marginTop: 48 }}>
-        <Link href="/about">&larr; Back to About</Link>
-      </div>
+      <BackLink href="/about" label="Back to About" />
     </div>
   );
 }
