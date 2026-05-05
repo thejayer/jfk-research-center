@@ -33,6 +33,7 @@ import type {
   EstablishedFactsIndex,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
+  PhysicalEvidenceDetail,
   PhysicalEvidenceIndex,
 } from "./api-types";
 
@@ -1742,14 +1743,6 @@ const CONFIDENCE_ORDER: EstablishedFactConfidence[] = [
 ];
 
 export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
-  return {
-    facts: ESTABLISHED_FACT_SEEDS,
-    countsByConfidence: CONFIDENCE_ORDER.map((confidence) => ({
-      confidence,
-      count: ESTABLISHED_FACT_SEEDS.filter((fact) => fact.confidence === confidence)
-        .length,
-    })),
-export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
   const topicMap = new Map<string, { title: string | null; count: number }>();
   for (const fact of ESTABLISHED_FACT_SEEDS) {
     const current = topicMap.get(fact.topicId) ?? { title: fact.topicTitle, count: 0 };
@@ -1771,8 +1764,6 @@ export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
         count: value.count,
       }))
       .sort((a, b) => b.count - a.count),
-  };
-}
   };
 }
 
@@ -1841,6 +1832,153 @@ export function buildPhysicalEvidenceIndex(): PhysicalEvidenceIndex {
       count: EVIDENCE_SEEDS.filter((item) => item.category === category).length,
     })).filter((category) => category.count > 0),
   };
+}
+
+const EVIDENCE_DETAIL_SEEDS: PhysicalEvidenceDetail[] = [
+  {
+    ...EVIDENCE_SEEDS[0],
+    longDescription:
+      "Commission Exhibit 399 is the bullet recovered at Parkland Hospital and later associated with the wounds to President Kennedy and Governor Connally. The item is central to the ballistic record because it links hospital recovery, FBI laboratory review, Warren Commission exhibits, and later committee re-examination.",
+    chainOfCustody: [
+      {
+        stepOrder: 1,
+        date: "1963-11-22",
+        custodian: "Parkland Hospital",
+        action:
+          "Recovered in the hospital setting after the motorcade arrived from Dealey Plaza.",
+      },
+      {
+        stepOrder: 2,
+        date: "1963-11-22",
+        custodian: "Secret Service",
+        action:
+          "Transferred through federal custody for laboratory and investigative handling.",
+      },
+      {
+        stepOrder: 3,
+        date: "1964-03-16",
+        custodian: "Warren Commission",
+        action:
+          "Entered into the Commission exhibit record for testimony and forensic review.",
+      },
+    ],
+    referencedNaids: ["193887"],
+    referencedWcTestimony: [
+      { volume: 3, witness: "Robert A. Frazier", page: 428 },
+      { volume: 5, witness: "Commander James J. Humes", page: 74 },
+    ],
+    relatedEntities: ["warren-commission", "hsca"]
+      .map((slug) => ENTITY_TABLE[slug])
+      .filter((entity): entity is EntityDetail => !!entity)
+      .map(entityToCard),
+    canonicalCopyUrl: "https://catalog.archives.gov/id/305138",
+    canonicalCopyHost: "National Archives",
+  },
+  {
+    ...EVIDENCE_SEEDS[1],
+    longDescription:
+      "The Mannlicher-Carcano rifle recovered from the Texas School Book Depository is the principal firearm evidence in the official record. The weapon appears across Dallas Police, FBI, Warren Commission, and HSCA materials that examine ownership, recovery, fingerprints, and ballistic comparison.",
+    chainOfCustody: [
+      {
+        stepOrder: 1,
+        date: "1963-11-22",
+        custodian: "Dallas Police Department",
+        action:
+          "Recovered from the sixth floor of the Texas School Book Depository.",
+      },
+      {
+        stepOrder: 2,
+        date: "1963-11-22",
+        custodian: "FBI Laboratory",
+        action:
+          "Transferred for firearms comparison, print processing, and related laboratory work.",
+      },
+    ],
+    referencedNaids: ["193887", "124-10055-10001"],
+    referencedWcTestimony: [
+      { volume: 3, witness: "J. C. Day", page: 249 },
+      { volume: 3, witness: "Robert A. Frazier", page: 390 },
+    ],
+    relatedEntities: ["oswald", "warren-commission", "fbi"]
+      .map((slug) => ENTITY_TABLE[slug])
+      .filter((entity): entity is EntityDetail => !!entity)
+      .map(entityToCard),
+    canonicalCopyUrl: null,
+    canonicalCopyHost: null,
+  },
+  {
+    ...EVIDENCE_SEEDS[2],
+    longDescription:
+      "The Zapruder film is the best-known motion-picture record of the assassination. Investigators used it to study timing, wound sequence, limousine movement, and witness placement, while later review boards addressed preservation and public access.",
+    chainOfCustody: [
+      {
+        stepOrder: 1,
+        date: "1963-11-22",
+        custodian: "Abraham Zapruder",
+        action:
+          "Film exposed from a position near the north pergola in Dealey Plaza.",
+      },
+      {
+        stepOrder: 2,
+        date: "1963-11-22",
+        custodian: "Life magazine",
+        action:
+          "Copies and publication rights entered a private media chain before later archival handling.",
+      },
+      {
+        stepOrder: 3,
+        date: "1999-08-02",
+        custodian: "National Archives",
+        action:
+          "The original film was accessioned into the JFK Assassination Records Collection.",
+      },
+    ],
+    referencedNaids: ["180-10110-10009"],
+    referencedWcTestimony: [],
+    relatedEntities: ["dealey-plaza", "arrb"]
+      .map((slug) => ENTITY_TABLE[slug])
+      .filter((entity): entity is EntityDetail => !!entity)
+      .map(entityToCard),
+    canonicalCopyUrl: null,
+    canonicalCopyHost: null,
+  },
+  {
+    ...EVIDENCE_SEEDS[3],
+    longDescription:
+      "Governor Connally's clothing appears in the physical evidence record because investigators examined damage patterns, wound alignment, and trace context against the medical and ballistic findings.",
+    chainOfCustody: [
+      {
+        stepOrder: 1,
+        date: "1963-11-22",
+        custodian: "Parkland Hospital",
+        action:
+          "Clothing removed during emergency medical treatment after the shooting.",
+      },
+      {
+        stepOrder: 2,
+        date: "1964-04-21",
+        custodian: "Warren Commission",
+        action:
+          "Referenced during testimony and exhibit review concerning wound paths.",
+      },
+    ],
+    referencedNaids: ["193887"],
+    referencedWcTestimony: [
+      { volume: 6, witness: "Governor John B. Connally", page: 129 },
+    ],
+    relatedEntities: ["warren-commission", "dealey-plaza"]
+      .map((slug) => ENTITY_TABLE[slug])
+      .filter((entity): entity is EntityDetail => !!entity)
+      .map(entityToCard),
+    canonicalCopyUrl: null,
+    canonicalCopyHost: null,
+  },
+];
+
+export function buildPhysicalEvidenceItem(
+  id: string,
+): PhysicalEvidenceDetail | null {
+  return EVIDENCE_DETAIL_SEEDS.find((item) => item.id === id) ?? null;
 }
 
 function matchesDocument(d: DocumentSeed, q: string): boolean {

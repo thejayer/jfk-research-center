@@ -42,6 +42,10 @@ export default async function EvidenceItemPage({
   const data = await fetchPhysicalEvidenceItem(id);
   if (!data) notFound();
 
+  const categoryLabel = CATEGORY_LABELS[data.category] ?? data.category;
+  const referenceCount =
+    data.referencedNaids.length + data.referencedWcTestimony.length;
+
   return (
     <div className="container" style={{ paddingTop: 24, paddingBottom: 96 }}>
       <nav
@@ -49,44 +53,158 @@ export default async function EvidenceItemPage({
         style={{
           color: "var(--text-muted)",
           fontSize: "0.85rem",
-          marginBottom: 20,
+          marginBottom: 24,
+          display: "flex",
+          gap: 6,
+          flexWrap: "wrap",
         }}
       >
-        <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
-        <Link href="/evidence" style={{ color: "var(--text-muted)" }}>Evidence</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
+        <Link href="/" style={{ color: "var(--text-muted)" }}>
+          Home
+        </Link>
+        <span aria-hidden>/</span>
+        <Link href="/evidence" style={{ color: "var(--text-muted)" }}>
+          Evidence
+        </Link>
+        <span aria-hidden>/</span>
         <span style={{ color: "var(--text)" }}>{data.id}</span>
       </nav>
 
-      <header style={{ marginBottom: 32 }}>
-        <Badge tone="muted" size="sm">
-          {CATEGORY_LABELS[data.category] ?? data.category}
-        </Badge>
-        <h1
+      <header
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+          gap: 24,
+          alignItems: "start",
+          marginBottom: 42,
+        }}
+      >
+        <div
           style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "1.9rem",
-            letterSpacing: "-0.015em",
-            marginTop: 10,
-            marginBottom: 14,
-            lineHeight: 1.2,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            padding: 22,
           }}
         >
-          {data.shortName}
-        </h1>
-        <p
-          className="muted num"
-          style={{ fontSize: "0.88rem", letterSpacing: "0.02em" }}
+          <Badge tone="muted" size="sm" style={{ alignSelf: "start" }}>
+            {categoryLabel}
+          </Badge>
+          <h1
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "2.15rem",
+              letterSpacing: 0,
+              marginTop: 12,
+              marginBottom: 14,
+              lineHeight: 1.12,
+            }}
+          >
+            {data.shortName}
+          </h1>
+          <p
+            style={{
+              fontSize: "1rem",
+              lineHeight: 1.65,
+              color: "var(--text)",
+              marginBottom: 18,
+            }}
+          >
+            {data.shortDescription}
+          </p>
+          <p
+            className="muted num"
+            style={{ fontSize: "0.82rem", letterSpacing: "0.02em", margin: 0 }}
+          >
+            Evidence ID: {data.id}
+          </p>
+        </div>
+
+        <aside
+          aria-label="Evidence item profile"
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            padding: 18,
+            display: "grid",
+            gap: 14,
+            alignContent: "start",
+          }}
         >
-          Evidence ID: {data.id}
-        </p>
+          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
+            Item profile
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 10,
+            }}
+          >
+            {[
+              ["Custody", data.chainOfCustody.length],
+              ["Records", data.referencedNaids.length],
+              ["Refs", referenceCount],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "10px 8px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  className="num"
+                  style={{ fontSize: "1.2rem", color: "var(--text)" }}
+                >
+                  {value}
+                </div>
+                <div
+                  className="muted"
+                  style={{
+                    fontSize: "0.66rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginTop: 2,
+                  }}
+                >
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+          {data.canonicalCopyUrl && data.canonicalCopyHost && (
+            <a
+              href={data.canonicalCopyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "10px 12px",
+                color: "var(--text)",
+                textDecoration: "none",
+                lineHeight: 1.45,
+              }}
+            >
+              View canonical copy at {data.canonicalCopyHost}
+            </a>
+          )}
+          <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+            Detail pages connect object evidence back to custody movement,
+            official testimony, archival records, and related research paths.
+          </p>
+        </aside>
       </header>
 
       {data.imageUrl && (
         <figure
           style={{
-            margin: "0 0 32px 0",
+            margin: "0 0 36px 0",
             padding: 0,
             borderRadius: "var(--radius-md)",
             overflow: "hidden",
@@ -99,185 +217,222 @@ export default async function EvidenceItemPage({
             alt={data.imageAlt ?? data.shortName}
             style={{ display: "block", width: "100%", height: "auto" }}
           />
-          {(data.imageCredit ||
-            (data.canonicalCopyUrl && data.canonicalCopyHost)) && (
+          {data.imageCredit && (
             <figcaption
               className="muted"
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
                 fontSize: "0.78rem",
                 padding: "8px 14px",
                 background: "var(--surface)",
                 borderTop: "1px solid var(--border)",
               }}
             >
-              <span>{data.imageCredit ?? ""}</span>
-              {data.canonicalCopyUrl && data.canonicalCopyHost && (
-                <a
-                  href={data.canonicalCopyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ whiteSpace: "nowrap" }}
-                >
-                  View canonical copy at {data.canonicalCopyHost} &rarr;
-                </a>
-              )}
+              {data.imageCredit}
             </figcaption>
           )}
         </figure>
       )}
 
-      <div style={{ display: "grid", gap: 40, maxWidth: "70ch" }}>
-        <section aria-label="Description">
-          <p
-            style={{
-              fontSize: "1.02rem",
-              lineHeight: 1.7,
-              color: "var(--text)",
-            }}
-          >
-            {data.longDescription}
-          </p>
-        </section>
-
-        {data.chainOfCustody.length > 0 && (
-          <section aria-label="Chain of custody">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
+          gap: 34,
+          alignItems: "start",
+        }}
+      >
+        <main style={{ display: "grid", gap: 40 }}>
+          <section aria-label="Description">
             <SectionHeading
-              eyebrow="Provenance"
-              title="Chain of custody"
-              description="Ordered transfers of the item through the investigative record, where the archival sources agree."
+              eyebrow="Description"
+              title="What this item anchors"
             />
-            <ol
+            <p
               style={{
-                listStyle: "none",
-                padding: 0,
+                fontSize: "1.02rem",
+                lineHeight: 1.7,
+                color: "var(--text)",
                 margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
               }}
             >
-              {data.chainOfCustody.map((s, i) => (
-                <li
-                  key={i}
-                  style={{
-                    padding: "14px 16px",
-                    border: "1px solid var(--border)",
-                    borderRadius: "var(--radius-md)",
-                    background: "var(--surface)",
-                  }}
-                >
-                  <div
-                    className="muted num"
+              {data.longDescription}
+            </p>
+          </section>
+
+          {data.chainOfCustody.length > 0 && (
+            <section aria-label="Chain of custody">
+              <SectionHeading
+                eyebrow="Provenance"
+                title="Chain of custody"
+                description="Ordered transfers of the item through the investigative record, where the archival sources agree."
+              />
+              <ol
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                {data.chainOfCustody.map((s) => (
+                  <li
+                    key={`${s.stepOrder}-${s.custodian}`}
                     style={{
-                      fontSize: "0.78rem",
-                      letterSpacing: "0.04em",
-                      marginBottom: 4,
+                      display: "grid",
+                      gridTemplateColumns: "46px minmax(0, 1fr)",
+                      gap: 12,
+                      padding: "14px 16px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-md)",
+                      background: "var(--surface)",
                     }}
                   >
-                    {s.date ? formatDate(s.date) : "Date unknown"}
-                  </div>
-                  <div
+                    <div
+                      className="num"
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 999,
+                        border: "1px solid var(--border-strong)",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "var(--text)",
+                      }}
+                    >
+                      {s.stepOrder}
+                    </div>
+                    <div>
+                      <div
+                        className="muted num"
+                        style={{
+                          fontSize: "0.78rem",
+                          letterSpacing: "0.04em",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {s.date ? formatDate(s.date) : "Date unknown"}
+                      </div>
+                      <div
+                        style={{
+                          fontFamily: "var(--font-serif)",
+                          fontSize: "1rem",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {s.custodian}
+                      </div>
+                      <p
+                        style={{
+                          fontSize: "0.92rem",
+                          lineHeight: 1.55,
+                          color: "var(--text)",
+                          margin: 0,
+                        }}
+                      >
+                        {s.action}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </main>
+
+        <aside style={{ display: "grid", gap: 28 }}>
+          {data.referencedWcTestimony.length > 0 && (
+            <section aria-label="Warren Commission testimony references">
+              <SectionHeading
+                eyebrow="Testimony"
+                title="Warren Commission hearings"
+              />
+              <ul
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                {data.referencedWcTestimony.map((t) => (
+                  <li
+                    key={`${t.volume}-${t.witness}-${t.page}`}
                     style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: "1rem",
-                      marginBottom: 4,
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      background: "var(--surface)",
+                      padding: "12px 14px",
+                      lineHeight: 1.5,
                     }}
                   >
-                    {s.custodian}
-                  </div>
-                  <p
-                    style={{
-                      fontSize: "0.92rem",
-                      lineHeight: 1.55,
-                      color: "var(--text)",
-                      margin: 0,
-                    }}
-                  >
-                    {s.action}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </section>
-        )}
+                    <div
+                      style={{
+                        fontSize: "0.94rem",
+                        color: "var(--text)",
+                        marginBottom: 3,
+                      }}
+                    >
+                      {t.witness}
+                    </div>
+                    <div className="muted num" style={{ fontSize: "0.78rem" }}>
+                      Volume {t.volume}, page {t.page}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-        {data.referencedWcTestimony.length > 0 && (
-          <section aria-label="Warren Commission testimony references">
-            <SectionHeading
-              eyebrow="Testimony"
-              title="Examined in Warren Commission hearings"
-            />
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              {data.referencedWcTestimony.map((t, i) => (
-                <li
-                  key={i}
-                  style={{ fontSize: "0.95rem", lineHeight: 1.6 }}
-                >
-                  <span className="num">Vol. {t.volume}</span>
-                  {" · "}
-                  <strong>{t.witness}</strong>
-                  {" · "}
-                  <span className="num muted">p. {t.page}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+          {data.referencedNaids.length > 0 && (
+            <section aria-label="NARA record references">
+              <SectionHeading eyebrow="Records" title="NARA references" />
+              <ul
+                style={{
+                  listStyle: "none",
+                  padding: 0,
+                  margin: 0,
+                  display: "grid",
+                  gap: 8,
+                }}
+              >
+                {data.referencedNaids.map((naid) => (
+                  <li key={naid}>
+                    <Link
+                      href={`/document/${encodeURIComponent(naid)}`}
+                      className="num"
+                      style={{
+                        display: "block",
+                        border: "1px solid var(--border)",
+                        borderRadius: 8,
+                        background: "var(--surface)",
+                        padding: "11px 14px",
+                        fontSize: "0.86rem",
+                        color: "var(--text)",
+                        textDecoration: "none",
+                      }}
+                    >
+                      NAID {naid}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-        {data.referencedNaids.length > 0 && (
-          <section aria-label="NARA record references">
-            <SectionHeading
-              eyebrow="Records"
-              title="NARA document references"
-            />
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              {data.referencedNaids.map((naid) => (
-                <li key={naid}>
-                  <Link
-                    href={`/document/${encodeURIComponent(naid)}`}
-                    className="num"
-                    style={{ fontSize: "0.9rem" }}
-                  >
-                    NAID {naid}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {data.relatedEntities.length > 0 && (
-          <section aria-label="Related entities">
-            <SectionHeading
-              eyebrow="Related"
-              title="People & organizations connected to this item"
-            />
-            <RelatedEntities entities={data.relatedEntities} />
-          </section>
-        )}
+          {data.relatedEntities.length > 0 && (
+            <section aria-label="Related entities">
+              <SectionHeading
+                eyebrow="Related"
+                title="Connected people and organizations"
+              />
+              <RelatedEntities entities={data.relatedEntities} />
+            </section>
+          )}
+        </aside>
       </div>
     </div>
   );
