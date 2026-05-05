@@ -189,6 +189,11 @@ mark {
   border-radius: 2px;
 }
 
+.bibliography-entry:target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 hr {
   border: 0;
   border-top: 1px solid var(--border);
