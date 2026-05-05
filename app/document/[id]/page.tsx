@@ -7,6 +7,7 @@ import { MetadataPanel } from "@/components/documents/metadata-panel";
 import { OcrPanel } from "@/components/documents/ocr-panel";
 import { SourceLinks } from "@/components/documents/source-links";
 import { ReleaseHistory } from "@/components/documents/release-history";
+import { DocumentResearchContext } from "@/components/documents/document-research-context";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -41,6 +42,11 @@ export default async function DocumentPage({
   const returnHref = parseReturnHref(resolvedSearchParams.from);
   const releaseHistory = data.document.releaseHistory ?? [];
   const hasReleaseHistory = releaseHistory.length > 0;
+  const hasResearchContext =
+    data.relatedTopics.length > 0 ||
+    data.relatedEntities.length > 0 ||
+    data.mentions.length > 0 ||
+    data.relatedDocuments.length > 0;
   const hasRelatedEntities = data.relatedEntities.length > 0;
   const hasRelatedDocuments = data.relatedDocuments.length > 0;
 
@@ -74,6 +80,14 @@ export default async function DocumentPage({
       {hasReleaseHistory && (
         <ReleaseHistory entries={releaseHistory} />
       )}
+
+      <DocumentResearchContext
+        doc={data.document}
+        topics={data.relatedTopics}
+        entities={data.relatedEntities}
+        mentions={data.mentions}
+        relatedDocuments={data.relatedDocuments}
+      />
 
       <div
         className="document-grid"
@@ -118,6 +132,7 @@ export default async function DocumentPage({
         >
           <DocumentJumpNav
             returnHref={returnHref}
+            hasResearchContext={hasResearchContext}
             hasReleaseHistory={hasReleaseHistory}
             hasRelatedEntities={hasRelatedEntities}
             hasRelatedDocuments={hasRelatedDocuments}
@@ -150,17 +165,20 @@ export default async function DocumentPage({
 
 function DocumentJumpNav({
   returnHref,
+  hasResearchContext,
   hasReleaseHistory,
   hasRelatedEntities,
   hasRelatedDocuments,
 }: {
   returnHref: string | null;
+  hasResearchContext: boolean;
   hasReleaseHistory: boolean;
   hasRelatedEntities: boolean;
   hasRelatedDocuments: boolean;
 }) {
   const links = [
     hasReleaseHistory ? { href: "#release-history", label: "Release history" } : null,
+    hasResearchContext ? { href: "#research-context", label: "Research context" } : null,
     { href: "#ocr-text", label: "OCR text" },
     hasRelatedEntities ? { href: "#related-entities", label: "Entities" } : null,
     hasRelatedDocuments ? { href: "#related-records", label: "Related records" } : null,

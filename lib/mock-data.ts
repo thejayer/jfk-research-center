@@ -1458,10 +1458,16 @@ export function buildDocumentResponse(id: string): DocumentResponse | null {
     .slice(0, 6)
     .map(documentToCard);
 
+  const relatedTopics = doc.topics
+    .map((slug) => TOPIC_TABLE[slug])
+    .filter(Boolean)
+    .map(topicToCard);
+
   const { entities: _e, topics: _t, ...rest } = doc;
   return {
     document: rest,
     mentions,
+    relatedTopics,
     relatedEntities,
     relatedDocuments,
   };

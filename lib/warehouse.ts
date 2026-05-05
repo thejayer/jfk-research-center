@@ -1182,7 +1182,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   const doc = rows[0];
   if (!doc) return null;
 
-  const [mapRows, related, ocrChunks] = await Promise.all([
+  const [mapRows, related, ocrChunks, relatedTopics] = await Promise.all([
     query<{
       entity_id: string;
       confidence: ConfidenceLevel;
@@ -1227,6 +1227,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
         LIMIT 12`,
       { id },
     ),
+    fetchDocumentTopics(id),
   ]);
 
   const entities = await loadEntities();
@@ -1308,9 +1309,33 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
       hasOcrText,
     }),
     mentions: mentions.slice(0, 8),
+    relatedTopics,
     relatedEntities,
     relatedDocuments: related.map((r) => rowToCard(r)),
   };
+}
+
+async function fetchDocumentTopics(id: string): Promise<TopicCard[]> {
+  const [memberships, counts] = await Promise.all([
+    Promise.all(
+      MVP_QUERYABLE_TOPIC_SLUGS.map(async (slug) => {
+        const t = TOPIC_CATALOG[slug]!;
+        const rows = await query<{ document_id: string }>(
+          `SELECT document_id
+             FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\`
+            WHERE document_id = @id
+            LIMIT 1`,
+          { id },
+        ).catch(() => []);
+        return rows.length > 0 ? slug : null;
+      }),
+    ),
+    topicCountsMap(),
+  ]);
+
+  return memberships
+    .filter((slug): slug is string => !!slug)
+    .map((slug) => topicToCard(slug, counts.get(slug) ?? 0));
 }
 
 function buildAliasRegex(aliases: string[]): RegExp | null {
