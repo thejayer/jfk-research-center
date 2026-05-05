@@ -76,8 +76,11 @@ import type {
 import { formatDate } from "./format";
 import {
   buildDocumentResponse,
+  buildBibliographyIndex,
   buildEntityResponse,
+  buildEstablishedFactsIndex,
   buildHomeResponse,
+  buildPhysicalEvidenceIndex,
   buildSearchResponse,
   buildTopicResponse,
   listEntities as listMockEntities,
@@ -2237,6 +2240,8 @@ type CitationRow = {
 };
 
 export async function fetchBibliographyIndex(): Promise<BibliographyIndex> {
+  if (useMockData()) return buildBibliographyIndex();
+
   const rows = await query<CitationRow>(
     `SELECT *
        FROM \`${PROJECT}.${DATASET_CURATED}.citation_registry\`
@@ -2297,6 +2302,8 @@ type EstablishedFactRow = {
 };
 
 export async function fetchEstablishedFactsIndex(): Promise<EstablishedFactsIndex> {
+  if (useMockData()) return buildEstablishedFactsIndex();
+
   const rows = await query<EstablishedFactRow>(
     `SELECT *
        FROM \`${PROJECT}.${DATASET_CURATED}.established_facts\`
@@ -2393,6 +2400,8 @@ function evidenceRowToCard(r: EvidenceRow): PhysicalEvidenceCard {
 }
 
 export async function fetchPhysicalEvidenceIndex(): Promise<PhysicalEvidenceIndex> {
+  if (useMockData()) return buildPhysicalEvidenceIndex();
+
   const rows = await query<EvidenceRow>(
     `SELECT *
        FROM \`${PROJECT}.${DATASET_CURATED}.physical_evidence\`

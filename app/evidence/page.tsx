@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Physical evidence",
   description:
-    "Catalog of the physical evidence in the JFK assassination case — ballistic, firearm, photographic, medical, documentary, clothing, and environmental items.",
+    "Catalog of the physical evidence in the JFK assassination case, including ballistic, firearm, photographic, medical, documentary, clothing, and environmental items.",
 };
 
 const CATEGORY_LABELS: Record<PhysicalEvidenceCategory, string> = {
@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<PhysicalEvidenceCategory, string> = {
 
 export default async function EvidenceIndexPage() {
   const data = await fetchPhysicalEvidenceIndex();
+  const totalItems = data.items.length;
   const itemsByCategory = new Map<PhysicalEvidenceCategory, typeof data.items>();
   for (const item of data.items) {
     const list = itemsByCategory.get(item.category) ?? [];
@@ -34,43 +35,114 @@ export default async function EvidenceIndexPage() {
 
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 96 }}>
-      <header style={{ maxWidth: "68ch", marginBottom: 40 }}>
-        <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-          Physical evidence
+      <header
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+          gap: 24,
+          alignItems: "stretch",
+          marginBottom: 34,
+        }}
+      >
+        <div style={{ maxWidth: "68ch" }}>
+          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
+            Physical evidence
+          </div>
+          <h1
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "2.2rem",
+              letterSpacing: 0,
+              marginTop: 8,
+              marginBottom: 18,
+              lineHeight: 1.1,
+            }}
+          >
+            The physical record
+          </h1>
+          <p
+            className="muted"
+            style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
+          >
+            The documentary side of this collection, including cables,
+            memoranda, and interview reports, is only one half of the case
+            record. Below is the physical evidentiary side: the bullets, the
+            rifle, the photographs, the clothing, and the scene itself,
+            cataloged with the archival references used by the Warren
+            Commission, the HSCA, and the ARRB. Descriptions are neutral; the
+            entries link to the exhibits and testimony that examine them.
+          </p>
         </div>
-        <h1
+        <aside
+          aria-label="Evidence profile"
           style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "2.2rem",
-            letterSpacing: "-0.02em",
-            marginTop: 8,
-            marginBottom: 18,
-            lineHeight: 1.1,
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            padding: 18,
+            display: "grid",
+            gap: 14,
+            alignContent: "start",
           }}
         >
-          The physical record
-        </h1>
-        <p
-          className="muted"
-          style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
-        >
-          The documentary side of this collection — cables, memoranda,
-          interview reports — is only one half of the case record. Below is
-          the physical evidentiary side: the bullets, the rifle, the
-          photographs, the clothing, and the scene itself, cataloged with
-          the archival references used by the Warren Commission, the HSCA,
-          and the ARRB. Descriptions are neutral; the entries link to the
-          exhibits and testimony that examine them.
-        </p>
+          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
+            Evidence profile
+          </div>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 10,
+            }}
+          >
+            {[
+              ["Items", totalItems],
+              ["Categories", data.categories.length],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "10px 8px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  className="num"
+                  style={{ fontSize: "1.25rem", color: "var(--text)" }}
+                >
+                  {value}
+                </div>
+                <div
+                  className="muted"
+                  style={{
+                    fontSize: "0.68rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginTop: 2,
+                  }}
+                >
+                  {label}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+            Categories keep object evidence separate from document evidence
+            while still linking each item back to the archival record.
+          </p>
+        </aside>
       </header>
 
       <nav
         aria-label="Evidence categories"
         style={{
-          display: "flex",
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
           gap: 8,
-          marginBottom: 32,
+          marginBottom: 36,
         }}
       >
         {data.categories.map((c) => (
@@ -78,15 +150,21 @@ export default async function EvidenceIndexPage() {
             key={c.category}
             href={`#cat-${c.category}`}
             style={{
-              padding: "6px 14px",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "10px 12px",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              background: "var(--surface)",
               fontSize: "0.82rem",
               color: "var(--text)",
               textDecoration: "none",
             }}
           >
-            {CATEGORY_LABELS[c.category]} · {c.count}
+            <span>{CATEGORY_LABELS[c.category]}</span>
+            <span className="muted num">{c.count}</span>
           </a>
         ))}
       </nav>
@@ -103,6 +181,7 @@ export default async function EvidenceIndexPage() {
             <SectionHeading
               eyebrow={CATEGORY_LABELS[c.category]}
               title={`${CATEGORY_LABELS[c.category]} evidence`}
+              description={`${c.count} cataloged items in this evidence category.`}
             />
             <ul
               style={{
@@ -130,14 +209,14 @@ export default async function EvidenceIndexPage() {
                       height: "100%",
                     }}
                   >
-                    <Badge tone="muted" size="sm">
+                    <Badge tone="muted" size="sm" style={{ alignSelf: "start" }}>
                       {CATEGORY_LABELS[it.category]}
                     </Badge>
                     <div
                       style={{
                         fontFamily: "var(--font-serif)",
                         fontSize: "1.1rem",
-                        letterSpacing: "-0.005em",
+                        letterSpacing: 0,
                         lineHeight: 1.25,
                       }}
                     >
