@@ -81,6 +81,7 @@ import {
   buildEstablishedFactsIndex,
   buildHomeResponse,
   buildPhysicalEvidenceIndex,
+  buildPhysicalEvidenceItem,
   buildSearchResponse,
   buildTopicResponse,
   listEntities as listMockEntities,
@@ -2429,6 +2430,8 @@ export async function fetchPhysicalEvidenceIndex(): Promise<PhysicalEvidenceInde
 export async function fetchPhysicalEvidenceItem(
   id: string,
 ): Promise<PhysicalEvidenceDetail | null> {
+  if (useMockData()) return buildPhysicalEvidenceItem(id);
+
   const rows = await query<EvidenceRow>(
     `SELECT *
        FROM \`${PROJECT}.${DATASET_CURATED}.physical_evidence\`
