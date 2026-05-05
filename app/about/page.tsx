@@ -1,5 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { fetchCorpusManifest } from "@/lib/api-client";
+import { formatNumber } from "@/lib/format";
+import {
+  AboutHero,
+  AboutNav,
+  ArrowRightIcon,
+  StatGrid,
+  type AboutNavItem,
+} from "./about-components";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +17,24 @@ export const metadata: Metadata = {
   description:
     "How the JFK Research Center is built, edited, and what's coming next.",
 };
+
+const NAV_ITEMS: AboutNavItem[] = [
+  {
+    href: "/about/methodology",
+    label: "Methodology",
+    detail: "Scope, pipeline, OCR provenance, and models.",
+  },
+  {
+    href: "/about/editorial-policy",
+    label: "Editorial policy",
+    detail: "Neutrality posture, source rules, and corrections.",
+  },
+  {
+    href: "/about/roadmap",
+    label: "Roadmap",
+    detail: "Shipped, in-progress, and planned surfaces.",
+  },
+];
 
 const CARDS: Array<{
   href: string;
@@ -20,101 +47,121 @@ const CARDS: Array<{
     eyebrow: "How it works",
     title: "Methodology",
     description:
-      "Ingest pipeline, OCR provenance, models used for AI panels, and the current scope vs. the full collection.",
+      "Ingest pipeline, OCR provenance, model usage, and the current indexed scope versus the full collection.",
   },
   {
     href: "/about/editorial-policy",
-    eyebrow: "How it's written",
+    eyebrow: "How it is written",
     title: "Editorial policy",
     description:
-      "Neutrality posture, source allowlist, banned language in AI-generated content, and the symmetric pairing of Open Questions with Established Facts.",
+      "Neutrality posture, source allowlist, AI disclosure rules, and how corrections are handled.",
   },
   {
     href: "/about/roadmap",
-    eyebrow: "What's next",
+    eyebrow: "What is next",
     title: "Roadmap",
     description:
-      "Shipped, in-progress, and planned surfaces. If a route 404s, this page tells you whether it's coming.",
+      "Shipped, in-progress, and planned surfaces. If a route 404s, this page says whether it is coming.",
   },
 ];
 
-export default function AboutHubPage() {
+export default async function AboutHubPage() {
+  const manifest = await fetchCorpusManifest();
+
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 96 }}>
-      <div style={{ maxWidth: "72ch" }}>
-        <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-          About
-        </div>
-        <h1
+      <AboutHero title="About the JFK Research Center" aside={<AboutNav items={NAV_ITEMS} />}>
+        <p>
+          A research reading room for declassified records related to the
+          assassination of President John F. Kennedy. These pages explain what is
+          indexed, how the site handles AI-generated panels, and what standards
+          guide the editorial layer.
+        </p>
+      </AboutHero>
+
+      <StatGrid
+        stats={[
+          {
+            label: "Records indexed",
+            value: formatNumber(manifest.totalRecords),
+            hint: "Curated subset of the JFK Assassination Records Collection.",
+          },
+          {
+            label: "OCR records",
+            value: formatNumber(manifest.recordsWithOcr),
+            hint: "Records with full-text OCR available for passage search.",
+          },
+          {
+            label: "Releases indexed",
+            value: manifest.releasesIndexed.join(", ") || "none",
+            hint: "Release manifests currently represented in the local corpus.",
+          },
+        ]}
+      />
+
+      <section aria-label="About pages" style={{ marginTop: 38 }}>
+        <div
           style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "2.2rem",
-            letterSpacing: "-0.015em",
-            marginTop: 8,
-            marginBottom: 14,
-            lineHeight: 1.15,
+            display: "grid",
+            gap: 16,
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           }}
         >
-          About the JFK Research Center
-        </h1>
-        <p
-          className="muted"
-          style={{ fontSize: "1.05rem", lineHeight: 1.6, maxWidth: "62ch" }}
-        >
-          A research reading room for declassified records related to the
-          assassination of President John F. Kennedy. The pages below describe
-          how the site is built, the editorial posture behind every panel,
-          and what&rsquo;s on the way next.
-        </p>
-      </div>
-
-      <div
-        style={{
-          marginTop: 36,
-          display: "grid",
-          gap: 16,
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-        }}
-      >
-        {CARDS.map((c) => (
-          <Link
-            key={c.href}
-            href={c.href}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              padding: "20px 22px",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              background: "var(--surface)",
-              color: "var(--text)",
-            }}
-          >
-            <span
-              className="eyebrow"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {c.eyebrow}
-            </span>
-            <span
+          {CARDS.map((card) => (
+            <Link
+              key={card.href}
+              href={card.href}
               style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "1.25rem",
-                letterSpacing: "-0.005em",
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) auto",
+                gap: 14,
+                alignItems: "start",
+                minHeight: 190,
+                padding: "20px 22px",
+                border: "1px solid var(--border)",
+                borderRadius: "var(--radius-md)",
+                background: "var(--surface)",
+                color: "var(--text)",
+                textDecoration: "none",
+                boxShadow: "var(--shadow-sm)",
               }}
             >
-              {c.title}
-            </span>
-            <span
-              className="muted"
-              style={{ fontSize: "0.92rem", lineHeight: 1.55 }}
-            >
-              {c.description}
-            </span>
-          </Link>
-        ))}
-      </div>
+              <span style={{ minWidth: 0 }}>
+                <span
+                  className="eyebrow"
+                  style={{ display: "block", color: "var(--text-muted)" }}
+                >
+                  {card.eyebrow}
+                </span>
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: 10,
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "1.35rem",
+                    letterSpacing: 0,
+                    lineHeight: 1.18,
+                  }}
+                >
+                  {card.title}
+                </span>
+                <span
+                  className="muted"
+                  style={{
+                    display: "block",
+                    marginTop: 10,
+                    fontSize: "0.92rem",
+                    lineHeight: 1.55,
+                  }}
+                >
+                  {card.description}
+                </span>
+              </span>
+              <ArrowRightIcon />
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
