@@ -72,6 +72,10 @@ function themeAnchor(theme: TopicTheme): string {
   return `theme-${theme.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 }
 
+function normalizeTitle(value: string | null | undefined): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
 export default async function TopicsPage() {
   const [topics, openQuestions, establishedFacts, evidence] = await Promise.all([
     fetchTopics(),
@@ -80,7 +84,9 @@ export default async function TopicsPage() {
     fetchPhysicalEvidenceIndex(),
   ]);
 
-  const details = await Promise.all(topics.map((topic) => fetchTopic(topic.slug)));
+  const details = await Promise.all(
+    topics.map((topic) => fetchTopic(topic.slug).catch(() => null)),
+  );
   const detailsBySlug = new Map(
     details
       .filter((detail): detail is TopicResponse => Boolean(detail))
@@ -89,9 +95,17 @@ export default async function TopicsPage() {
   const questionsBySlug = new Map(
     openQuestions.topics.map((topic) => [topic.slug, topic]),
   );
-  const factsBySlug = new Map(
-    establishedFacts.countsByTopic.map((topic) => [topic.topicId, topic.count]),
+  const topicSlugs = new Set(topics.map((topic) => topic.slug));
+  const slugByTitle = new Map(
+    topics.map((topic) => [normalizeTitle(topic.title), topic.slug]),
   );
+  const factsBySlug = new Map<string, number>();
+  for (const topic of establishedFacts.countsByTopic) {
+    const slug = topicSlugs.has(topic.topicId)
+      ? topic.topicId
+      : slugByTitle.get(normalizeTitle(topic.topicTitle));
+    if (slug) factsBySlug.set(slug, topic.count);
+  }
 
   const topicItems: TopicBrowseItem[] = topics
     .map((topic) => {
@@ -129,6 +143,8 @@ export default async function TopicsPage() {
     theme,
     items: topicItems.filter((item) => item.theme === theme),
   })).filter((group) => group.items.length > 0);
+  const primaryTheme =
+    themes.find((group) => group.theme === "Investigations") ?? themes[0];
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 96 }}>
@@ -196,9 +212,11 @@ export default async function TopicsPage() {
             established findings, unresolved threads, and related entities.
           </p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <LinkButton href="#theme-investigations" size="sm">
-              Start with investigations
-            </LinkButton>
+            {primaryTheme && (
+              <LinkButton href={`#${themeAnchor(primaryTheme.theme)}`} size="sm">
+                Start with {primaryTheme.theme.toLowerCase()}
+              </LinkButton>
+            )}
             <LinkButton href="/search" variant="secondary" size="sm">
               Search all records
             </LinkButton>
