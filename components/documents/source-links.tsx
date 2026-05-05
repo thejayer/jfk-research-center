@@ -49,7 +49,7 @@ export function SourceLinks({ doc }: { doc: DocumentDetail }) {
                 style={{ color: "var(--link)" }}
               >
                 {l.label}
-                <span aria-hidden style={{ marginLeft: 6 }}>↗</span>
+                <ExternalLinkIcon />
               </a>
               {l.note && (
                 <div
@@ -85,5 +85,32 @@ export function SourceLinks({ doc }: { doc: DocumentDetail }) {
         </>
       )}
     </aside>
+  );
+}
+
+function ExternalLinkIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      style={{ marginLeft: 6, verticalAlign: "-0.12em" }}
+    >
+      <path
+        d="M6.5 4H4.75A1.75 1.75 0 0 0 3 5.75v5.5C3 12.22 3.78 13 4.75 13h5.5A1.75 1.75 0 0 0 12 11.25V9.5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9 3h4v4M8 8l5-5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
