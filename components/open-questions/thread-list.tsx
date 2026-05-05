@@ -4,7 +4,7 @@ import type {
   OpenQuestionStatus,
   OpenQuestionThread,
 } from "@/lib/api-types";
-import { TENSION_ORDER, tensionLabel } from "./tension-labels";
+import { TENSION_ORDER, tensionAnchorId, tensionLabel } from "./tension-labels";
 import { CryptonymMention } from "./cryptonym-mention";
 
 const STATUS_LABEL: Record<OpenQuestionStatus, string> = {
@@ -42,7 +42,7 @@ export function OpenQuestionsThreadList({
         const items = buckets.get(key)!;
         const resolvedCount = items.filter((i) => i.status === "resolved").length;
         return (
-          <section key={key} aria-label={tensionLabel(key)}>
+          <section key={key} id={tensionAnchorId(key)} aria-label={tensionLabel(key)}>
             <div
               style={{
                 display: "flex",

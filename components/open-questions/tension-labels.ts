@@ -30,3 +30,12 @@ export function tensionLabel(t: string | null | undefined): string {
       return "Other";
   }
 }
+
+export function tensionAnchorId(t: string | null | undefined): string {
+  const slug = (t ?? "other")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `underlying-threads-${slug || "other"}`;
+}

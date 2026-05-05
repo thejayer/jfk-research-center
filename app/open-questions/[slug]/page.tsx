@@ -7,7 +7,11 @@ import { OpenQuestionsArticleBody } from "@/components/open-questions/article-bo
 import { OpenQuestionsThreadList } from "@/components/open-questions/thread-list";
 import { EditorialFootnotes } from "@/components/open-questions/editorial-footnotes";
 import { LinkButton } from "@/components/ui/button";
-import { TENSION_ORDER, tensionLabel } from "@/components/open-questions/tension-labels";
+import {
+  TENSION_ORDER,
+  tensionAnchorId,
+  tensionLabel,
+} from "@/components/open-questions/tension-labels";
 import { formatNumber } from "@/lib/format";
 import layout from "@/components/ui/two-column.module.css";
 
@@ -49,6 +53,7 @@ export default async function OpenQuestionsTopicPage({
     const key = thread.tensionType ?? "other";
     tensionCounts.set(key, (tensionCounts.get(key) ?? 0) + 1);
   }
+  // Preserve canonical tension priority while keeping runtime-only warehouse labels reachable.
   const tensionNav = [
     ...TENSION_ORDER,
     ...Array.from(tensionCounts.keys()).filter(
@@ -181,7 +186,7 @@ export default async function OpenQuestionsTopicPage({
           </div>
           <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
             {resolvedCount > 0
-              ? `${resolvedCount} thread${resolvedCount === 1 ? "" : "s"} are marked resolved.`
+              ? `${resolvedCount} thread${resolvedCount === 1 ? " is" : "s are"} marked resolved.`
               : "No threads are marked fully resolved in this topic yet."}
           </p>
         </aside>
@@ -200,7 +205,7 @@ export default async function OpenQuestionsTopicPage({
           {tensionNav.map((item) => (
             <a
               key={item.type}
-              href="#underlying-threads"
+              href={`#${tensionAnchorId(item.type)}`}
               style={{
                 display: "flex",
                 alignItems: "center",
