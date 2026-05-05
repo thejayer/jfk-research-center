@@ -34,7 +34,7 @@ export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
       </strong>{" "}
       This research tool indexes{" "}
       <span className="num">{formatNumber(manifest.totalRecords)}</span>{" "}
-      records — a curated subset of the ~300,000 documents in the JFK
+      records - a curated subset of the ~300,000 documents in the JFK
       Assassination Records Collection.
       {indexed.length > 0 && (
         <>
@@ -50,7 +50,7 @@ export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
           {manifest.recordsWith2025Ocr > 0 && (
             <>
               {" "}
-              — of those,{" "}
+              - of those,{" "}
               <span className="num">
                 {formatNumber(manifest.recordsWith2025Ocr)}
               </span>{" "}
@@ -69,7 +69,44 @@ export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
           <span className="num">{pending.join(", ")}</span>.
         </>
       )}{" "}
-      <Link href="/about/methodology">Methodology &rarr;</Link>
+      <Link
+        href="/about/methodology"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        Methodology
+        <ArrowRightIcon />
+      </Link>
     </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      style={{ verticalAlign: "-0.14em" }}
+    >
+      <path
+        d="M3 8h9"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="m8.75 4.25 3.75 3.75-3.75 3.75"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
