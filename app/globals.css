@@ -281,7 +281,20 @@ hr {
   align-items: start;
 }
 
+.topic-dossier-hero,
+.topic-index-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: 32px;
+  align-items: start;
+}
+
 .entity-evidence-trail {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.45fr);
+}
+
+.topic-evidence-trail {
+  display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 0.45fr);
 }
 
@@ -295,11 +308,15 @@ hr {
 @media (max-width: 780px) {
   .entity-profile-hero,
   .document-masthead,
-  .entity-evidence-trail {
+  .topic-dossier-hero,
+  .topic-index-hero,
+  .entity-evidence-trail,
+  .topic-evidence-trail {
     grid-template-columns: 1fr !important;
   }
 
-  .entity-evidence-trail aside {
+  .entity-evidence-trail aside,
+  .topic-evidence-trail aside {
     border-left: 0 !important;
     border-top: 1px solid var(--border);
   }

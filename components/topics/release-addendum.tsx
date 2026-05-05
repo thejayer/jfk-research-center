@@ -47,7 +47,7 @@ export function ReleaseAddendum({ addendum }: { addendum: TopicReleaseAddendum }
             background: "var(--text-muted)",
           }}
         />
-        Grounded in OCR · {addendum.releaseLabel}
+        Grounded in OCR | {addendum.releaseLabel}
       </div>
 
       {paragraphs.map((nodes, i) => (
@@ -79,12 +79,12 @@ export function ReleaseAddendum({ addendum }: { addendum: TopicReleaseAddendum }
         {citationMap.size > 0 && (
           <>
             {" "}
-            &nbsp;·&nbsp; {citationMap.size} inline citations &rarr; linked
+            | {citationMap.size} inline citations linked to
             documents
           </>
         )}
-        &nbsp;·&nbsp;
-        <a href="/about/methodology">Methodology &rarr;</a>
+        {" | "}
+        <a href="/about/methodology">Methodology</a>
       </div>
     </article>
   );
