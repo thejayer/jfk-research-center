@@ -1749,15 +1749,30 @@ export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
       count: ESTABLISHED_FACT_SEEDS.filter((fact) => fact.confidence === confidence)
         .length,
     })),
-    countsByTopic: ["warren-commission", "hsca"].map((topicId) => {
-      const topic = TOPIC_TABLE[topicId];
-      return {
+export function buildEstablishedFactsIndex(): EstablishedFactsIndex {
+  const topicMap = new Map<string, { title: string | null; count: number }>();
+  for (const fact of ESTABLISHED_FACT_SEEDS) {
+    const current = topicMap.get(fact.topicId) ?? { title: fact.topicTitle, count: 0 };
+    current.count += 1;
+    topicMap.set(fact.topicId, current);
+  }
+
+  return {
+    facts: ESTABLISHED_FACT_SEEDS,
+    countsByConfidence: CONFIDENCE_ORDER.map((confidence) => ({
+      confidence,
+      count: ESTABLISHED_FACT_SEEDS.filter((fact) => fact.confidence === confidence)
+        .length,
+    })),
+    countsByTopic: Array.from(topicMap.entries())
+      .map(([topicId, value]) => ({
         topicId,
-        topicTitle: topic?.title ?? null,
-        count: ESTABLISHED_FACT_SEEDS.filter((fact) => fact.topicId === topicId)
-          .length,
-      };
-    }),
+        topicTitle: value.title,
+        count: value.count,
+      }))
+      .sort((a, b) => b.count - a.count),
+  };
+}
   };
 }
 
