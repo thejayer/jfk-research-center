@@ -739,6 +739,19 @@ async function topicCountsMap(): Promise<Map<string, number>> {
   return out;
 }
 
+let cachedTopicCounts: { expiresAt: number; counts: Map<string, number> } | null = null;
+
+async function getTopicCountsCached(): Promise<Map<string, number>> {
+  const now = Date.now();
+  if (cachedTopicCounts && cachedTopicCounts.expiresAt > now) {
+    return cachedTopicCounts.counts;
+  }
+
+  const counts = await topicCountsMap();
+  cachedTopicCounts = { counts, expiresAt: now + 5 * 60_000 };
+  return counts;
+}
+
 function topicToCard(slug: string, count: number): TopicCard {
   const t = TOPIC_CATALOG[slug]!;
   return {
@@ -1182,7 +1195,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   const doc = rows[0];
   if (!doc) return null;
 
-  const [mapRows, related, ocrChunks] = await Promise.all([
+  const [mapRows, related, ocrChunks, relatedTopics] = await Promise.all([
     query<{
       entity_id: string;
       confidence: ConfidenceLevel;
@@ -1227,6 +1240,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
         LIMIT 12`,
       { id },
     ),
+    fetchDocumentTopics(id),
   ]);
 
   const entities = await loadEntities();
@@ -1308,9 +1322,29 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
       hasOcrText,
     }),
     mentions: mentions.slice(0, 8),
+    relatedTopics,
     relatedEntities,
     relatedDocuments: related.map((r) => rowToCard(r)),
   };
+}
+
+async function fetchDocumentTopics(id: string): Promise<TopicCard[]> {
+  const membershipSql = MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => {
+    const t = TOPIC_CATALOG[slug]!;
+    return `SELECT '${slug}' AS slug
+              WHERE EXISTS (
+                SELECT 1
+                  FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\`
+                 WHERE document_id = @id
+              )`;
+  }).join(" UNION ALL ");
+
+  const [rows, counts] = await Promise.all([
+    membershipSql ? query<{ slug: string }>(membershipSql, { id }) : [],
+    getTopicCountsCached(),
+  ]);
+
+  return rows.map((row) => topicToCard(row.slug, counts.get(row.slug) ?? 0));
 }
 
 function buildAliasRegex(aliases: string[]): RegExp | null {

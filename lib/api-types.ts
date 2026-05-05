@@ -264,6 +264,7 @@ export type TopicResponse = {
 export type DocumentResponse = {
   document: DocumentDetail;
   mentions: MentionExcerpt[];
+  relatedTopics: TopicCard[];
   relatedEntities: EntityCard[];
   relatedDocuments: DocumentCard[];
 };
