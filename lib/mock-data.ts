@@ -24,13 +24,20 @@ import type {
   EntityResponse,
   TopicResponse,
   DocumentResponse,
+  EditorialFootnote,
   ConfidenceLevel,
+  CryptonymEntry,
   BibliographyIndex,
   CitationEntry,
   CitationType,
   EstablishedFact,
   EstablishedFactConfidence,
   EstablishedFactsIndex,
+  OpenQuestionsArticle,
+  OpenQuestionsIndexResponse,
+  OpenQuestionThread,
+  OpenQuestionsTopicCard,
+  OpenQuestionsTopicResponse,
   PhysicalEvidenceCard,
   PhysicalEvidenceCategory,
   PhysicalEvidenceDetail,
@@ -1979,6 +1986,203 @@ export function buildPhysicalEvidenceItem(
   id: string,
 ): PhysicalEvidenceDetail | null {
   return EVIDENCE_DETAIL_SEEDS.find((item) => item.id === id) ?? null;
+}
+
+// ----------------------------------------------------------------------------
+// Open questions
+// ----------------------------------------------------------------------------
+
+const OPEN_QUESTIONS_GENERATED_AT = "2026-01-15T00:00:00.000Z";
+
+const GLOBAL_OPEN_QUESTIONS_ARTICLE: OpenQuestionsArticle = {
+  text:
+    "Across the mock corpus, the strongest unresolved threads are not single dramatic claims. They are smaller record tensions: agency timing, mismatched descriptions, and documents that point to files not shown in the same release set. The open-questions layer keeps those tensions separate from established facts so readers can see where the archive still asks for more context. [doc:wc-report-1964]\n\nSeveral patterns recur across the topic records. Mexico City materials raise questions about cable timing and station handling, while HSCA materials revisit forensic and acoustic interpretations after the Warren Commission record. The site treats those as research leads, not conclusions. [doc:mexico-city-cable-oct8] [doc:hsca-final-report]",
+  model: "mock-open-questions",
+  generatedAt: OPEN_QUESTIONS_GENERATED_AT,
+  sourceDocCount: 18,
+};
+
+const OPEN_QUESTION_THREADS: Record<string, OpenQuestionThread[]> = {
+  "warren-commission": [
+    {
+      id: "oq-wc-1",
+      question:
+        "Which witness statements were summarized differently between early FBI reports and later Commission presentation?",
+      summary:
+        "The topic records include early investigative summaries and later evidentiary framing, creating a useful comparison path for how witness accounts were stabilized.",
+      tensionType: "contradiction",
+      supportingDocIds: ["wc-report-1964", "fbi-hoover-memo-nov24"],
+      status: "open",
+      resolutionText: null,
+      resolutionCitationIds: [],
+    },
+    {
+      id: "oq-wc-2",
+      question:
+        "Which Commission exhibits still depend on external custody descriptions rather than direct item-level records?",
+      summary:
+        "The chain from exhibit entry to archival description is not equally explicit for every physical item.",
+      tensionType: "gap",
+      supportingDocIds: ["wc-report-1964", "oswald-backyard-photos"],
+      status: "partially_resolved",
+      resolutionText:
+        "Some exhibit paths are clarified by later ARRB and NARA metadata, but the mock corpus leaves several item-level transfers as research leads.",
+      resolutionCitationIds: ["arrb-final-report"],
+    },
+  ],
+  hsca: [
+    {
+      id: "oq-hsca-1",
+      question:
+        "How should readers reconcile the HSCA acoustic conclusion with later official technical criticism?",
+      summary:
+        "The HSCA final report and subsequent technical reviews do not carry the same evidentiary confidence about the Dallas police recording.",
+      tensionType: "contradiction",
+      supportingDocIds: ["hsca-final-report", "hsca-acoustics-report"],
+      status: "open",
+      resolutionText: null,
+      resolutionCitationIds: [],
+    },
+    {
+      id: "oq-hsca-2",
+      question:
+        "Which HSCA working files still point to CIA liaison material without a directly paired release document?",
+      summary:
+        "Committee access files describe agency coordination, but some referenced working material requires cross-release tracing.",
+      tensionType: "unexplained_reference",
+      supportingDocIds: ["hsca-cia-liaison-file"],
+      status: "open",
+      resolutionText: null,
+      resolutionCitationIds: [],
+    },
+  ],
+  cia: [
+    {
+      id: "oq-cia-1",
+      question:
+        "Why did some Oswald-related cable descriptions lag behind station reporting from Mexico City?",
+      summary:
+        "The mock corpus preserves both cable text and later file descriptions, leaving timing and routing as the core research issue.",
+      tensionType: "timing",
+      supportingDocIds: ["oswald-201-file-vol1", "mexico-city-cable-oct8"],
+      status: "open",
+      resolutionText: null,
+      resolutionCitationIds: [],
+    },
+    {
+      id: "oq-cia-2",
+      question:
+        "Which CI routing notes were routine file handling and which changed later access to Oswald material?",
+      summary:
+        "Counterintelligence handling notes are meaningful only when compared against surrounding file movement.",
+      tensionType: "pattern",
+      supportingDocIds: ["angleton-memo-ci-routing", "nosenko-debriefing-summary"],
+      status: "partially_resolved",
+      resolutionText:
+        "The mock data can show repeated routing patterns, but not every implied file movement has a paired document.",
+      resolutionCitationIds: ["nara-jfk-collection"],
+    },
+  ],
+};
+
+const OPEN_QUESTIONS_ARTICLES: Record<string, OpenQuestionsArticle> = {
+  "warren-commission": {
+    text:
+      "The Warren Commission records are strongest when they can pair testimony, exhibits, and staff work papers. The open questions begin where those layers do not line up cleanly. In the mock corpus, witness-summary differences and exhibit custody descriptions are the clearest examples. [doc:wc-report-1964]\n\nThis topic page should be read as a research map. It does not overturn established findings; it identifies where the record asks the next researcher to compare earlier investigative notes with later presentation. [doc:fbi-hoover-memo-nov24]",
+    model: "mock-open-questions",
+    generatedAt: OPEN_QUESTIONS_GENERATED_AT,
+    sourceDocCount: 8,
+  },
+  hsca: {
+    text:
+      "The HSCA reopened parts of the record that the Warren Commission had already organized. Its open questions are therefore comparative: what changed after access to new technical panels, later interviews, and agency files? [doc:hsca-final-report]\n\nThe acoustic record is the most visible tension in this mock topic, but the working-file references matter too. They show how committee process can become part of the evidence trail. [doc:hsca-acoustics-report] [doc:hsca-cia-liaison-file]",
+    model: "mock-open-questions",
+    generatedAt: OPEN_QUESTIONS_GENERATED_AT,
+    sourceDocCount: 6,
+  },
+  cia: {
+    text:
+      "CIA-related open questions in the mock corpus center on routing, timing, and the difference between what a cable says and how later files describe it. The Mexico City material is the anchor because it gives readers a concrete path through those issues. [doc:mexico-city-cable-oct8]\n\nThe point is not to collapse file handling into theory. It is to show where document movement, delayed description, and counterintelligence routing deserve side-by-side reading. [doc:angleton-memo-ci-routing]",
+    model: "mock-open-questions",
+    generatedAt: OPEN_QUESTIONS_GENERATED_AT,
+    sourceDocCount: 7,
+  },
+};
+
+const OPEN_QUESTION_FOOTNOTES: EditorialFootnote[] = [
+  {
+    id: "oq-method-note",
+    tag: "method",
+    title: "Open questions are not findings",
+    body:
+      "This surface distinguishes research leads from established facts. A thread can be useful even when it does not support a single conclusion.",
+    sourceCitation: "JFK Research Center editorial policy",
+  },
+];
+
+const OPEN_QUESTION_CRYPTONYMS: CryptonymEntry[] = [
+  {
+    cryptonym: "CI",
+    meaning: "Counterintelligence",
+    status: "declassified",
+    firstPublicSource: "CIA file context",
+    sourceCitationId: "nara-jfk-collection",
+    relatedEntityIds: ["cia"],
+    notes: "Used in mock open-question copy to model glossary behavior.",
+  },
+];
+
+function openQuestionTopicCard(slug: string): OpenQuestionsTopicCard {
+  const topic = TOPIC_TABLE[slug]!;
+  const threads = OPEN_QUESTION_THREADS[slug] ?? [];
+  const articleSummary =
+    OPEN_QUESTIONS_ARTICLES[slug]?.text
+      .split(/\n{2,}/)[0]
+      ?.replace(/\s*\[doc:[^\]]+\]/g, "") ?? topic.summary;
+  const tensionCounts: Record<string, number> = {};
+  for (const thread of threads) {
+    const key = thread.tensionType ?? "other";
+    tensionCounts[key] = (tensionCounts[key] ?? 0) + 1;
+  }
+  return {
+    slug,
+    title: topic.title,
+    eyebrow: topic.eyebrow,
+    summary: articleSummary,
+    href: `/open-questions/${slug}`,
+    questionCount: threads.length,
+    sourceDocCount: OPEN_QUESTIONS_ARTICLES[slug]?.sourceDocCount ?? topic.documentCount,
+    tensionCounts,
+  };
+}
+
+export function buildOpenQuestionsIndex(): OpenQuestionsIndexResponse {
+  const slugs = Object.keys(OPEN_QUESTION_THREADS);
+  return {
+    global: GLOBAL_OPEN_QUESTIONS_ARTICLE,
+    topics: slugs.map(openQuestionTopicCard),
+  };
+}
+
+export function buildOpenQuestionsTopic(
+  slug: string,
+): OpenQuestionsTopicResponse | null {
+  const topic = TOPIC_TABLE[slug];
+  const threads = OPEN_QUESTION_THREADS[slug] ?? [];
+  const article = OPEN_QUESTIONS_ARTICLES[slug] ?? null;
+  if (!topic || (!article && threads.length === 0)) return null;
+
+  return {
+    slug,
+    title: topic.title,
+    eyebrow: topic.eyebrow,
+    topicHref: `/topic/${slug}`,
+    article,
+    questionCount: threads.length,
+    threads,
+    editorialFootnotes: OPEN_QUESTION_FOOTNOTES,
+    cryptonyms: OPEN_QUESTION_CRYPTONYMS,
+  };
 }
 
 function matchesDocument(d: DocumentSeed, q: string): boolean {
