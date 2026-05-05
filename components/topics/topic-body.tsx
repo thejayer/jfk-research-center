@@ -149,7 +149,7 @@ function ArticleBlock({ ai }: { ai: Ai }) {
         model={ai.model}
         docCount={ai.sourceDocCount}
         date={generated}
-        extra={`${citationMap.size} inline citations → linked documents`}
+        extra={`${citationMap.size} inline citations linked to documents`}
       />
     </div>
   );
@@ -208,10 +208,10 @@ function AiFooter({
       }}
     >
       Synthesized by {model} from {formatNumber(docCount)} records on {date}.
-      May contain inaccuracies — cross-check with the primary documents below.
-      {extra && <> &nbsp;·&nbsp; {extra}</>}
-      &nbsp;·&nbsp;
-      <a href="/about/methodology">Methodology &rarr;</a>
+      May contain inaccuracies; cross-check with the primary documents below.
+      {extra && <> | {extra}</>}
+      {" | "}
+      <a href="/about/methodology">Methodology</a>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import type { TopicDetail } from "@/lib/api-types";
 import { fetchTopic } from "@/lib/api-client";
 import { TopicHero } from "@/components/topics/topic-hero";
+import { TopicEvidenceTrail } from "@/components/topics/topic-evidence-trail";
 import { TopicBody } from "@/components/topics/topic-body";
 import { ReleaseAddendum } from "@/components/topics/release-addendum";
 import { TopicDocumentGrid } from "@/components/topics/topic-document-grid";
@@ -30,7 +31,7 @@ export async function generateMetadata({
     return {
       title: "Physical Evidence",
       description:
-        "Curated catalog of physical evidence in the JFK assassination case — see /evidence.",
+        "Curated catalog of physical evidence in the JFK assassination case; see /evidence.",
     };
   }
   const data = await fetchTopic(slug);
@@ -47,14 +48,13 @@ export default async function TopicPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  // The physical-evidence topic is a special-case: its dedicated UI lives
-  // at /evidence. Redirect so the /topics index entry still points somewhere
-  // useful, without duplicating the grid.
-  if (slug === "physical-evidence") {
-    redirect("/evidence");
-  }
+  if (slug === "physical-evidence") redirect("/evidence");
+
   const data = await fetchTopic(slug);
   if (!data) notFound();
+
+  const topicSearchHref = `/search?topic=${encodeURIComponent(data.topic.slug)}`;
+  const archiveSearchHref = `/search?q=${encodeURIComponent(data.topic.title)}&mode=document`;
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -66,39 +66,34 @@ export default async function TopicPage({
           fontSize: "0.85rem",
         }}
       >
-        <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
-        <Link href="/topics" style={{ color: "var(--text-muted)" }}>Topics</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
+        <Link href="/" style={{ color: "var(--text-muted)" }}>
+          Home
+        </Link>
+        <span aria-hidden="true" style={{ margin: "0 6px" }}>
+          /
+        </span>
+        <Link href="/topics" style={{ color: "var(--text-muted)" }}>
+          Topics
+        </Link>
+        <span aria-hidden="true" style={{ margin: "0 6px" }}>
+          /
+        </span>
         <span style={{ color: "var(--text)" }}>{data.topic.title}</span>
       </nav>
 
-      <TopicHero topic={data.topic} />
+      <TopicHero
+        topic={data.topic}
+        searchHref={topicSearchHref}
+        documentsHref="#documents"
+        entityCount={data.relatedEntities.length}
+        passageCount={data.mentionExcerpts.length}
+      />
 
-      <section
-        aria-label="Topic actions"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 12,
-          marginTop: 28,
-        }}
-      >
-        <LinkButton
-          href={`/search?topic=${encodeURIComponent(data.topic.slug)}`}
-          variant="primary"
-        >
-          Search within topic →
-        </LinkButton>
-        <LinkButton href="#documents" variant="secondary">
-          Browse documents
-        </LinkButton>
-        {data.relatedEntities.length > 0 && (
-          <LinkButton href="#entities" variant="secondary">
-            Related entities
-          </LinkButton>
-        )}
-      </section>
+      <TopicEvidenceTrail
+        documents={data.topDocuments}
+        mentions={data.mentionExcerpts}
+        documentsHref="#documents"
+      />
 
       {data.topDocuments.length > 0 && (
         <section
@@ -130,10 +125,7 @@ export default async function TopicPage({
       )}
 
       {(hasTopicBody(data.topic) || data.mentionExcerpts.length > 0) && (
-        <section
-          aria-label="Analysis and evidence"
-          style={{ marginTop: 72 }}
-        >
+        <section aria-label="Analysis and evidence" style={{ marginTop: 72 }}>
           <div className={layout.grid}>
             {hasTopicBody(data.topic) && (
               <div className={layout.main}>
@@ -143,8 +135,8 @@ export default async function TopicPage({
                   description="A synthesized view of this topic, with inline citations to the underlying records."
                 />
                 <TopicBody topic={data.topic} />
-                {data.releaseAddenda.map((a) => (
-                  <ReleaseAddendum key={a.releaseSet} addendum={a} />
+                {data.releaseAddenda.map((addendum) => (
+                  <ReleaseAddendum key={addendum.releaseSet} addendum={addendum} />
                 ))}
               </div>
             )}
@@ -155,11 +147,9 @@ export default async function TopicPage({
                   title="Relevant passages"
                   description="Short passages from OCR text and descriptions that characterize this topic."
                 />
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 22 }}
-                >
-                  {data.mentionExcerpts.map((m) => (
-                    <MentionSnippet key={m.id} mention={m} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
+                  {data.mentionExcerpts.map((mention) => (
+                    <MentionSnippet key={mention.id} mention={mention} />
                   ))}
                 </div>
               </aside>
@@ -187,23 +177,21 @@ export default async function TopicPage({
             style={{
               fontFamily: "var(--font-serif)",
               fontSize: "1.25rem",
-              letterSpacing: "-0.005em",
+              letterSpacing: 0,
               marginBottom: 6,
             }}
           >
             Search across the full archive
           </div>
           <p className="muted" style={{ fontSize: "0.92rem" }}>
-            Drop the topic filter and search the entire collection by
-            keyword. To stay scoped to {data.topic.title}, use “Search
-            within topic →” at the top of this page.
+            Drop the topic filter and search the entire collection by keyword.
+            To stay scoped to {data.topic.title}, use the topic search at the
+            top of this page.
           </p>
         </div>
-        <LinkButton
-          href={`/search?q=${encodeURIComponent(data.topic.title)}&mode=document`}
-          variant="primary"
-        >
-          Search across archive →
+        <LinkButton href={archiveSearchHref} variant="primary">
+          Search across archive
+          <ArrowRightIcon />
         </LinkButton>
       </section>
 
@@ -211,5 +199,25 @@ export default async function TopicPage({
         <ReportErrorLink surface="topic_summary" targetId={data.topic.slug} />
       </div>
     </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
