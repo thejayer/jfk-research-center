@@ -1,4 +1,5 @@
 import type { EntitySource } from "@/lib/api-types";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Renders the curated primary-source and reference list that grounds an
@@ -12,49 +13,75 @@ export function EntitySources({ sources }: { sources: EntitySource[] }) {
     <ol
       style={{
         margin: 0,
-        paddingLeft: 22,
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
+        padding: 0,
+        listStyle: "none",
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gap: 12,
       }}
     >
-      {sources.map((s, i) => (
+      {sources.map((source, index) => (
         <li
-          key={i}
+          key={index}
           style={{
-            fontSize: "0.92rem",
-            lineHeight: 1.55,
-            color: "var(--text)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+            padding: "15px 16px",
+            minWidth: 0,
           }}
         >
-          <div>
-            {s.url ? (
-              <a href={s.url} target="_blank" rel="noopener noreferrer">
-                {s.label}
-              </a>
-            ) : (
-              <span>{s.label}</span>
-            )}
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
             <span
-              className="muted"
+              className="num"
+              aria-hidden="true"
               style={{
-                marginLeft: 8,
-                fontSize: "0.72rem",
-                letterSpacing: "0.06em",
-                textTransform: "uppercase",
+                width: 26,
+                height: 26,
+                borderRadius: "50%",
+                background: "var(--surface-2)",
+                color: "var(--text-muted)",
+                border: "1px solid var(--border)",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.76rem",
+                flexShrink: 0,
               }}
             >
-              {s.kind}
+              {index + 1}
             </span>
-          </div>
-          {s.note && (
-            <div
-              className="muted"
-              style={{ fontSize: "0.85rem", lineHeight: 1.5, marginTop: 2 }}
-            >
-              {s.note}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ marginBottom: 8 }}>
+                <Badge tone="muted" size="sm">
+                  {source.kind}
+                </Badge>
+              </div>
+              <div
+                style={{
+                  fontSize: "0.94rem",
+                  lineHeight: 1.45,
+                  color: "var(--text)",
+                }}
+              >
+                {source.url ? (
+                  <a href={source.url} target="_blank" rel="noopener noreferrer">
+                    {source.label}
+                  </a>
+                ) : (
+                  <span>{source.label}</span>
+                )}
+              </div>
+              {source.note && (
+                <p
+                  className="muted"
+                  style={{ fontSize: "0.84rem", lineHeight: 1.5, marginTop: 7 }}
+                >
+                  {source.note}
+                </p>
+              )}
             </div>
-          )}
+          </div>
         </li>
       ))}
     </ol>

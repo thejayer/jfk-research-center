@@ -64,6 +64,7 @@ export function EntityQuickFacts({ facts }: { facts: EntityFact[] }) {
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-md)",
         background: "var(--surface)",
+        boxShadow: "var(--shadow-sm)",
       }}
     >
       <div
@@ -90,17 +91,20 @@ export function EntityQuickFacts({ facts }: { facts: EntityFact[] }) {
             <dd style={{ margin: 0, color: "var(--text)" }}>
               <span>{f.value}</span>
               <span
-                title={`Source: ${f.sourceType} · ${f.sourceRef} · confidence: ${f.confidence}`}
-                className="muted"
+                title={`Source: ${f.sourceType} | ${f.sourceRef} | confidence: ${f.confidence}`}
+                aria-label={`Source ${f.sourceType}, reference ${f.sourceRef}, confidence ${f.confidence}`}
                 style={{
                   marginLeft: 8,
                   fontSize: "0.72rem",
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
-                  padding: "1px 6px",
-                  border: "1px solid var(--border-strong)",
+                  padding: "2px 7px",
+                  border:
+                    "1px solid color-mix(in srgb, var(--accent) 28%, transparent)",
                   borderRadius: 4,
                   whiteSpace: "nowrap",
+                  color: "var(--accent)",
+                  background: "var(--accent-soft)",
                 }}
               >
                 {f.sourceType}

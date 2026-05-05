@@ -8,6 +8,7 @@ export function EntityDocumentList({
   documents: DocumentCard[];
 }) {
   if (documents.length === 0) return null;
+
   return (
     <ul
       style={{
@@ -17,33 +18,50 @@ export function EntityDocumentList({
         borderTop: "1px solid var(--border)",
       }}
     >
-      {documents.map((d) => (
+      {documents.map((document) => (
         <li
-          key={d.id}
-          style={{
-            borderBottom: "1px solid var(--border)",
-            padding: "18px 0",
-          }}
+          key={document.id}
+          style={{ borderBottom: "1px solid var(--border)" }}
         >
           <Link
-            href={d.href}
+            href={document.href}
+            className="entity-document-row"
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr auto",
-              gap: 16,
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              gap: 18,
               color: "var(--text)",
+              padding: "18px 0",
+              textDecoration: "none",
             }}
           >
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
-                  fontFamily: "var(--font-serif)",
-                  fontSize: "1.1rem",
-                  letterSpacing: "-0.005em",
-                  marginBottom: 4,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 7,
+                  marginBottom: 8,
+                  alignItems: "center",
                 }}
               >
-                {d.title}
+                {document.agency && (
+                  <Badge tone="outline" size="sm">
+                    {document.agency}
+                  </Badge>
+                )}
+                {document.hasOcr && <OcrBadge />}
+              </div>
+              <div
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "1.1rem",
+                  letterSpacing: 0,
+                  lineHeight: 1.3,
+                  marginBottom: 6,
+                }}
+              >
+                {document.title}
               </div>
               <div
                 className="muted"
@@ -55,22 +73,12 @@ export function EntityDocumentList({
                   alignItems: "center",
                 }}
               >
-                {d.agency && <span>{d.agency}</span>}
-                {d.dateLabel && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>{d.dateLabel}</span>
-                  </>
-                )}
-                {d.documentType && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span>{d.documentType}</span>
-                  </>
-                )}
-                <span aria-hidden>·</span>
+                {document.dateLabel && <span>{document.dateLabel}</span>}
+                {document.dateLabel && document.documentType && <Separator />}
+                {document.documentType && <span>{document.documentType}</span>}
+                {(document.dateLabel || document.documentType) && <Separator />}
                 <span>
-                  NAID <span className="num">{d.naid}</span>
+                  NAID <span className="num">{document.naid}</span>
                 </span>
               </div>
             </div>
@@ -83,16 +91,66 @@ export function EntityDocumentList({
                 justifyContent: "flex-end",
               }}
             >
-              {d.hasOcr && <OcrBadge />}
-              {d.tags.slice(0, 2).map((t) => (
-                <Badge key={t} tone="muted" size="sm">
-                  {t}
+              {document.tags.slice(0, 2).map((tag) => (
+                <Badge key={tag} tone="muted" size="sm">
+                  {tag}
                 </Badge>
               ))}
+              <span
+                className="entity-document-open"
+                aria-hidden="true"
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: "1px solid var(--border)",
+                  borderRadius: "50%",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--text-muted)",
+                }}
+              >
+                <ArrowRightIcon />
+              </span>
             </div>
           </Link>
         </li>
       ))}
     </ul>
+  );
+}
+
+function Separator() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: "inline-block",
+        width: 3,
+        height: 3,
+        borderRadius: "50%",
+        background: "var(--border-strong)",
+      }}
+    />
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
