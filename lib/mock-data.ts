@@ -28,6 +28,9 @@ import type {
   ConfidenceLevel,
   CryptonymEntry,
   BibliographyIndex,
+  CaseTimelineCategory,
+  CaseTimelineEvent,
+  CaseTimelineIndex,
   CitationEntry,
   CitationType,
   EstablishedFact,
@@ -1248,6 +1251,225 @@ const OSWALD_TIMELINE: TimelineEvent[] = [
   },
 ];
 
+const CASE_TIMELINE_CATEGORY_ORDER: CaseTimelineCategory[] = [
+  "biographical",
+  "operational",
+  "investigation",
+  "release",
+  "death",
+];
+
+const CASE_TIMELINE_EVENTS: CaseTimelineEvent[] = [
+  {
+    id: "case-oswald-birth",
+    date: "1939-10-18",
+    timeLocal: null,
+    title: "Lee Harvey Oswald is born",
+    description:
+      "Oswald is born in New Orleans, a biographical starting point for the case chronology.",
+    category: "biographical",
+    relatedEntityIds: ["oswald"],
+    relatedTopicIds: [],
+    sourceExternal: [],
+    documentLinks: [],
+    importance: 2,
+  },
+  {
+    id: "case-oswald-defection",
+    date: "1959-10-31",
+    timeLocal: null,
+    title: "Oswald appears at the U.S. Embassy in Moscow",
+    description:
+      "Oswald states his intent to renounce U.S. citizenship after arriving in the Soviet Union.",
+    category: "biographical",
+    relatedEntityIds: ["oswald"],
+    relatedTopicIds: ["cia"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "state-dept-oswald-passport",
+        title: "Department of State Passport File: Lee Harvey Oswald",
+        note: "Passport and consular correspondence context",
+      },
+    ],
+    importance: 3,
+  },
+  {
+    id: "case-cia-201-file",
+    date: "1960-12-09",
+    timeLocal: null,
+    title: "CIA opens a 201 file on Oswald",
+    description:
+      "CIA personality-file handling begins after press reporting and agency routing about Oswald.",
+    category: "operational",
+    relatedEntityIds: ["oswald", "cia"],
+    relatedTopicIds: ["cia"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "oswald-201-file-vol1",
+        title: "Oswald 201 File, Volume I",
+        note: "CIA personality file volume",
+      },
+    ],
+    importance: 4,
+  },
+  {
+    id: "case-mexico-city-visit",
+    date: "1963-09-27",
+    timeLocal: null,
+    title: "Oswald travels to Mexico City",
+    description:
+      "The Mexico City trip becomes a major documentary lane because of station reporting and later file descriptions.",
+    category: "operational",
+    relatedEntityIds: ["oswald", "cia"],
+    relatedTopicIds: ["mexico-city", "cia"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "mexico-city-cable-oct8",
+        title: "Mexico City Station Cable: LHO Contact with Soviet Embassy",
+        note: "Station cable reporting",
+      },
+    ],
+    importance: 4,
+  },
+  {
+    id: "case-motorcade",
+    date: "1963-11-22",
+    timeLocal: "12:30",
+    title: "President Kennedy is shot in Dealey Plaza",
+    description:
+      "The motorcade passes through Dealey Plaza, where President Kennedy is fatally wounded.",
+    category: "death",
+    relatedEntityIds: ["oswald"],
+    relatedTopicIds: ["warren-commission"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "wc-report-1964",
+        title: "Report of the President's Commission on the Assassination of President Kennedy",
+        note: "Final report chronology",
+      },
+    ],
+    importance: 5,
+  },
+  {
+    id: "case-oswald-arrest",
+    date: "1963-11-22",
+    timeLocal: "13:50",
+    title: "Oswald is arrested at the Texas Theatre",
+    description:
+      "Dallas police arrest Oswald after the Tippit shooting and theater search.",
+    category: "investigation",
+    relatedEntityIds: ["oswald"],
+    relatedTopicIds: ["fbi", "warren-commission"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "wc-report-1964",
+        title: "Report of the President's Commission on the Assassination of President Kennedy",
+        note: "Arrest chronology",
+      },
+    ],
+    importance: 5,
+  },
+  {
+    id: "case-ruby-shoots-oswald",
+    date: "1963-11-24",
+    timeLocal: "11:21",
+    title: "Jack Ruby shoots Oswald",
+    description:
+      "Ruby shoots Oswald during the Dallas Police transfer, shifting the investigation into a second public event.",
+    category: "death",
+    relatedEntityIds: ["ruby", "oswald"],
+    relatedTopicIds: ["fbi", "warren-commission"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "ruby-polygraph-transcript",
+        title: "Jack Ruby Polygraph Examination Transcript",
+        note: "Ruby investigative record",
+      },
+    ],
+    importance: 5,
+  },
+  {
+    id: "case-warren-commission",
+    date: "1963-11-29",
+    timeLocal: null,
+    title: "Warren Commission is established",
+    description:
+      "Executive Order 11130 creates the President's Commission on the Assassination of President Kennedy.",
+    category: "investigation",
+    relatedEntityIds: ["warren-commission"],
+    relatedTopicIds: ["warren-commission"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "wc-report-1964",
+        title: "Report of the President's Commission on the Assassination of President Kennedy",
+        note: "Commission report",
+      },
+    ],
+    importance: 4,
+  },
+  {
+    id: "case-hsca-report",
+    date: "1979-03-29",
+    timeLocal: null,
+    title: "HSCA issues its final report",
+    description:
+      "The House Select Committee on Assassinations publishes its final report and conclusions.",
+    category: "investigation",
+    relatedEntityIds: ["hsca"],
+    relatedTopicIds: ["hsca"],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "hsca-final-report",
+        title: "Report of the Select Committee on Assassinations, U.S. House of Representatives",
+        note: "HSCA final report",
+      },
+    ],
+    importance: 4,
+  },
+  {
+    id: "case-arrb",
+    date: "1998-09-30",
+    timeLocal: null,
+    title: "ARRB completes its final report",
+    description:
+      "The Assassination Records Review Board concludes its declassification work and publishes its final report.",
+    category: "release",
+    relatedEntityIds: [],
+    relatedTopicIds: [],
+    sourceExternal: [],
+    documentLinks: [
+      {
+        documentId: "arrb-oswald-walker",
+        title: "ARRB Staff Memorandum: Oswald and the Walker Shooting",
+        note: "ARRB staff work example",
+      },
+    ],
+    importance: 3,
+  },
+  {
+    id: "case-2025-release",
+    date: "2025-03-18",
+    timeLocal: null,
+    title: "Additional JFK records are released",
+    description:
+      "A later release tranche adds newly opened records to the public collection.",
+    category: "release",
+    relatedEntityIds: [],
+    relatedTopicIds: [],
+    sourceExternal: [],
+    documentLinks: [],
+    importance: 3,
+  },
+];
+
 // ----------------------------------------------------------------------------
 // Access helpers
 // ----------------------------------------------------------------------------
@@ -1420,6 +1642,41 @@ export function buildEntityResponse(slug: string): EntityResponse | null {
     mentionExcerpts: mentions,
     sources: [],
     facts: [],
+  };
+}
+
+export function buildCaseTimelineIndex(): CaseTimelineIndex {
+  const events = CASE_TIMELINE_EVENTS.toSorted((a, b) =>
+    a.date === b.date
+      ? (a.timeLocal ?? "").localeCompare(b.timeLocal ?? "")
+      : a.date.localeCompare(b.date),
+  );
+
+  const categoryCounts = new Map<CaseTimelineCategory, number>();
+  const decadeCounts = new Map<string, number>();
+  for (const event of events) {
+    categoryCounts.set(
+      event.category,
+      (categoryCounts.get(event.category) ?? 0) + 1,
+    );
+    const year = Number.parseInt(event.date.slice(0, 4), 10);
+    if (!Number.isNaN(year)) {
+      const decade = `${Math.floor(year / 10) * 10}s`;
+      decadeCounts.set(decade, (decadeCounts.get(decade) ?? 0) + 1);
+    }
+  }
+
+  return {
+    events,
+    countsByCategory: CASE_TIMELINE_CATEGORY_ORDER.filter((category) =>
+      categoryCounts.has(category),
+    ).map((category) => ({
+      category,
+      count: categoryCounts.get(category) ?? 0,
+    })),
+    countsByDecade: Array.from(decadeCounts.entries())
+      .map(([decade, count]) => ({ decade, count }))
+      .sort((a, b) => a.decade.localeCompare(b.decade)),
   };
 }
 
