@@ -43,6 +43,13 @@ const THEME_DESCRIPTION: Record<TopicTheme, string> = {
     "Locations and episodes where documents, people, and agency handling converge.",
 };
 
+/**
+ * themeForTopic assigns a TopicCard to a browse theme using case-insensitive
+ * slug/title/summary fallbacks. Explicit cia/fbi slug or identity matches stay
+ * in Agencies, place/event keywords move to Places & Events, the generic
+ * agency token falls back to Agencies, and everything else defaults to
+ * Investigations. These branches are product taxonomy rules.
+ */
 function themeForTopic(topic: TopicCard): TopicTheme {
   const identity = `${topic.slug} ${topic.title}`.toLowerCase();
   const text = `${identity} ${topic.summary}`.toLowerCase();
@@ -76,6 +83,21 @@ function normalizeTitle(value: string | null | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
 
+async function fetchTopicDetailsInBatches(
+  topics: TopicCard[],
+  batchSize = 6,
+): Promise<Array<TopicResponse | null>> {
+  const details: Array<TopicResponse | null> = [];
+  for (let index = 0; index < topics.length; index += batchSize) {
+    const batch = topics.slice(index, index + batchSize);
+    const batchDetails = await Promise.all(
+      batch.map((topic) => fetchTopic(topic.slug).catch(() => null)),
+    );
+    details.push(...batchDetails);
+  }
+  return details;
+}
+
 export default async function TopicsPage() {
   const [topics, openQuestions, establishedFacts, evidence] = await Promise.all([
     fetchTopics(),
@@ -84,9 +106,7 @@ export default async function TopicsPage() {
     fetchPhysicalEvidenceIndex(),
   ]);
 
-  const details = await Promise.all(
-    topics.map((topic) => fetchTopic(topic.slug).catch(() => null)),
-  );
+  const details = await fetchTopicDetailsInBatches(topics);
   const detailsBySlug = new Map(
     details
       .filter((detail): detail is TopicResponse => Boolean(detail))
@@ -100,6 +120,8 @@ export default async function TopicsPage() {
     topics.map((topic) => [normalizeTitle(topic.title), topic.slug]),
   );
   const factsBySlug = new Map<string, number>();
+  // Established-fact counts may use topicId/topicTitle instead of the topic
+  // slug, so correlate by exact id first and normalized title as a fallback.
   for (const topic of establishedFacts.countsByTopic) {
     const slug = topicSlugs.has(topic.topicId)
       ? topic.topicId
