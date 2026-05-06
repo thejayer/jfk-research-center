@@ -211,10 +211,17 @@ function buildMatchReasons({
     });
   }
   if (confidence !== "none") {
+    const confidenceDetail =
+      confidence === "high"
+        ? "Entity name appears in the title"
+        : confidence === "medium"
+          ? "Entity name appears in the description"
+          : "Entity name appears in OCR text only";
     reasons.push({
       label: "Confidence",
-      detail: `${confidence[0].toUpperCase()}${confidence.slice(1)} relevance signal`,
+      detail: confidenceDetail,
     });
+  }
   }
   return reasons.slice(0, 3);
 }
