@@ -71,6 +71,10 @@ export default async function TimelinePage({ searchParams }: Props) {
   ).length;
   const topCategory = data.countsByCategory.toSorted((a, b) => b.count - a.count)[0];
   const topDecades = data.countsByDecade.toSorted((a, b) => b.count - a.count).slice(0, 4);
+  const sourcePackets = sortedEvents
+    .filter((event) => event.documentLinks.length > 0 || event.sourceExternal.length > 0)
+    .toSorted((a, b) => b.importance - a.importance)
+    .slice(0, 3);
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 96 }}>
@@ -256,6 +260,101 @@ export default async function TimelinePage({ searchParams }: Props) {
         </nav>
       </section>
 
+      {sourcePackets.length > 0 && (
+        <section
+          aria-label="Timeline source packets"
+          style={{
+            marginBottom: 38,
+            padding: "22px 0",
+            borderTop: "1px solid var(--border)",
+            borderBottom: "1px solid var(--border)",
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
+              gap: 18,
+              alignItems: "start",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div className="eyebrow" style={{ marginBottom: 10 }}>
+                Source packets
+              </div>
+              <h2
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: "1.45rem",
+                  lineHeight: 1.15,
+                  letterSpacing: 0,
+                  marginBottom: 8,
+                }}
+              >
+                Read the record behind the event.
+              </h2>
+              <p className="muted" style={{ maxWidth: "48ch", lineHeight: 1.6 }}>
+                Start with events that already have linked documents or external
+                source anchors, then jump into the full timeline.
+              </p>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))",
+                gap: 10,
+              }}
+            >
+              {sourcePackets.map((event) => (
+                <article
+                  key={event.id}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    background: "var(--surface)",
+                    padding: "13px 14px",
+                    display: "grid",
+                    gap: 8,
+                  }}
+                >
+                  <div className="muted num" style={{ fontSize: "0.76rem" }}>
+                    {formatDate(event.date)}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-serif)",
+                      fontSize: "1rem",
+                      lineHeight: 1.25,
+                      letterSpacing: 0,
+                    }}
+                  >
+                    {event.title}
+                  </div>
+                  <div className="muted" style={{ fontSize: "0.78rem" }}>
+                    {event.documentLinks.length} documents /{" "}
+                    {event.sourceExternal.length} external sources
+                  </div>
+                  <Link
+                    href={`/timeline?view=list#${event.id}`}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      color: "var(--text)",
+                      fontSize: "0.84rem",
+                      fontWeight: 600,
+                    }}
+                  >
+                    Open event
+                    <ArrowRightIcon />
+                  </Link>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <main aria-label={`${VIEW_COPY[view].title} timeline view`}>
         {view === "list" && (
           <ListView data={data} initialCategory={selectedCategory} />
@@ -375,5 +474,19 @@ function ProfileStat({
         {label}
       </div>
     </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

@@ -169,6 +169,94 @@ export default async function EvidenceIndexPage() {
         ))}
       </nav>
 
+      <section
+        id="comparison"
+        aria-label="Evidence comparison"
+        style={{
+          marginBottom: 46,
+          paddingTop: 4,
+          scrollMarginTop: "calc(var(--header-height, 64px) + 24px)",
+        }}
+      >
+        <SectionHeading
+          eyebrow="Compare"
+          title="Evidence comparison"
+          description="Scan item type, record depth, and image availability before opening a detail page."
+        />
+        <div
+          style={{
+            overflowX: "auto",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface)",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              minWidth: 760,
+              fontSize: "0.88rem",
+            }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                {["Item", "Category", "Image", "Path"].map((heading) => (
+                  <th
+                    key={heading}
+                    style={{
+                      textAlign: "left",
+                      padding: "11px 14px",
+                      color: "var(--text-muted)",
+                      fontSize: "0.72rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.items.slice(0, 8).map((item) => (
+                <tr key={item.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "13px 14px", color: "var(--text)" }}>
+                    <Link href={item.href} style={{ color: "var(--text)", fontWeight: 600 }}>
+                      {item.shortName}
+                    </Link>
+                    <div className="muted num" style={{ fontSize: "0.76rem", marginTop: 2 }}>
+                      {item.id}
+                    </div>
+                  </td>
+                  <td style={{ padding: "13px 14px" }}>
+                    {CATEGORY_LABELS[item.category]}
+                  </td>
+                  <td style={{ padding: "13px 14px" }}>
+                    {item.imageUrl ? "Image available" : "No image indexed"}
+                  </td>
+                  <td style={{ padding: "13px 14px" }}>
+                    <Link
+                      href={item.href}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        color: "var(--text)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Open item
+                      <ArrowRightIcon />
+                    </Link>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       {data.categories.map((c) => {
         const items = itemsByCategory.get(c.category) ?? [];
         return (
@@ -240,5 +328,19 @@ export default async function EvidenceIndexPage() {
         );
       })}
     </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

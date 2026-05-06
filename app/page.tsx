@@ -7,6 +7,7 @@ import { StatPill } from "@/components/ui/stat-pill";
 import { Badge } from "@/components/ui/badge";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatDate, formatNumber } from "@/lib/format";
+import { RESEARCH_PATHS } from "@/lib/research-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -432,36 +433,12 @@ export default async function HomePage() {
 
 function GuidedResearchPaths() {
   const paths = [
-    {
-      title: "Oswald paper trail",
-      body: "Move from entity dossier to mentions, timeline context, and the documents that frame Oswald's biography.",
-      href: "/entity/oswald",
-      meta: "Entity -> mentions -> records",
-    },
-    {
-      title: "Ruby and the transfer",
-      body: "Start with Ruby, then compare the Dallas weekend sequence against the related records.",
-      href: "/entity/ruby",
-      meta: "Profile -> 72h Dallas",
-    },
-    {
-      title: "FBI record lane",
-      body: "Read the agency topic as a curated lane before opening the broader document index.",
-      href: "/topic/fbi",
-      meta: "Topic -> document search",
-    },
-    {
-      title: "Warren Commission record",
-      body: "Open the commission topic, questions, bibliography, and supporting documents from one route.",
-      href: "/topic/warren-commission",
-      meta: "Topic -> questions -> sources",
-    },
-    {
-      title: "CE 399 evidence path",
-      body: "Follow the evidence item into custody notes, NARA references, and connected entities.",
-      href: "/evidence/ce-399",
-      meta: "Evidence -> records",
-    },
+    ...RESEARCH_PATHS.map((path) => ({
+      title: path.title,
+      body: path.summary,
+      href: path.startHref,
+      meta: `${path.steps.length} step path`,
+    })),
   ];
 
   return (
@@ -474,6 +451,8 @@ function GuidedResearchPaths() {
         eyebrow="Guided paths"
         title="Start with a known thread"
         description="Short routes into the archive for the questions researchers tend to ask first."
+        actionHref="/research-paths"
+        actionLabel="View all paths"
       />
       <div
         style={{

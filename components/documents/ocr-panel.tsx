@@ -2,6 +2,7 @@ import type { DocumentDetail, MentionExcerpt } from "@/lib/api-types";
 import { formatNumber, highlightHTML } from "@/lib/format";
 import { ChunkActions } from "./chunk-actions";
 import { ChunkHashHandler } from "./chunk-hash-handler";
+import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 
 export function OcrPanel({
   doc,
@@ -35,6 +36,7 @@ export function OcrPanel({
   }
 
   const terms = Array.from(new Set(mentions.flatMap((m) => m.matchedTerms)));
+  const chunksWithAnchors = mentions.filter((mention) => mention.chunkOrder != null);
 
   return (
     <section
@@ -71,6 +73,108 @@ export function OcrPanel({
           </span>
         )}
       </div>
+
+      <TrustStatusStrip
+        doc={doc}
+        statuses={[
+          {
+            label: "OCR",
+            value: doc.hasOcr ? "Machine text available" : "Metadata only",
+            tone: doc.hasOcr ? "good" : "warn",
+          },
+          {
+            label: "Coverage",
+            value: formatReaderCoverage(doc.pageCount, doc.chunkCount),
+            tone: "neutral",
+          },
+          {
+            label: "Matches",
+            value:
+              mentions.length > 0
+                ? `${formatNumber(mentions.length)} passage anchors`
+                : "No matched passages",
+            tone: mentions.length > 0 ? "good" : "neutral",
+          },
+        ]}
+        compact
+      />
+
+      {(terms.length > 0 || chunksWithAnchors.length > 0) && (
+        <div
+          aria-label="OCR reader map"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+            gap: 12,
+            marginTop: 18,
+            marginBottom: 24,
+          }}
+        >
+          {terms.length > 0 && (
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "11px 12px",
+                background: "color-mix(in srgb, var(--surface) 88%, var(--bg))",
+              }}
+            >
+              <div className="eyebrow" style={{ marginBottom: 8 }}>
+                Matched terms
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {terms.slice(0, 8).map((term) => (
+                  <span
+                    key={term}
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: 999,
+                      padding: "3px 8px",
+                      fontSize: "0.76rem",
+                    }}
+                  >
+                    {term}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {chunksWithAnchors.length > 0 && (
+            <nav
+              aria-label="OCR chunk jump"
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "11px 12px",
+                background: "color-mix(in srgb, var(--surface) 88%, var(--bg))",
+              }}
+            >
+              <div className="eyebrow" style={{ marginBottom: 8 }}>
+                Chunk map
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {chunksWithAnchors.slice(0, 12).map((mention) => (
+                  <a
+                    key={mention.id}
+                    href={`#chunk-${mention.chunkOrder}`}
+                    className="num"
+                    style={{
+                      border: "1px solid var(--border)",
+                      borderRadius: 999,
+                      padding: "3px 8px",
+                      color: "var(--text)",
+                      textDecoration: "none",
+                      fontSize: "0.76rem",
+                    }}
+                  >
+                    {mention.chunkOrder}
+                  </a>
+                ))}
+              </div>
+            </nav>
+          )}
+        </div>
+      )}
 
       {doc.ocrExcerpt && (
         <blockquote
@@ -170,6 +274,16 @@ export function OcrPanel({
       )}
     </section>
   );
+}
+
+function formatReaderCoverage(
+  pageCount?: number | null,
+  chunkCount?: number | null,
+): string {
+  const parts = [];
+  if (pageCount) parts.push(`${formatNumber(pageCount)} pages`);
+  if (chunkCount) parts.push(`${formatNumber(chunkCount)} chunks`);
+  return parts.length > 0 ? parts.join(" / ") : "Indexed record";
 }
 
 function formatPassageMeta(mention: MentionExcerpt): string {
