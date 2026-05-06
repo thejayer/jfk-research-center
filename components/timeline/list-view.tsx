@@ -10,7 +10,13 @@ import { EventCard } from "./event-card";
 const MARQUEE_START = "1963-11-22";
 const MARQUEE_END = "1963-11-25";
 
-export function ListView({ data }: { data: CaseTimelineIndex }) {
+export function ListView({
+  data,
+  initialCategory,
+}: {
+  data: CaseTimelineIndex;
+  initialCategory?: CaseTimelineCategory;
+}) {
   const byDecade = new Map<string, Map<string, CaseTimelineEvent[]>>();
   const categoryCounts: Record<CaseTimelineCategory, number> = {
     biographical: 0,
@@ -32,7 +38,10 @@ export function ListView({ data }: { data: CaseTimelineIndex }) {
 
   return (
     <>
-      <CategoryFilterChips counts={categoryCounts} />
+      <CategoryFilterChips
+        counts={categoryCounts}
+        initialCategory={initialCategory}
+      />
 
       <nav
         aria-label="Decade jump"

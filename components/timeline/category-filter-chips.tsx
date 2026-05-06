@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { CaseTimelineCategory } from "@/lib/api-types";
 
 const CATEGORIES: ReadonlyArray<{
@@ -16,12 +16,18 @@ const CATEGORIES: ReadonlyArray<{
 
 export function CategoryFilterChips({
   counts,
+  initialCategory,
 }: {
   counts: Record<CaseTimelineCategory, number>;
+  initialCategory?: CaseTimelineCategory;
 }) {
   const [active, setActive] = useState<Set<CaseTimelineCategory>>(
-    () => new Set(CATEGORIES.map((c) => c.value)),
+    () => getInitialActive(initialCategory),
   );
+
+  useEffect(() => {
+    setActive(getInitialActive(initialCategory));
+  }, [initialCategory]);
 
   const toggle = (c: CaseTimelineCategory) => {
     setActive((prev) => {
@@ -78,4 +84,11 @@ export function CategoryFilterChips({
       {hiddenCss && <style>{hiddenCss}</style>}
     </div>
   );
+}
+
+function getInitialActive(initialCategory: CaseTimelineCategory | undefined) {
+  if (initialCategory) {
+    return new Set<CaseTimelineCategory>([initialCategory]);
+  }
+  return new Set(CATEGORIES.map((c) => c.value));
 }

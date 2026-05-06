@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 type View = "zoom" | "list" | "dallas";
 
 type Props = {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; category?: string }>;
 };
 
 const CATEGORY_LABELS: Record<CaseTimelineCategory, string> = {
@@ -52,6 +52,9 @@ export default async function TimelinePage({ searchParams }: Props) {
   const sp = await searchParams;
   const view: View =
     sp.view === "list" ? "list" : sp.view === "dallas" ? "dallas" : "zoom";
+  const selectedCategory = isTimelineCategory(sp.category)
+    ? sp.category
+    : undefined;
 
   const sortedEvents = data.events.toSorted((a, b) =>
     a.date === b.date
@@ -195,7 +198,7 @@ export default async function TimelinePage({ searchParams }: Props) {
             {data.countsByCategory.map((item) => (
               <a
                 key={item.category}
-                href="/timeline?view=list"
+                href={`/timeline?view=list&category=${item.category}`}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -254,7 +257,9 @@ export default async function TimelinePage({ searchParams }: Props) {
       </section>
 
       <main aria-label={`${VIEW_COPY[view].title} timeline view`}>
-        {view === "list" && <ListView data={data} />}
+        {view === "list" && (
+          <ListView data={data} initialCategory={selectedCategory} />
+        )}
         {view === "dallas" && <DallasView data={data} />}
         {view === "zoom" && <ZoomableTimeline data={data} />}
       </main>
@@ -278,6 +283,16 @@ export default async function TimelinePage({ searchParams }: Props) {
         </p>
       )}
     </div>
+  );
+}
+
+function isTimelineCategory(value: string | undefined): value is CaseTimelineCategory {
+  return (
+    value === "biographical" ||
+    value === "operational" ||
+    value === "investigation" ||
+    value === "release" ||
+    value === "death"
   );
 }
 
