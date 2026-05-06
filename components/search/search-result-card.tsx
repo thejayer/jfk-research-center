@@ -18,6 +18,12 @@ export function SearchResultCard({
 }) {
   const terms = query.trim() ? [query.trim()] : [];
   const href = withReturnHref(document.href, returnHref);
+  const matchReasons = buildMatchReasons({
+    document,
+    mentionCount,
+    confidence,
+    hasQuery: terms.length > 0,
+  });
 
   return (
     <article
@@ -99,6 +105,43 @@ export function SearchResultCard({
         />
       )}
 
+      {matchReasons.length > 0 && (
+        <div
+          aria-label="Why this result matched"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          {matchReasons.map((reason) => (
+            <div
+              key={reason.label}
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                background: "color-mix(in srgb, var(--surface) 86%, var(--bg))",
+                padding: "8px 10px",
+              }}
+            >
+              <div
+                className="eyebrow"
+                style={{ fontSize: "0.62rem", marginBottom: 3 }}
+              >
+                {reason.label}
+              </div>
+              <div
+                className="muted"
+                style={{ fontSize: "0.78rem", lineHeight: 1.35 }}
+              >
+                {reason.detail}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -130,6 +173,57 @@ export function SearchResultCard({
       </div>
     </article>
   );
+}
+
+function buildMatchReasons({
+  document,
+  mentionCount,
+  confidence,
+  hasQuery,
+}: {
+  document: DocumentCard;
+  mentionCount: number;
+  confidence: ConfidenceLevel;
+  hasQuery: boolean;
+}) {
+  const reasons = [];
+  if (hasQuery) {
+    reasons.push({
+      label: "Matched by",
+      detail: document.snippet ? "Title, metadata, or description text" : "Record metadata",
+    });
+  }
+  if (mentionCount > 0) {
+    reasons.push({
+      label: "OCR signal",
+      detail: `${mentionCount} ${mentionCount === 1 ? "passage" : "passages"} mention the query or filters`,
+    });
+  } else if (document.hasOcr) {
+    reasons.push({
+      label: "OCR status",
+      detail: "Full text is available for close reading",
+    });
+  }
+  if (document.agency || document.documentType) {
+    reasons.push({
+      label: "Record type",
+      detail: [document.agency, document.documentType].filter(Boolean).join(" / "),
+    });
+  }
+  if (confidence !== "none") {
+    const confidenceDetail =
+      confidence === "high"
+        ? "Entity name appears in the title"
+        : confidence === "medium"
+          ? "Entity name appears in the description"
+          : "Entity name appears in OCR text only";
+    reasons.push({
+      label: "Confidence",
+      detail: confidenceDetail,
+    });
+  }
+  }
+  return reasons.slice(0, 3);
 }
 
 function withReturnHref(href: string, returnHref?: string): string {

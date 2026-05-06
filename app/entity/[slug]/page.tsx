@@ -13,6 +13,7 @@ import { MentionSnippet } from "@/components/search/mention-snippet";
 import { LinkButton } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
+import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +82,18 @@ export default async function EntityPage({
         documents={data.topDocuments}
         documentsHref={hasDocuments ? documentsHref : undefined}
         entityName={data.entity.name}
+      />
+
+      <RelatedDocumentsRail
+        documents={data.topDocuments}
+        title="Documents to read next"
+        description={`Open the records that most directly mention ${data.entity.name}, then continue into the full mention index.`}
+        searchHref={hasDocuments ? documentsHref : searchHref}
+        searchLabel={
+          hasDocuments
+            ? `View all documents mentioning ${data.entity.name}`
+            : "Open mention search"
+        }
       />
 
       {data.timeline.length > 0 && (

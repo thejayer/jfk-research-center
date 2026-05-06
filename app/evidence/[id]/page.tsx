@@ -5,6 +5,7 @@ import { fetchPhysicalEvidenceItem } from "@/lib/api-client";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { RelatedEntities } from "@/components/entities/related-entities";
+import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +46,13 @@ export default async function EvidenceItemPage({
   const categoryLabel = CATEGORY_LABELS[data.category] ?? data.category;
   const referenceCount =
     data.referencedNaids.length + data.referencedWcTestimony.length;
+  const referencedRecords = data.referencedNaids.map((naid) => ({
+    id: naid,
+    label: `NAID ${naid}`,
+    href: `https://catalog.archives.gov/id/${encodeURIComponent(naid)}`,
+    meta: "National Archives Catalog record",
+    external: true,
+  }));
 
   return (
     <div className="container" style={{ paddingTop: 24, paddingBottom: 96 }}>
@@ -232,6 +240,15 @@ export default async function EvidenceItemPage({
           )}
         </figure>
       )}
+
+      <RelatedDocumentsRail
+        references={referencedRecords}
+        title="Records to read next"
+        description={`Follow the archival records and testimony references that ground ${data.shortName}.`}
+        searchHref={`/search?q=${encodeURIComponent(data.shortName)}&mode=document`}
+        searchLabel="Search this evidence item"
+        emptyText="No archival record references are attached to this evidence item yet."
+      />
 
       <div
         style={{

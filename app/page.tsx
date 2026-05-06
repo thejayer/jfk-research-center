@@ -41,6 +41,8 @@ export default async function HomePage() {
         ocrPassages={data.corpusManifest.ocrPassages}
       />
 
+      <GuidedResearchPaths />
+
       {recentReleases.length > 0 && (
         <section
           className="container"
@@ -425,6 +427,114 @@ export default async function HomePage() {
         </ol>
       </section>
     </div>
+  );
+}
+
+function GuidedResearchPaths() {
+  const paths = [
+    {
+      title: "Oswald paper trail",
+      body: "Move from entity dossier to mentions, timeline context, and the documents that frame Oswald's biography.",
+      href: "/entity/oswald",
+      meta: "Entity -> mentions -> records",
+    },
+    {
+      title: "Ruby and the transfer",
+      body: "Start with Ruby, then compare the Dallas weekend sequence against the related records.",
+      href: "/entity/ruby",
+      meta: "Profile -> 72h Dallas",
+    },
+    {
+      title: "FBI record lane",
+      body: "Read the agency topic as a curated lane before opening the broader document index.",
+      href: "/topic/fbi",
+      meta: "Topic -> document search",
+    },
+    {
+      title: "Warren Commission record",
+      body: "Open the commission topic, questions, bibliography, and supporting documents from one route.",
+      href: "/topic/warren-commission",
+      meta: "Topic -> questions -> sources",
+    },
+    {
+      title: "CE 399 evidence path",
+      body: "Follow the evidence item into custody notes, NARA references, and connected entities.",
+      href: "/evidence/ce-399",
+      meta: "Evidence -> records",
+    },
+  ];
+
+  return (
+    <section
+      className="container"
+      aria-label="Guided research paths"
+      style={{ marginTop: 52 }}
+    >
+      <SectionHeading
+        eyebrow="Guided paths"
+        title="Start with a known thread"
+        description="Short routes into the archive for the questions researchers tend to ask first."
+      />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+          gap: 12,
+        }}
+      >
+        {paths.map((path) => (
+          <Link
+            key={path.href}
+            href={path.href}
+            style={{
+              display: "grid",
+              gridTemplateRows: "auto auto 1fr auto",
+              gap: 9,
+              minHeight: 190,
+              padding: "17px 18px",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--surface)",
+              color: "var(--text)",
+              textDecoration: "none",
+              boxShadow: "var(--shadow-sm)",
+            }}
+          >
+            <span className="muted num" style={{ fontSize: "0.76rem" }}>
+              {path.meta}
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "1.18rem",
+                lineHeight: 1.22,
+                letterSpacing: 0,
+              }}
+            >
+              {path.title}
+            </span>
+            <span
+              className="muted"
+              style={{ fontSize: "0.88rem", lineHeight: 1.5 }}
+            >
+              {path.body}
+            </span>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: "0.85rem",
+                fontWeight: 600,
+              }}
+            >
+              Open path
+              <ArrowRightIcon />
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

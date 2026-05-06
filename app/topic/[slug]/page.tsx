@@ -13,6 +13,7 @@ import { MentionSnippet } from "@/components/search/mention-snippet";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { LinkButton } from "@/components/ui/button";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
+import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import layout from "@/components/ui/two-column.module.css";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,14 @@ export default async function TopicPage({
         documents={data.topDocuments}
         mentions={data.mentionExcerpts}
         documentsHref="#documents"
+      />
+
+      <RelatedDocumentsRail
+        documents={data.topDocuments}
+        title="Documents to read next"
+        description={`Start with the records that most directly frame ${data.topic.title}, then move into the full topic search.`}
+        searchHref={topicSearchHref}
+        searchLabel="Open scoped document search"
       />
 
       {data.topDocuments.length > 0 && (
