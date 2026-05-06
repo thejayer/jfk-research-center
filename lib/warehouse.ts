@@ -77,6 +77,7 @@ import { formatDate } from "./format";
 import {
   buildDocumentResponse,
   buildBibliographyIndex,
+  buildCaseTimelineIndex,
   buildEntityResponse,
   buildEstablishedFactsIndex,
   buildHomeResponse,
@@ -2151,6 +2152,8 @@ type CaseTimelineRow = {
 };
 
 export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
+  if (useMockData()) return buildCaseTimelineIndex();
+
   const [rows, docLinkRows] = await Promise.all([
     query<CaseTimelineRow>(
       `SELECT event_id, event_date, event_time_local, title, description,
