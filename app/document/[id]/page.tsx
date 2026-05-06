@@ -11,6 +11,7 @@ import { DocumentResearchContext } from "@/components/documents/document-researc
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,10 @@ export default async function DocumentPage({
       </nav>
 
       <DocumentHeader doc={data.document} />
+
+      <div style={{ marginTop: 18 }}>
+        <TrustStatusStrip doc={data.document} />
+      </div>
 
       {hasReleaseHistory && (
         <ReleaseHistory entries={releaseHistory} />

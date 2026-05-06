@@ -39,6 +39,7 @@ export default async function SearchPage({
     fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
   ]);
+  const triage = buildSearchTriage(response.results);
 
   return (
     <div>
@@ -117,6 +118,9 @@ export default async function SearchPage({
             <div className="search-main">
               <ActiveTopicChip topicLabels={response.filters.topicLabels} />
               <ResultHeading q={q} mode={mode} total={response.total} manifest={manifest} />
+              {response.total > 0 && mode === "document" && (
+                <SearchTriageStrip triage={triage} />
+              )}
 
               {response.total === 0 ? (
                 <SearchEmptyPanel
@@ -205,6 +209,95 @@ export default async function SearchPage({
         }
       `}</style>
     </div>
+  );
+}
+
+function buildSearchTriage(
+  results: import("@/lib/api-types").SearchResult[],
+) {
+  const documentResults = results.filter((result) => result.kind === "document");
+  const agencyCounts = new Map<string, number>();
+  const yearCounts = new Map<string, number>();
+  let ocrCount = 0;
+  let highConfidenceCount = 0;
+
+  for (const result of documentResults) {
+    const doc = result.document;
+    if (doc.agency) agencyCounts.set(doc.agency, (agencyCounts.get(doc.agency) ?? 0) + 1);
+    const year = doc.date?.slice(0, 4) ?? doc.dateLabel?.match(/\d{4}/)?.[0];
+    if (year) yearCounts.set(year, (yearCounts.get(year) ?? 0) + 1);
+    if (doc.hasOcr) ocrCount += 1;
+    if (result.confidence === "high") highConfidenceCount += 1;
+  }
+
+  return {
+    agencies: Array.from(agencyCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3),
+    years: Array.from(yearCounts.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3),
+    ocrCount,
+    highConfidenceCount,
+    visibleCount: documentResults.length,
+  };
+}
+
+function SearchTriageStrip({
+  triage,
+}: {
+  triage: ReturnType<typeof buildSearchTriage>;
+}) {
+  const items = [
+    {
+      label: "Visible OCR",
+      value: `${triage.ocrCount}/${triage.visibleCount}`,
+    },
+    {
+      label: "High confidence",
+      value: `${triage.highConfidenceCount}`,
+    },
+    {
+      label: "Top agencies",
+      value:
+        triage.agencies.length > 0
+          ? triage.agencies.map(([agency, count]) => `${agency} ${count}`).join(" / ")
+          : "Mixed",
+    },
+    {
+      label: "Dense years",
+      value:
+        triage.years.length > 0
+          ? triage.years.map(([year, count]) => `${year} ${count}`).join(" / ")
+          : "Undated",
+    },
+  ];
+
+  return (
+    <section
+      aria-label="Search result triage"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))",
+        gap: 8,
+        marginBottom: 16,
+      }}
+    >
+      {items.map((item) => (
+        <div
+          key={item.label}
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            background: "var(--surface)",
+            padding: "10px 12px",
+          }}
+        >
+          <div className="eyebrow" style={{ fontSize: "0.62rem", marginBottom: 4 }}>
+            {item.label}
+          </div>
+          <div className="muted" style={{ fontSize: "0.82rem", lineHeight: 1.35 }}>
+            {item.value}
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 

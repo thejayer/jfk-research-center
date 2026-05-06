@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { DocumentCard, ConfidenceLevel } from "@/lib/api-types";
 import { Badge, ConfidenceBadge, OcrBadge } from "@/components/ui/badge";
 import { highlightHTML } from "@/lib/format";
+import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 
 export function SearchResultCard({
   document,
@@ -70,6 +71,10 @@ export function SearchResultCard({
         <span>
           NAID <span className="num">{document.naid}</span>
         </span>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <TrustStatusStrip doc={document} compact />
       </div>
 
       <h3
@@ -221,7 +226,6 @@ function buildMatchReasons({
       label: "Confidence",
       detail: confidenceDetail,
     });
-  }
   }
   return reasons.slice(0, 3);
 }
