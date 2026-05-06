@@ -465,18 +465,15 @@ function GuidedResearchPaths() {
           <Link
             key={path.href}
             href={path.href}
+            className="surface-card"
             style={{
               display: "grid",
               gridTemplateRows: "auto auto 1fr auto",
               gap: 9,
               minHeight: 190,
               padding: "17px 18px",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              background: "var(--surface)",
               color: "var(--text)",
               textDecoration: "none",
-              boxShadow: "var(--shadow-sm)",
             }}
           >
             <span className="muted num" style={{ fontSize: "0.76rem" }}>

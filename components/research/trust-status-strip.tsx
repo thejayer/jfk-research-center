@@ -51,13 +51,13 @@ export function TrustStatusStrip({
       {items.map((item) => (
         <span
           key={`${item.label}-${item.value}`}
+          className="surface-card"
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
             minHeight: compact ? 24 : 28,
             padding: compact ? "3px 8px" : "4px 10px",
-            border: "1px solid var(--border)",
             borderRadius: 999,
             background: statusBackground(item.tone),
             color: "var(--text)",

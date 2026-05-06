@@ -74,7 +74,7 @@ export function ListView({
               textDecoration: "none",
             }}
           >
-            {d} ·{" "}
+            {d} /{" "}
             {Array.from(byDecade.get(d)!.values()).reduce(
               (n, l) => n + l.length,
               0,
@@ -132,7 +132,7 @@ function YearGroup({
           fontWeight: 600,
           color: "var(--text-muted)",
           marginBottom: 10,
-          letterSpacing: "0.02em",
+          letterSpacing: 0,
         }}
       >
         {year}
@@ -158,7 +158,7 @@ function YearGroup({
               marginBottom: 10,
             }}
           >
-            72 hours in Dallas · Nov 22–25, 1963
+            72 hours in Dallas / Nov 22-25, 1963
           </div>
           <EventList events={marquee} />
         </div>

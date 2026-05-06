@@ -149,15 +149,13 @@ export default async function EvidenceIndexPage() {
           <a
             key={c.category}
             href={`#cat-${c.category}`}
+            className="surface-card"
             style={{
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               gap: 12,
               padding: "10px 12px",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              background: "var(--surface)",
               fontSize: "0.82rem",
               color: "var(--text)",
               textDecoration: "none",
@@ -183,18 +181,9 @@ export default async function EvidenceIndexPage() {
           title="Evidence comparison"
           description="Scan item type, record depth, and image availability before opening a detail page."
         />
-        <div
-          style={{
-            overflowX: "auto",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)",
-            background: "var(--surface)",
-          }}
-        >
+        <div className="responsive-table-wrap">
           <table
             style={{
-              width: "100%",
-              borderCollapse: "collapse",
               minWidth: 760,
               fontSize: "0.88rem",
             }}
@@ -285,16 +274,15 @@ export default async function EvidenceIndexPage() {
                 <li key={it.id}>
                   <Link
                     href={it.href}
+                    className="surface-card"
                     style={{
                       display: "flex",
                       flexDirection: "column",
                       gap: 8,
                       padding: "16px 18px",
-                      border: "1px solid var(--border)",
-                      borderRadius: "var(--radius-md)",
-                      background: "var(--surface)",
                       color: "var(--text)",
                       height: "100%",
+                      textDecoration: "none",
                     }}
                   >
                     <Badge tone="muted" size="sm" style={{ alignSelf: "start" }}>

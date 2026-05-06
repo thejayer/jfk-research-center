@@ -282,10 +282,8 @@ function SearchTriageStrip({
       {items.map((item) => (
         <div
           key={item.label}
+          className="surface-card"
           style={{
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            background: "var(--surface)",
             padding: "10px 12px",
           }}
         >

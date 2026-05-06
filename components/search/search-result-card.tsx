@@ -30,16 +30,10 @@ export function SearchResultCard({
     <article
       data-search-result="true"
       tabIndex={-1}
-      className="search-result-focusable"
+      className="search-result-focusable surface-card"
       style={{
         padding: "20px",
-        borderWidth: 1,
-        borderStyle: "solid",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
         scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
-        transition:
-          "border-color var(--motion), box-shadow var(--motion), transform var(--motion)",
       }}
     >
       <div
@@ -123,9 +117,8 @@ export function SearchResultCard({
           {matchReasons.map((reason) => (
             <div
               key={reason.label}
+              className="surface-card"
               style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
                 background: "color-mix(in srgb, var(--surface) 86%, var(--bg))",
                 padding: "8px 10px",
               }}

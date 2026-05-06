@@ -101,12 +101,12 @@ export default function ResearchPathsPage() {
             key={path.slug}
             id={path.slug}
             aria-labelledby={`${path.slug}-title`}
+            className="research-panel"
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
               gap: 18,
-              padding: "20px 0",
-              borderTop: "1px solid var(--border)",
+              borderBottom: 0,
             }}
           >
             <div style={{ minWidth: 0 }}>
@@ -154,14 +154,12 @@ export default function ResearchPathsPage() {
                 <li key={step.href}>
                   <Link
                     href={step.href}
+                    className="surface-card"
                     style={{
                       display: "grid",
                       gridTemplateColumns: "38px minmax(0, 1fr)",
                       gap: 12,
                       padding: "13px 14px",
-                      border: "1px solid var(--border)",
-                      borderRadius: 8,
-                      background: "var(--surface)",
                       color: "var(--text)",
                       textDecoration: "none",
                     }}

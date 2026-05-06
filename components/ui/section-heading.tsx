@@ -34,7 +34,7 @@ export function SectionHeading({
         <h2
           style={{
             fontSize: "clamp(1.4rem, 1rem + 1vw, 1.8rem)",
-            letterSpacing: "-0.01em",
+            letterSpacing: 0,
             fontFamily: "var(--font-serif)",
             fontWeight: 500,
           }}
@@ -48,6 +48,7 @@ export function SectionHeading({
               marginTop: 10,
               maxWidth: "60ch",
               fontSize: "0.98rem",
+              lineHeight: 1.6,
             }}
           >
             {description}
@@ -67,9 +68,23 @@ export function SectionHeading({
           }}
         >
           {actionLabel}
-          <span aria-hidden>→</span>
+          <ArrowRightIcon />
         </Link>
       )}
     </div>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

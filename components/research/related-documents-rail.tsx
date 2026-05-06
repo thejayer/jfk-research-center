@@ -38,14 +38,12 @@ export function RelatedDocumentsRail({
   return (
     <section aria-label={title} style={{ marginTop: 56 }}>
       <div
+        className="research-panel"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
           gap: 22,
           alignItems: "start",
-          borderTop: "1px solid var(--border)",
-          borderBottom: "1px solid var(--border)",
-          padding: "24px 0",
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -142,7 +140,7 @@ function DocumentRailCard({
   index: number;
 }) {
   return (
-    <Link href={document.href} style={cardStyle}>
+    <Link href={document.href} className="surface-card" style={cardStyle}>
       <span className="muted num" style={{ fontSize: "0.76rem" }}>
         {String(index).padStart(2, "0")} / NAID {document.naid}
       </span>
@@ -215,6 +213,7 @@ function ReferenceRailCard({
   if (reference.external) {
     return (
       <a
+        className="surface-card"
         href={reference.href}
         target="_blank"
         rel="noopener noreferrer"
@@ -226,7 +225,7 @@ function ReferenceRailCard({
   }
 
   return (
-    <Link href={reference.href} style={cardStyle}>
+    <Link href={reference.href} className="surface-card" style={cardStyle}>
       {content}
     </Link>
   );
@@ -252,10 +251,6 @@ const cardStyle = {
   gap: 9,
   minHeight: 172,
   padding: "15px 16px",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--surface)",
   color: "var(--text)",
   textDecoration: "none",
-  boxShadow: "var(--shadow-sm)",
 } as const;
