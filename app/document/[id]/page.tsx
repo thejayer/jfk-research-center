@@ -137,6 +137,14 @@ export default async function DocumentPage({
             hasRelatedEntities={hasRelatedEntities}
             hasRelatedDocuments={hasRelatedDocuments}
           />
+          <DocumentReaderActions
+            naid={data.document.naid}
+            title={data.document.title}
+            pageCount={data.document.pageCount}
+            chunkCount={data.document.chunkCount}
+            hasOcr={data.document.hasOcr}
+            citation={data.document.citation}
+          />
           <div id="metadata">
             <MetadataPanel doc={data.document} />
           </div>
@@ -247,6 +255,126 @@ function DocumentJumpNav({
         </Link>
       )}
     </nav>
+  );
+}
+
+function DocumentReaderActions({
+  naid,
+  title,
+  pageCount,
+  chunkCount,
+  hasOcr,
+  citation,
+}: {
+  naid: string;
+  title: string;
+  pageCount?: number | null;
+  chunkCount?: number | null;
+  hasOcr?: boolean;
+  citation?: string | null;
+}) {
+  const encodedTitle = encodeURIComponent(title);
+  const actions = [
+    {
+      href: `/search?q=${encodedTitle}&mode=document`,
+      label: "Search title",
+      detail: "Find matching records",
+    },
+    {
+      href: `/search?q=${encodeURIComponent(naid)}&mode=document`,
+      label: "Search NAID",
+      detail: naid,
+    },
+    hasOcr
+      ? {
+          href: "#ocr-text",
+          label: "Read OCR",
+          detail: formatDocumentMeasure(pageCount, chunkCount),
+        }
+      : null,
+    citation
+      ? {
+          href: "#source",
+          label: "Copy citation",
+          detail: "Available in source tools",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ href: string; label: string; detail: string }>;
+
+  return (
+    <section
+      aria-label="Reader actions"
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        padding: "16px 18px",
+      }}
+    >
+      <div className="eyebrow" style={{ marginBottom: 10 }}>
+        Reader actions
+      </div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {actions.map((action) => (
+          <Link
+            key={action.label}
+            href={action.href}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "10px 11px",
+              border: "1px solid var(--border)",
+              borderRadius: 8,
+              color: "var(--text)",
+              textDecoration: "none",
+            }}
+          >
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: "block", fontSize: "0.88rem", fontWeight: 600 }}>
+                {action.label}
+              </span>
+              <span className="muted" style={{ display: "block", fontSize: "0.76rem" }}>
+                {action.detail}
+              </span>
+            </span>
+            <ArrowRightIcon />
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function formatDocumentMeasure(
+  pageCount?: number | null,
+  chunkCount?: number | null,
+): string {
+  const parts = [];
+  if (pageCount) parts.push(`${pageCount.toLocaleString()} pages`);
+  if (chunkCount) parts.push(`${chunkCount.toLocaleString()} chunks`);
+  return parts.length > 0 ? parts.join(" / ") : "OCR text";
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+      style={{ color: "var(--text-muted)", flexShrink: 0 }}
+    >
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

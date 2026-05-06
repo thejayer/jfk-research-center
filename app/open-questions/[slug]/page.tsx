@@ -7,6 +7,7 @@ import { OpenQuestionsArticleBody } from "@/components/open-questions/article-bo
 import { OpenQuestionsThreadList } from "@/components/open-questions/thread-list";
 import { EditorialFootnotes } from "@/components/open-questions/editorial-footnotes";
 import { LinkButton } from "@/components/ui/button";
+import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import {
   TENSION_ORDER,
   tensionAnchorId,
@@ -48,6 +49,9 @@ export default async function OpenQuestionsTopicPage({
   const evidenceDocCount =
     data.article?.sourceDocCount ??
     new Set(data.threads.flatMap((thread) => thread.supportingDocIds)).size;
+  const supportingDocumentIds = Array.from(
+    new Set(data.threads.flatMap((thread) => thread.supportingDocIds)),
+  ).slice(0, 4);
   const tensionCounts = new Map<string, number>();
   for (const thread of data.threads) {
     const key = thread.tensionType ?? "other";
@@ -226,6 +230,20 @@ export default async function OpenQuestionsTopicPage({
           ))}
         </nav>
       )}
+
+      <RelatedDocumentsRail
+        references={supportingDocumentIds.map((documentId) => ({
+          id: documentId,
+          label: documentId,
+          href: `/document/${encodeURIComponent(documentId)}`,
+          meta: "Supporting record cited by an underlying thread",
+        }))}
+        title="Documents behind the questions"
+        description="Open the supporting records before reading the synthesized tensions."
+        searchHref={data.topicHref}
+        searchLabel="Back to topic overview"
+        emptyText="No supporting document IDs are attached to these question threads yet."
+      />
 
       {(data.article || data.threads.length > 0) && (
         <section aria-label="Analysis and evidence" style={{ marginTop: 36 }}>
