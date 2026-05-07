@@ -269,6 +269,39 @@ export type DocumentResponse = {
   relatedDocuments: DocumentCard[];
 };
 
+export type CompareReleaseVersion = {
+  id: string;
+  releaseSet: string;
+  releaseLabel: string;
+  releaseDate: string | null;
+  sourceUrl: string | null;
+  pageCount: number | null;
+  ocrAvailable: boolean;
+  checksum: string | null;
+  status: "baseline" | "changed" | "unchanged" | "missing_ocr";
+  summary: string;
+  notableChanges: string[];
+  ocrExcerpt: string | null;
+};
+
+export type CompareDiffMetric = {
+  label: string;
+  value: string;
+  note: string;
+};
+
+export type CompareResponse = {
+  record: DocumentCard;
+  canonicalKey: {
+    label: string;
+    value: string;
+  };
+  versions: CompareReleaseVersion[];
+  metrics: CompareDiffMetric[];
+  limitations: string[];
+  nextSteps: string[];
+};
+
 // ---------------------------------------------------------------------------
 // Open Questions — neutral-framing article surfacing tensions in the
 // collection. Backed by the sql/27-29 map-reduce pipeline.

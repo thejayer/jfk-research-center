@@ -46,6 +46,7 @@ import type {
   CaseTimelineCategory,
   CaseTimelineEvent,
   CaseTimelineIndex,
+  CompareResponse,
   TimelineEvent,
   CitationEntry,
   CitationType,
@@ -78,6 +79,7 @@ import {
   buildDocumentResponse,
   buildBibliographyIndex,
   buildCaseTimelineIndex,
+  buildCompareResponse,
   buildEntityResponse,
   buildEstablishedFactsIndex,
   buildHomeResponse,
@@ -1333,6 +1335,15 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
     relatedEntities,
     relatedDocuments: related.map((r) => rowToCard(r)),
   };
+}
+
+export async function fetchCompare(recordId: string): Promise<CompareResponse | null> {
+  if (useMockData()) return buildCompareResponse(recordId);
+
+  // The compare surface needs per-release OCR and source-file provenance
+  // before warehouse-backed diffs can be trusted. Keep live mode explicit
+  // until those tables exist.
+  return null;
 }
 
 async function fetchDocumentTopics(id: string): Promise<TopicCard[]> {

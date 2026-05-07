@@ -31,6 +31,7 @@ import type {
   CaseTimelineCategory,
   CaseTimelineEvent,
   CaseTimelineIndex,
+  CompareResponse,
   CitationEntry,
   CitationType,
   EstablishedFact,
@@ -1745,6 +1746,104 @@ export function buildDocumentResponse(id: string): DocumentResponse | null {
     relatedEntities,
     relatedDocuments,
   };
+}
+
+const COMPARE_FIXTURES: Record<string, CompareResponse> = {
+  "oswald-201-file-vol1": {
+    record: documentToCard(getDocument("oswald-201-file-vol1")!),
+    canonicalKey: {
+      label: "RIF / NAID",
+      value: "104-10004-10156",
+    },
+    versions: [
+      {
+        id: "oswald-201-file-vol1-1993",
+        releaseSet: "1993",
+        releaseLabel: "ARRB early release",
+        releaseDate: "1993-08-23",
+        sourceUrl: "https://catalog.archives.gov/id/104-10004-10156",
+        pageCount: 117,
+        ocrAvailable: false,
+        checksum: null,
+        status: "baseline",
+        summary:
+          "Baseline catalog entry is present, but per-page OCR is not available in the mock corpus.",
+        notableChanges: [
+          "Catalog metadata establishes the record key and CIA file context.",
+          "Text comparison is blocked until this release has OCR or extracted page text.",
+        ],
+        ocrExcerpt: null,
+      },
+      {
+        id: "oswald-201-file-vol1-2017",
+        releaseSet: "2017-2018",
+        releaseLabel: "2017-2018 NARA tranche",
+        releaseDate: "2017-10-26",
+        sourceUrl: "https://catalog.archives.gov/id/104-10004-10156",
+        pageCount: 124,
+        ocrAvailable: false,
+        checksum: null,
+        status: "missing_ocr",
+        summary:
+          "Mock metadata indicates a later posting, but release-specific OCR has not been ingested.",
+        notableChanges: [
+          "Page count differs from the baseline fixture, which should be verified against source PDFs.",
+          "No text diff is computed until per-release OCR is present.",
+        ],
+        ocrExcerpt: null,
+      },
+      {
+        id: "oswald-201-file-vol1-2025",
+        releaseSet: "2025",
+        releaseLabel: "2025 ABBYY OCR source",
+        releaseDate: "2025-03-18",
+        sourceUrl: "https://catalog.archives.gov/id/104-10004-10156",
+        pageCount: 124,
+        ocrAvailable: true,
+        checksum: "mock-sha256:0f3b7f5f4e1f",
+        status: "changed",
+        summary:
+          "ABBYY OCR supplies the first mock text layer for this record, allowing future diffs against earlier extracted text.",
+        notableChanges: [
+          "OCR excerpt includes the opening of the Oswald 201 personality file.",
+          "The current mock can compare metadata readiness, not pixel-level redaction boxes.",
+        ],
+        ocrExcerpt:
+          "Subject LEE HARVEY OSWALD, former U.S. Marine, is reported to have renounced his U.S. citizenship in Moscow on October 31, 1959.",
+      },
+    ],
+    metrics: [
+      {
+        label: "Versions modeled",
+        value: "3",
+        note: "Mock fixture spans early catalog metadata, 2017-2018 posting, and 2025 OCR source.",
+      },
+      {
+        label: "OCR-ready versions",
+        value: "1",
+        note: "Only the 2025 mock version has extracted text today.",
+      },
+      {
+        label: "Diff confidence",
+        value: "Foundation",
+        note: "Ready for API/UI contract review; not a production redaction finding.",
+      },
+    ],
+    limitations: [
+      "Earlier release PDFs need per-release OCR before text-level differences can be computed.",
+      "Visual redaction comparison requires source PDF images, page alignment, and bounding boxes.",
+      "Page-count differences in this mock should be treated as a prompt for source verification, not a finding.",
+    ],
+    nextSteps: [
+      "Add a warehouse table or view that groups record versions by RIF / NAID and release set.",
+      "Ingest per-release OCR text and checksums so text diffs can be generated deterministically.",
+      "Add visual page alignment only after source PDF provenance is stable.",
+    ],
+  },
+};
+
+export function buildCompareResponse(recordId: string): CompareResponse | null {
+  return COMPARE_FIXTURES[recordId] ?? null;
 }
 
 // ----------------------------------------------------------------------------
