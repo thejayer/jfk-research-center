@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type React from "react";
+import type { CSSProperties } from "react";
 import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { formatDate } from "@/lib/format";
 import { TimelinePermalink } from "./timeline-permalink";
@@ -43,8 +44,8 @@ export function EventCard({
       id={e.id}
       data-timeline-event
       data-category={e.category}
-      className="surface-card"
       style={{
+        ...surfaceCardStyle,
         padding: "12px 16px 14px",
         scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
         listStyle: as === "li" ? "none" : undefined,
@@ -215,6 +216,15 @@ const chipStyle = {
   color: "var(--text-muted)",
   textDecoration: "none",
 } as const;
+
+const surfaceCardStyle: CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--surface)",
+  boxShadow: "var(--shadow-sm)",
+  transition:
+    "border-color var(--motion), background var(--motion), box-shadow var(--motion), transform var(--motion)",
+};
 
 export const TIMELINE_CATEGORY_LABEL = CATEGORY_LABEL;
 export const TIMELINE_CATEGORY_COLOR = CATEGORY_COLOR;

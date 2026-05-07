@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import type { DocumentCard, DocumentDetail } from "@/lib/api-types";
 
 type TrustStatusStripProps = {
@@ -51,8 +52,8 @@ export function TrustStatusStrip({
       {items.map((item) => (
         <span
           key={`${item.label}-${item.value}`}
-          className="surface-card"
           style={{
+            ...statusChipStyle,
             display: "inline-flex",
             alignItems: "center",
             gap: 6,
@@ -97,3 +98,10 @@ function statusBackground(tone: "good" | "warn" | "neutral" | undefined) {
   }
   return "var(--surface)";
 }
+
+const statusChipStyle: CSSProperties = {
+  border: "1px solid var(--border)",
+  boxShadow: "var(--shadow-sm)",
+  transition:
+    "border-color var(--motion), background var(--motion), box-shadow var(--motion)",
+};
