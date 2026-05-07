@@ -312,7 +312,7 @@ function VersionRow({
           <VersionFact label="Release set" value={version.releaseSet} />
           <VersionFact
             label="Pages"
-            value={version.pageCount ? version.pageCount.toLocaleString() : "Unknown"}
+            value={version.pageCount != null ? version.pageCount.toLocaleString() : "Unknown"}
           />
           <VersionFact
             label="OCR"
@@ -386,6 +386,10 @@ function Checklist({ title, items }: { title: string; items: string[] }) {
   );
 }
 
+/**
+ * Reads the first `record` query value and accepts only simple slug-like IDs:
+ * alphanumeric characters plus dashes. Empty or malformed input falls back.
+ */
 function parseRecordId(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return null;
@@ -393,6 +397,10 @@ function parseRecordId(value: string | string[] | undefined): string | null {
   return /^[a-z0-9-]+$/i.test(trimmed) ? trimmed : null;
 }
 
+/**
+ * Converts compare-version status values into the exact labels shown in the
+ * timeline badge: Baseline, Changed, Unchanged, or Needs OCR.
+ */
 function statusLabel(status: CompareReleaseVersion["status"]): string {
   switch (status) {
     case "baseline":
@@ -406,6 +414,11 @@ function statusLabel(status: CompareReleaseVersion["status"]): string {
   }
 }
 
+/**
+ * Maps compare-version statuses to theme CSS variables for timeline markers:
+ * changed uses accent, missing OCR uses muted text, and stable states use the
+ * stronger border color.
+ */
 function statusColor(status: CompareReleaseVersion["status"]): string {
   switch (status) {
     case "changed":

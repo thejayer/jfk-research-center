@@ -1843,7 +1843,8 @@ const COMPARE_FIXTURES: Record<string, CompareResponse> = {
 };
 
 export function buildCompareResponse(recordId: string): CompareResponse | null {
-  return COMPARE_FIXTURES[recordId] ?? null;
+  const fixture = COMPARE_FIXTURES[recordId];
+  return fixture ? structuredClone(fixture) : null;
 }
 
 // ----------------------------------------------------------------------------

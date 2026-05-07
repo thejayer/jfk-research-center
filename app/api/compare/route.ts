@@ -1,7 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fetchCompare } from "@/lib/warehouse";
+import { PUBLIC_ROUTE_CACHE_CONTROL } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
+
+const COMPARE_RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -10,6 +13,12 @@ export async function GET(req: NextRequest) {
   if (!recordId) {
     return NextResponse.json(
       { error: "record query parameter is required" },
+      { status: 400 },
+    );
+  }
+  if (!COMPARE_RECORD_ID_RE.test(recordId)) {
+    return NextResponse.json(
+      { error: "record query parameter is malformed" },
       { status: 400 },
     );
   }
@@ -24,7 +33,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json(data, {
       headers: {
-        "cache-control": "public, s-maxage=300, stale-while-revalidate=1800",
+        "cache-control": PUBLIC_ROUTE_CACHE_CONTROL,
       },
     });
   } catch (err) {

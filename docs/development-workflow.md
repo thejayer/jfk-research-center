@@ -73,16 +73,16 @@ another issue that owns the work.
 Before marking app work ready:
 
 ```bash
-npm.cmd run typecheck
-npm.cmd test
-npm.cmd run build
+npm run typecheck
+npm test
+npm run build
 ```
 
 Use mock mode for local review when BigQuery credentials or live warehouse data
 are not part of the task:
 
 ```bash
-npm.cmd run dev:mock
+npm run dev:mock
 ```
 
 After a GitHub deploy, post the result back to the Linear issue. If a deploy

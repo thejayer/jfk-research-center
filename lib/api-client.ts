@@ -141,8 +141,11 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
 }
 
 export async function fetchCompare(recordId: string): Promise<CompareResponse | null> {
+  const trimmedRecordId = recordId.trim();
+  if (!trimmedRecordId) return null;
+
   return get<CompareResponse>(
-    `/api/compare?record=${encodeURIComponent(recordId)}`,
+    `/api/compare?record=${encodeURIComponent(trimmedRecordId)}`,
     { revalidate: 600 },
   );
 }
