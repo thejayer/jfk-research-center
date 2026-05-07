@@ -39,8 +39,10 @@ export function RelatedDocumentsRail({
   return (
     <section aria-label={title} style={{ marginTop: 56 }}>
       <div
-        className="research-panel"
         style={{
+          borderTop: "1px solid var(--border)",
+          borderBottom: "1px solid var(--border)",
+          padding: "24px 0",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
           gap: 22,

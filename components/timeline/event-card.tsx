@@ -3,6 +3,7 @@ import type React from "react";
 import type { CSSProperties } from "react";
 import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { formatDate } from "@/lib/format";
+import { normalizeHttpUrl } from "@/lib/safe-url";
 import { TimelinePermalink } from "./timeline-permalink";
 
 const CATEGORY_LABEL: Record<CaseTimelineCategory, string> = {
@@ -22,11 +23,7 @@ const CATEGORY_COLOR: Record<CaseTimelineCategory, string> = {
 };
 
 function hostLabel(url: string): string {
-  try {
-    return new URL(url).host.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
+  return new URL(url).host.replace(/^www\./, "");
 }
 
 export function EventCard({
@@ -137,13 +134,17 @@ export function EventCard({
           ))}
         </TimelineChipRow>
       )}
-      {e.sourceExternal.length > 0 && (
+      {e.sourceExternal.some((url) => normalizeHttpUrl(url)) && (
         <TimelineChipRow label="Sources">
-          {e.sourceExternal.map((url) => (
-            <TimelineChip key={url} href={url} external>
-              {hostLabel(url)} external
-            </TimelineChip>
-          ))}
+          {e.sourceExternal.map((url) => {
+            const safeUrl = normalizeHttpUrl(url);
+            if (!safeUrl) return null;
+            return (
+              <TimelineChip key={safeUrl} href={safeUrl} external>
+                {hostLabel(safeUrl)} external
+              </TimelineChip>
+            );
+          })}
         </TimelineChipRow>
       )}
     </Container>

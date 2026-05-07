@@ -5,6 +5,7 @@ import {
   fetchCorpusManifest,
 } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
+import { normalizeHttpUrl } from "@/lib/safe-url";
 
 export const dynamic = "force-dynamic";
 
@@ -139,17 +140,21 @@ export default async function ReleasesPage() {
                     records indexed
                   </span>
                 )}
-                {r.sourceExternal.map((url) => (
-                  <a
-                    key={url}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontSize: "0.8rem" }}
-                  >
-                    source &rarr;
-                  </a>
-                ))}
+                {r.sourceExternal.map((url) => {
+                  const safeUrl = normalizeHttpUrl(url);
+                  if (!safeUrl) return null;
+                  return (
+                    <a
+                      key={safeUrl}
+                      href={safeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: "0.8rem" }}
+                    >
+                      source
+                    </a>
+                  );
+                })}
               </div>
             </li>
           );
