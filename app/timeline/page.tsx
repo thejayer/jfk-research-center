@@ -203,15 +203,13 @@ export default async function TimelinePage({ searchParams }: Props) {
               <a
                 key={item.category}
                 href={`/timeline?view=list&category=${item.category}`}
+                className="surface-card"
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 12,
                   padding: "9px 11px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  background: "var(--surface)",
                   color: "var(--text)",
                   textDecoration: "none",
                   fontSize: "0.82rem",
@@ -237,16 +235,13 @@ export default async function TimelinePage({ searchParams }: Props) {
               <a
                 key={item.decade}
                 href={`/timeline?view=list#decade-${item.decade}`}
-                className="num"
+                className="num surface-card"
                 style={{
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
                   gap: 10,
                   padding: "9px 11px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  background: "var(--surface)",
                   color: "var(--text)",
                   textDecoration: "none",
                   fontSize: "0.82rem",
@@ -263,11 +258,9 @@ export default async function TimelinePage({ searchParams }: Props) {
       {sourcePackets.length > 0 && (
         <section
           aria-label="Timeline source packets"
+          className="research-panel"
           style={{
             marginBottom: 38,
-            padding: "22px 0",
-            borderTop: "1px solid var(--border)",
-            borderBottom: "1px solid var(--border)",
           }}
         >
           <div
@@ -308,10 +301,8 @@ export default async function TimelinePage({ searchParams }: Props) {
               {sourcePackets.map((event) => (
                 <article
                   key={event.id}
+                  className="surface-card"
                   style={{
-                    border: "1px solid var(--border)",
-                    borderRadius: 8,
-                    background: "var(--surface)",
                     padding: "13px 14px",
                     display: "grid",
                     gap: 8,

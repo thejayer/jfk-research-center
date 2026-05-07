@@ -1,6 +1,9 @@
 import Link from "next/link";
+import type React from "react";
+import type { CSSProperties } from "react";
 import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { formatDate } from "@/lib/format";
+import { normalizeHttpUrl } from "@/lib/safe-url";
 import { TimelinePermalink } from "./timeline-permalink";
 
 const CATEGORY_LABEL: Record<CaseTimelineCategory, string> = {
@@ -20,11 +23,7 @@ const CATEGORY_COLOR: Record<CaseTimelineCategory, string> = {
 };
 
 function hostLabel(url: string): string {
-  try {
-    return new URL(url).host.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
+  return new URL(url).host.replace(/^www\./, "");
 }
 
 export function EventCard({
@@ -43,10 +42,8 @@ export function EventCard({
       data-timeline-event
       data-category={e.category}
       style={{
+        ...surfaceCardStyle,
         padding: "12px 16px 14px",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
         scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
         listStyle: as === "li" ? "none" : undefined,
       }}
@@ -67,11 +64,11 @@ export function EventCard({
         <span>{formatDate(e.date)}</span>
         {e.timeLocal && (
           <>
-            <span aria-hidden="true">·</span>
+            <span aria-hidden="true">/</span>
             <span>{e.timeLocal}</span>
           </>
         )}
-        <span aria-hidden="true">·</span>
+        <span aria-hidden="true">/</span>
         <span
           style={{
             textTransform: "uppercase",
@@ -83,7 +80,7 @@ export function EventCard({
         </span>
         {e.importance >= 5 && (
           <span title="Headline event" style={{ letterSpacing: "0.04em" }}>
-            ★ headline
+            headline
           </span>
         )}
         {showPermalink && <TimelinePermalink eventId={e.id} title={e.title} />}
@@ -92,7 +89,7 @@ export function EventCard({
         style={{
           fontFamily: "var(--font-serif)",
           fontSize: "1.05rem",
-          letterSpacing: "-0.005em",
+          letterSpacing: 0,
           marginBottom: 4,
           lineHeight: 1.3,
         }}
@@ -111,131 +108,124 @@ export function EventCard({
         {e.description}
       </p>
       {(e.relatedEntityIds.length > 0 || e.relatedTopicIds.length > 0) && (
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: "0.72rem",
-            color: "var(--text-muted)",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            alignItems: "baseline",
-          }}
-        >
-          <span
-            className="eyebrow"
-            style={{ letterSpacing: "0.08em", marginRight: 2 }}
-          >
-            Related:
-          </span>
+        <TimelineChipRow label="Related">
           {e.relatedEntityIds.map((id) => (
-            <Link
-              key={id}
-              href={`/entity/${encodeURIComponent(id)}`}
-              style={{
-                padding: "1px 6px",
-                border: "1px solid var(--border)",
-                borderRadius: 4,
-                color: "var(--text-muted)",
-                textDecoration: "none",
-              }}
-            >
+            <TimelineChip key={id} href={`/entity/${encodeURIComponent(id)}`}>
               {id}
-            </Link>
+            </TimelineChip>
           ))}
           {e.relatedTopicIds.map((id) => (
-            <Link
-              key={id}
-              href={`/topic/${encodeURIComponent(id)}`}
-              style={{
-                padding: "1px 6px",
-                border: "1px solid var(--border)",
-                borderRadius: 4,
-                color: "var(--text-muted)",
-                textDecoration: "none",
-              }}
-            >
+            <TimelineChip key={id} href={`/topic/${encodeURIComponent(id)}`}>
               #{id}
-            </Link>
+            </TimelineChip>
           ))}
-        </div>
+        </TimelineChipRow>
       )}
       {e.documentLinks.length > 0 && (
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: "0.72rem",
-            color: "var(--text-muted)",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            alignItems: "baseline",
-          }}
-        >
-          <span
-            className="eyebrow"
-            style={{ letterSpacing: "0.08em", marginRight: 2 }}
-          >
-            Documents:
-          </span>
+        <TimelineChipRow label="Documents">
           {e.documentLinks.map((d) => (
-            <Link
+            <TimelineChip
               key={d.documentId}
               href={`/document/${encodeURIComponent(d.documentId)}`}
               title={d.note ?? undefined}
-              style={{
-                padding: "1px 6px",
-                border: "1px solid var(--border)",
-                borderRadius: 4,
-                color: "var(--text-muted)",
-                textDecoration: "none",
-              }}
             >
               {d.title ?? d.documentId}
-            </Link>
+            </TimelineChip>
           ))}
-        </div>
+        </TimelineChipRow>
       )}
-      {e.sourceExternal.length > 0 && (
-        <div
-          style={{
-            marginTop: 6,
-            fontSize: "0.72rem",
-            color: "var(--text-muted)",
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 6,
-            alignItems: "baseline",
-          }}
-        >
-          <span
-            className="eyebrow"
-            style={{ letterSpacing: "0.08em", marginRight: 2 }}
-          >
-            Sources:
-          </span>
-          {e.sourceExternal.map((url) => (
-            <a
-              key={url}
-              href={url}
-              target="_blank"
-              rel="noreferrer noopener"
-              style={{
-                padding: "1px 6px",
-                border: "1px solid var(--border)",
-                borderRadius: 4,
-                color: "var(--text-muted)",
-                textDecoration: "none",
-              }}
-            >
-              {hostLabel(url)} ↗
-            </a>
-          ))}
-        </div>
+      {e.sourceExternal.some((url) => normalizeHttpUrl(url)) && (
+        <TimelineChipRow label="Sources">
+          {e.sourceExternal.map((url) => {
+            const safeUrl = normalizeHttpUrl(url);
+            if (!safeUrl) return null;
+            return (
+              <TimelineChip key={safeUrl} href={safeUrl} external>
+                {hostLabel(safeUrl)} external
+              </TimelineChip>
+            );
+          })}
+        </TimelineChipRow>
       )}
     </Container>
   );
 }
+
+function TimelineChipRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        fontSize: "0.72rem",
+        color: "var(--text-muted)",
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 6,
+        alignItems: "baseline",
+      }}
+    >
+      <span className="eyebrow" style={{ letterSpacing: "0.08em", marginRight: 2 }}>
+        {label}:
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function TimelineChip({
+  href,
+  title,
+  external,
+  children,
+}: {
+  href: string;
+  title?: string;
+  external?: boolean;
+  children: React.ReactNode;
+}) {
+  if (external) {
+    return (
+      <a
+        href={href}
+        title={title}
+        target="_blank"
+        rel="noreferrer noopener"
+        style={chipStyle}
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} title={title} style={chipStyle}>
+      {children}
+    </Link>
+  );
+}
+
+const chipStyle = {
+  padding: "1px 6px",
+  border: "1px solid var(--border)",
+  borderRadius: 4,
+  color: "var(--text-muted)",
+  textDecoration: "none",
+} as const;
+
+const surfaceCardStyle: CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--surface)",
+  boxShadow: "var(--shadow-sm)",
+  transition:
+    "border-color var(--motion), background var(--motion), box-shadow var(--motion), transform var(--motion)",
+};
 
 export const TIMELINE_CATEGORY_LABEL = CATEGORY_LABEL;
 export const TIMELINE_CATEGORY_COLOR = CATEGORY_COLOR;

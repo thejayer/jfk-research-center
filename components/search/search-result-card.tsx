@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import type { DocumentCard, ConfidenceLevel } from "@/lib/api-types";
 import { Badge, ConfidenceBadge, OcrBadge } from "@/components/ui/badge";
 import { highlightHTML } from "@/lib/format";
@@ -32,14 +33,9 @@ export function SearchResultCard({
       tabIndex={-1}
       className="search-result-focusable"
       style={{
+        ...surfaceCardStyle,
         padding: "20px",
-        borderWidth: 1,
-        borderStyle: "solid",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
         scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
-        transition:
-          "border-color var(--motion), box-shadow var(--motion), transform var(--motion)",
       }}
     >
       <div
@@ -124,8 +120,7 @@ export function SearchResultCard({
             <div
               key={reason.label}
               style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
+                ...surfaceCardStyle,
                 background: "color-mix(in srgb, var(--surface) 86%, var(--bg))",
                 padding: "8px 10px",
               }}
@@ -243,3 +238,12 @@ function Dot() {
     </span>
   );
 }
+
+const surfaceCardStyle: CSSProperties = {
+  border: "1px solid var(--border)",
+  borderRadius: "var(--radius-md)",
+  background: "var(--surface)",
+  boxShadow: "var(--shadow-sm)",
+  transition:
+    "border-color var(--motion), background var(--motion), box-shadow var(--motion), transform var(--motion)",
+};

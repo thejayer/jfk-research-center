@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import type { DocumentCard } from "@/lib/api-types";
 import { Badge, OcrBadge } from "@/components/ui/badge";
 
@@ -39,13 +40,13 @@ export function RelatedDocumentsRail({
     <section aria-label={title} style={{ marginTop: 56 }}>
       <div
         style={{
+          borderTop: "1px solid var(--border)",
+          borderBottom: "1px solid var(--border)",
+          padding: "24px 0",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
           gap: 22,
           alignItems: "start",
-          borderTop: "1px solid var(--border)",
-          borderBottom: "1px solid var(--border)",
-          padding: "24px 0",
         }}
       >
         <div style={{ minWidth: 0 }}>
@@ -258,4 +259,6 @@ const cardStyle = {
   color: "var(--text)",
   textDecoration: "none",
   boxShadow: "var(--shadow-sm)",
-} as const;
+  transition:
+    "border-color var(--motion), background var(--motion), box-shadow var(--motion), transform var(--motion)",
+} satisfies CSSProperties;
