@@ -1748,9 +1748,16 @@ export function buildDocumentResponse(id: string): DocumentResponse | null {
   };
 }
 
+const compareSeedDocument = getDocument("oswald-201-file-vol1");
+if (!compareSeedDocument) {
+  throw new Error(
+    "Missing compare fixture seed in DOCUMENT_SEEDS: oswald-201-file-vol1",
+  );
+}
+
 const COMPARE_FIXTURES: Record<string, CompareResponse> = {
   "oswald-201-file-vol1": {
-    record: documentToCard(getDocument("oswald-201-file-vol1")!),
+    record: documentToCard(compareSeedDocument),
     canonicalKey: {
       label: "RIF / NAID",
       value: "104-10004-10156",

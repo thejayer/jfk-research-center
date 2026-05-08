@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { CompareReleaseVersion } from "@/lib/api-types";
 import { fetchCompare } from "@/lib/api-client";
+import { RECORD_ID_RE } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -387,14 +388,14 @@ function Checklist({ title, items }: { title: string; items: string[] }) {
 }
 
 /**
- * Reads the first `record` query value and accepts only simple slug-like IDs:
- * alphanumeric characters plus dashes. Empty or malformed input falls back.
+ * Reads the first `record` query value and accepts only IDs matching the
+ * shared route regex: 1-120 alphanumeric or dash characters.
  */
 function parseRecordId(value: string | string[] | undefined): string | null {
   const raw = Array.isArray(value) ? value[0] : value;
   if (!raw) return null;
   const trimmed = raw.trim();
-  return /^[a-z0-9-]+$/i.test(trimmed) ? trimmed : null;
+  return RECORD_ID_RE.test(trimmed) ? trimmed : null;
 }
 
 /**

@@ -1,10 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fetchCompare } from "@/lib/warehouse";
-import { PUBLIC_ROUTE_CACHE_CONTROL } from "@/lib/constants";
+import { PUBLIC_ROUTE_CACHE_CONTROL, RECORD_ID_RE } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
-
-const COMPARE_RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -16,7 +14,7 @@ export async function GET(req: NextRequest) {
       { status: 400 },
     );
   }
-  if (!COMPARE_RECORD_ID_RE.test(recordId)) {
+  if (!RECORD_ID_RE.test(recordId)) {
     return NextResponse.json(
       { error: "record query parameter is malformed" },
       { status: 400 },
