@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildCompareResponse, buildSearchResponse } from "../mock-data";
+import {
+  buildCompareResponse,
+  buildDocumentResponse,
+  buildSearchResponse,
+} from "../mock-data";
 
 describe("buildSearchResponse", () => {
   it("applies document filters in mock mode", () => {
@@ -36,6 +40,18 @@ describe("buildSearchResponse", () => {
 
     expect(response.total).toBe(0);
     expect(response.results).toEqual([]);
+  });
+});
+
+describe("buildDocumentResponse", () => {
+  it("resolves documents by NAID while preserving canonical links", () => {
+    const byId = buildDocumentResponse("wc-report-1964");
+    const byNaid = buildDocumentResponse("193887");
+
+    expect(byNaid).not.toBeNull();
+    expect(byNaid?.document.id).toBe("wc-report-1964");
+    expect(byNaid?.document.href).toBe("/document/wc-report-1964");
+    expect(byNaid?.mentions).toEqual(byId?.mentions);
   });
 });
 
