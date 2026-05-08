@@ -1520,7 +1520,11 @@ export function listDocuments(): DocumentSeed[] {
 }
 
 export function getDocument(id: string): DocumentSeed | null {
-  return DOCUMENT_SEEDS.find((d) => d.id === id) ?? null;
+  return (
+    DOCUMENT_SEEDS.find((d) => d.id === id) ??
+    DOCUMENT_SEEDS.find((d) => d.naid === id) ??
+    null
+  );
 }
 
 export function documentToCard(d: DocumentSeed | DocumentDetail): DocumentCard {
@@ -1715,8 +1719,9 @@ export function buildTopicResponse(slug: string): TopicResponse | null {
 export function buildDocumentResponse(id: string): DocumentResponse | null {
   const doc = getDocument(id);
   if (!doc) return null;
+  const canonicalId = doc.id;
 
-  const mentions = MENTION_SEEDS.filter((m) => m.documentId === id);
+  const mentions = MENTION_SEEDS.filter((m) => m.documentId === canonicalId);
 
   const relatedEntities = doc.entities
     .map((s) => ENTITY_TABLE[s])
@@ -1726,7 +1731,7 @@ export function buildDocumentResponse(id: string): DocumentResponse | null {
 
   const relatedDocuments = DOCUMENT_SEEDS.filter(
     (d) =>
-      d.id !== id &&
+      d.id !== canonicalId &&
       (d.topics.some((t) => doc.topics.includes(t)) ||
         d.entities.some((e) => doc.entities.includes(e))),
   )

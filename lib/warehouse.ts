@@ -1198,11 +1198,16 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   if (useMockData()) return buildDocumentResponse(id);
 
   const rows = await query<RecordRow>(
-    `SELECT * FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` WHERE document_id = @id`,
+    `SELECT *
+       FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
+      WHERE document_id = @id OR naid = @id
+      ORDER BY IF(document_id = @id, 0, 1)
+      LIMIT 1`,
     { id },
   );
   const doc = rows[0];
   if (!doc) return null;
+  const canonicalId = doc.document_id;
 
   const [mapRows, related, ocrChunks, relatedTopics] = await Promise.all([
     query<{
@@ -1213,7 +1218,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
       `SELECT entity_id, confidence, match_source
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
         WHERE document_id = @id`,
-      { id },
+      { id: canonicalId },
     ),
     query<RecordRow>(
       `WITH this_entities AS (
@@ -1233,7 +1238,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
        SELECT r.*
          FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
          JOIN candidates USING (document_id)`,
-      { id },
+      { id: canonicalId },
     ),
     query<{
       chunk_id: string;
@@ -1247,9 +1252,9 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
         WHERE document_id = @id
         ORDER BY chunk_order
         LIMIT 12`,
-      { id },
+      { id: canonicalId },
     ),
-    fetchDocumentTopics(id),
+    fetchDocumentTopics(canonicalId),
   ]);
 
   const entities = await loadEntities();
@@ -1281,9 +1286,9 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
       if (hit) {
         mentions.push({
           id: `m-${m.entity_id}-${hit.chunk_id}`,
-          documentId: id,
+          documentId: canonicalId,
           documentTitle: doc.title,
-          documentHref: `/document/${encodeURIComponent(id)}#chunk-${hit.chunk_order}`,
+          documentHref: `/document/${encodeURIComponent(canonicalId)}#chunk-${hit.chunk_order}`,
           excerpt: truncateAround(hit.chunk_text, aliases, 280),
           matchedTerms: aliases.slice(0, 3),
           confidence: m.confidence,
@@ -1293,10 +1298,10 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
         });
       } else {
         mentions.push({
-          id: `m-${m.entity_id}-${id}`,
-          documentId: id,
+          id: `m-${m.entity_id}-${canonicalId}`,
+          documentId: canonicalId,
           documentTitle: doc.title,
-          documentHref: `/document/${encodeURIComponent(id)}`,
+          documentHref: `/document/${encodeURIComponent(canonicalId)}`,
           excerpt: doc.description || doc.title,
           matchedTerms: aliases.slice(0, 3),
           confidence: m.confidence,
@@ -1311,10 +1316,10 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
       const e = entities.find((x) => x.entity_id === m.entity_id);
       const aliases = e?.aliases ?? [];
       mentions.push({
-        id: `m-${m.entity_id}-${id}`,
-        documentId: id,
+        id: `m-${m.entity_id}-${canonicalId}`,
+        documentId: canonicalId,
         documentTitle: doc.title,
-        documentHref: `/document/${encodeURIComponent(id)}`,
+        documentHref: `/document/${encodeURIComponent(canonicalId)}`,
         excerpt: doc.description || doc.title,
         matchedTerms: aliases.slice(0, 3),
         confidence: m.confidence,
