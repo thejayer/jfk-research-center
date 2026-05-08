@@ -24,6 +24,12 @@ fall back to description-only chunking.
   (tokens) and colocated inline styles (rendered on the server).
 - **BigQuery** (eventual backend) — schema and example queries in `sql/`.
 
+## Development workflow
+
+This repo uses Linear as the planning layer and GitHub as the code/deploy layer.
+See `docs/development-workflow.md` before starting substantial app, deploy, or
+data-ingestion work.
+
 ## Running locally
 
 ```bash

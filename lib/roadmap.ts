@@ -171,10 +171,12 @@ export const ROADMAP: RoadmapItem[] = [
   {
     surface: "/compare",
     label: "Per-release redaction diff (/compare)",
-    status: "planned",
+    status: "in_progress",
     phase: "Phase 5-B",
     description:
-      "Side-by-side visual diff of the same NAID across releases. Gated on per-release OCR ingest, not yet built.",
+      "Foundation view for comparing the same NAID/RIF across releases. Visual diffs remain gated on per-release OCR and source PDF provenance.",
+    trackingUrl:
+      "https://linear.app/commerce-street/issue/COM-58/build-per-release-redaction-diff-foundation-for-compare",
   },
   {
     surface: "BigQuery public dataset mirror",

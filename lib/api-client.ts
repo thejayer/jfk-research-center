@@ -16,6 +16,7 @@ import type {
   BibliographyIndex,
   CaseTimelineIndex,
   CooccurrenceGraph,
+  CompareResponse,
   CorpusManifest,
   DealeyPlazaResponse,
   DocumentResponse,
@@ -137,6 +138,16 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   return get<DocumentResponse>(`/api/document/${encodeURIComponent(id)}`, {
     revalidate: 600,
   });
+}
+
+export async function fetchCompare(recordId: string): Promise<CompareResponse | null> {
+  const trimmedRecordId = recordId.trim();
+  if (!trimmedRecordId) return null;
+
+  return get<CompareResponse>(
+    `/api/compare?record=${encodeURIComponent(trimmedRecordId)}`,
+    { revalidate: 600 },
+  );
 }
 
 export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexResponse> {

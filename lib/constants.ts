@@ -1,5 +1,10 @@
 export const SITE_NAME = "JFK Research Center";
 
+export const PUBLIC_ROUTE_CACHE_CONTROL =
+  "public, s-maxage=300, stale-while-revalidate=1800";
+
+export const RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
+
 export const FEATURED_ENTITY_SLUGS = [
   "oswald",
   "ruby",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchResponse } from "../mock-data";
+import { buildCompareResponse, buildSearchResponse } from "../mock-data";
 
 describe("buildSearchResponse", () => {
   it("applies document filters in mock mode", () => {
@@ -36,5 +36,21 @@ describe("buildSearchResponse", () => {
 
     expect(response.total).toBe(0);
     expect(response.results).toEqual([]);
+  });
+});
+
+describe("buildCompareResponse", () => {
+  it("models a multi-release compare fixture", () => {
+    const response = buildCompareResponse("oswald-201-file-vol1");
+
+    expect(response).not.toBeNull();
+    expect(response?.canonicalKey.value).toBe("104-10004-10156");
+    expect(response?.versions).toHaveLength(3);
+    expect(response?.versions.some((version) => version.ocrAvailable)).toBe(true);
+    expect(response?.limitations.length).toBeGreaterThan(0);
+  });
+
+  it("returns null when no compare fixture exists", () => {
+    expect(buildCompareResponse("missing-record")).toBeNull();
   });
 });
