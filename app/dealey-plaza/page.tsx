@@ -44,6 +44,27 @@ export default async function DealeyPlazaPage() {
           read the statement summary, the number of shots reported, and
           the Warren Commission testimony reference where applicable.
         </p>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            marginTop: 18,
+          }}
+        >
+          <Link
+            href="/dealey-plaza/trajectory"
+            style={{
+              padding: "9px 14px",
+              background: "var(--text)",
+              color: "var(--bg)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "0.9rem",
+            }}
+          >
+            Open trajectory sandbox
+          </Link>
+        </div>
       </header>
 
       <DealeyPlazaMap data={data} />
