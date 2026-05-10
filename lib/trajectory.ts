@@ -1,3 +1,5 @@
+import { DEFAULT_MUZZLE_VELOCITY_FPS } from "./constants";
+
 export type TrajectoryPoint = {
   x: number;
   y: number;
@@ -15,8 +17,15 @@ export type TrajectorySolution = {
   timeOfFlightSeconds: number;
 };
 
-export const DEFAULT_MUZZLE_VELOCITY_FPS = 2000;
-
+/**
+ * solveTrajectory computes straight-line geometry in plaza-relative feet.
+ *
+ * Coordinates use +x as east/right, +y as up/elevation, and +z as north/forward.
+ * elevationAngleDegrees is measured against the horizontal X/Z plane.
+ * azimuthDegrees uses atan2(dx, -dz), so 0 degrees points along the -z axis and
+ * positive angles rotate toward +x. Time of flight divides line distance by the
+ * supplied muzzle velocity in feet per second.
+ */
 export function solveTrajectory(
   origin: TrajectoryPoint,
   target: TrajectoryPoint,

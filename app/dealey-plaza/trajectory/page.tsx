@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { TrajectorySandbox } from "@/components/dealey-plaza/trajectory-sandbox";
 
-export const dynamic = "force-dynamic";
-
 export const metadata: Metadata = {
   title: "Dealey Plaza trajectory sandbox",
   description:

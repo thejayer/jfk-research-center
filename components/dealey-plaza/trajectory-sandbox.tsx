@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
 import {
   formatDegrees,
   formatFeet,
@@ -47,6 +48,14 @@ export function TrajectorySandbox() {
 
   const solution = useMemo(() => solveTrajectory(origin, target), [origin, target]);
 
+  /**
+   * Scene lifecycle: mount creates the Y-up Three.js scene, camera, renderer,
+   * lights, landmarks, ray, and cone; animate renders the orbiting camera while
+   * resize keeps the canvas fit to its panel. Cleanup removes the renderer DOM
+   * node and disposes geometries/materials found by scene.traverse. The camera
+   * tracks lookAt [4, 8, -18]. The cone is built pointing +Y, so orientation is
+   * later set from +Y into the current ray direction.
+   */
   useEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
@@ -130,15 +139,12 @@ export function TrajectorySandbox() {
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
-      objectsRef.current = null;
       renderer.dispose();
       mount.removeChild(renderer.domElement);
       scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          disposeMaterial(object.material);
-        }
+        disposeSceneObject(object);
       });
+      objectsRef.current = null;
     };
   }, []);
 
@@ -157,6 +163,7 @@ export function TrajectorySandbox() {
     const direction = t.clone().sub(o);
     objects.cone.position.copy(midpoint);
     objects.cone.scale.set(1, Math.max(direction.length() / 34, 0.01), 1);
+    // Y-up convention: ConeGeometry points along +Y before this rotation.
     objects.cone.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 1, 0),
       direction.normalize(),
@@ -198,7 +205,7 @@ export function TrajectorySandbox() {
             <Metric label="Delta Y" value={formatFeet(solution.dy)} />
             <Metric label="Delta Z" value={formatFeet(solution.dz)} />
             <Metric
-              label="Flight @ 2000 fps"
+              label={`Flight @ ${DEFAULT_MUZZLE_VELOCITY_FPS} fps`}
               value={`${solution.timeOfFlightSeconds.toFixed(3)} s`}
             />
           </div>
@@ -386,5 +393,16 @@ function disposeMaterial(material: THREE.Material | THREE.Material[]) {
     material.forEach((m) => m.dispose());
   } else {
     material.dispose();
+  }
+}
+
+function disposeSceneObject(object: THREE.Object3D) {
+  if (
+    object instanceof THREE.Mesh ||
+    object instanceof THREE.Line ||
+    object instanceof THREE.GridHelper
+  ) {
+    object.geometry.dispose();
+    disposeMaterial(object.material);
   }
 }

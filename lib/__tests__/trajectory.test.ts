@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { solveTrajectory } from "../trajectory";
+import { formatDegrees, formatFeet, solveTrajectory } from "../trajectory";
 
 describe("solveTrajectory", () => {
   it("computes deterministic distance and angle values", () => {
@@ -24,5 +24,17 @@ describe("solveTrajectory", () => {
     );
 
     expect(solution.timeOfFlightSeconds).toBe(0);
+  });
+
+  it("formats degree values using the module display convention", () => {
+    expect(formatDegrees(36.8699)).toBe("36.9°");
+    expect(formatDegrees(0)).toBe("0.0°");
+    expect(formatDegrees(-11.3099)).toBe("-11.3°");
+  });
+
+  it("formats feet values using the module display convention", () => {
+    expect(formatFeet(50.9902)).toBe("51.0 ft");
+    expect(formatFeet(0)).toBe("0.0 ft");
+    expect(formatFeet(-12.24)).toBe("-12.2 ft");
   });
 });
