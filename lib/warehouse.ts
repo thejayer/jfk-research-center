@@ -94,6 +94,7 @@ import {
   entityToCard as mockEntityToCard,
   topicToCard as mockTopicToCard,
 } from "./mock-data";
+import { normalizeSourceUrl } from "./source-urls";
 
 const PROJECT = process.env.JFK_BQ_PROJECT || "jfk-vault";
 const DATASET_CURATED = "jfk_curated";
@@ -345,8 +346,8 @@ function rowToDetail(
     collectionName: r.collection_name,
     startDate: readDate(r.start_date),
     endDate: readDate(r.end_date),
-    sourceUrl: r.source_url,
-    digitalObjectUrl: r.digital_object_url,
+    sourceUrl: normalizeSourceUrl(r.source_url),
+    digitalObjectUrl: normalizeSourceUrl(r.digital_object_url),
     thumbnailUrl: r.thumbnail_url,
     pageCount: r.num_pages ?? r.pages_released ?? null,
     chunkCount: ocr?.chunkCount ?? 0,
