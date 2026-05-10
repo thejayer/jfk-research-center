@@ -5,6 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
 import {
+  TRAJECTORY_PRESETS,
+  getTrajectoryPreset,
+} from "@/lib/trajectory-presets";
+import {
   formatDegrees,
   formatFeet,
   solveTrajectory,
@@ -12,8 +16,7 @@ import {
 } from "@/lib/trajectory";
 import styles from "./trajectory-sandbox.module.css";
 
-const INITIAL_ORIGIN: TrajectoryPoint = { x: -48, y: 62, z: 36 };
-const INITIAL_TARGET: TrajectoryPoint = { x: 46, y: 5, z: -58 };
+const INITIAL_PRESET = TRAJECTORY_PRESETS[0]!;
 
 type ControlSpec = {
   key: keyof TrajectoryPoint;
@@ -43,10 +46,17 @@ export function TrajectorySandbox() {
     ray: THREE.Line;
     cone: THREE.Mesh;
   } | null>(null);
-  const [origin, setOrigin] = useState(INITIAL_ORIGIN);
-  const [target, setTarget] = useState(INITIAL_TARGET);
+  const [activePresetId, setActivePresetId] = useState(INITIAL_PRESET.id);
+  const [origin, setOrigin] = useState(INITIAL_PRESET.origin);
+  const [target, setTarget] = useState(INITIAL_PRESET.target);
+  const [uncertaintyDegrees, setUncertaintyDegrees] = useState(
+    INITIAL_PRESET.uncertaintyDegrees,
+  );
 
+  const activePreset = getTrajectoryPreset(activePresetId);
   const solution = useMemo(() => solveTrajectory(origin, target), [origin, target]);
+  const uncertaintyRadiusFeet =
+    Math.tan((uncertaintyDegrees * Math.PI) / 180) * solution.lineDistanceFeet;
 
   /**
    * Scene lifecycle: mount creates the Y-up Three.js scene, camera, renderer,
@@ -161,14 +171,31 @@ export function TrajectorySandbox() {
 
     const midpoint = o.clone().lerp(t, 0.5);
     const direction = t.clone().sub(o);
+    const lineDistance = direction.length();
+    const coneRadius = Math.max(
+      0.6,
+      Math.tan((uncertaintyDegrees * Math.PI) / 180) * lineDistance,
+    );
     objects.cone.position.copy(midpoint);
-    objects.cone.scale.set(1, Math.max(direction.length() / 34, 0.01), 1);
+    objects.cone.scale.set(
+      coneRadius / 4.8,
+      Math.max(lineDistance / 34, 0.01),
+      coneRadius / 4.8,
+    );
     // Y-up convention: ConeGeometry points along +Y before this rotation.
     objects.cone.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 1, 0),
       direction.normalize(),
     );
-  }, [origin, target]);
+  }, [origin, target, uncertaintyDegrees]);
+
+  const applyPreset = (presetId: string) => {
+    const preset = getTrajectoryPreset(presetId);
+    setActivePresetId(preset.id);
+    setOrigin(preset.origin);
+    setTarget(preset.target);
+    setUncertaintyDegrees(preset.uncertaintyDegrees);
+  };
 
   return (
     <div className={styles.shell}>
@@ -185,6 +212,21 @@ export function TrajectorySandbox() {
 
       <aside className={styles.side}>
         <Panel title="Ray Controls">
+          <label className={styles.selectControl}>
+            <span className={styles.selectLabel}>Scenario preset</span>
+            <select
+              className={styles.select}
+              value={activePresetId}
+              onChange={(event) => applyPreset(event.target.value)}
+            >
+              {TRAJECTORY_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className={styles.presetSummary}>{activePreset.summary}</p>
           <ControlGroup
             title="Origin"
             point={origin}
@@ -197,6 +239,28 @@ export function TrajectorySandbox() {
             controls={TARGET_CONTROLS}
             onChange={setTarget}
           />
+          <div className={styles.controlGroup}>
+            <div className="eyebrow">Uncertainty</div>
+            <label className={styles.control}>
+              <span className={styles.controlLabel}>
+                Angular tolerance
+                <span className={styles.controlValue}>
+                  {formatDegrees(uncertaintyDegrees)}
+                </span>
+              </span>
+              <input
+                className={styles.range}
+                type="range"
+                min={0.5}
+                max={8}
+                step={0.1}
+                value={uncertaintyDegrees}
+                onChange={(event) =>
+                  setUncertaintyDegrees(Number(event.target.value))
+                }
+              />
+            </label>
+          </div>
         </Panel>
 
         <Panel title="Deterministic Math">
@@ -208,6 +272,7 @@ export function TrajectorySandbox() {
               label={`Flight @ ${DEFAULT_MUZZLE_VELOCITY_FPS} fps`}
               value={`${solution.timeOfFlightSeconds.toFixed(3)} s`}
             />
+            <Metric label="Cone radius" value={formatFeet(uncertaintyRadiusFeet)} />
           </div>
         </Panel>
 
@@ -229,6 +294,13 @@ export function TrajectorySandbox() {
               name="Physics scope"
               source="Straight-line ray and travel-time readout; no drag, tumbling, deflection, or wound-ballistics model."
             />
+            {activePreset.sources.map((source) => (
+              <Assumption
+                key={`${activePreset.id}-${source.label}`}
+                name={source.label}
+                source={source.note}
+              />
+            ))}
           </ul>
         </Panel>
       </aside>
