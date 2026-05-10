@@ -1200,7 +1200,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   const rows = await query<RecordRow>(
     `SELECT *
        FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
-      WHERE document_id = @id OR naid = @id
+      WHERE document_id = @id OR CAST(naid AS STRING) = @id
       ORDER BY IF(document_id = @id, 0, 1)
       LIMIT 1`,
     { id },
