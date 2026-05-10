@@ -5,6 +5,8 @@ export const PUBLIC_ROUTE_CACHE_CONTROL =
 
 export const RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
 
+export const DEFAULT_MUZZLE_VELOCITY_FPS = 2000;
+
 export const FEATURED_ENTITY_SLUGS = [
   "oswald",
   "ruby",

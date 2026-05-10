@@ -1,0 +1,183 @@
+.shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.scenePanel {
+  min-width: 0;
+}
+
+.scene {
+  position: relative;
+  min-height: 620px;
+  height: 68vh;
+  max-height: 760px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg));
+  overflow: hidden;
+}
+
+.canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hud {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  right: 16px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  pointer-events: none;
+}
+
+.hudItem {
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  padding: 10px 11px;
+}
+
+.hudLabel {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.hudValue {
+  font-family: var(--font-mono);
+  font-size: 0.92rem;
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 18px;
+}
+
+.panelTitle {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  margin-bottom: 12px;
+}
+
+.controlGroup {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.control {
+  display: grid;
+  gap: 6px;
+}
+
+.controlLabel {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.controlValue {
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.metric {
+  border: 1px solid var(--border);
+  padding: 11px;
+}
+
+.metricLabel {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  margin-bottom: 4px;
+}
+
+.metricValue {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+}
+
+.assumptionList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.assumption {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.assumption:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.assumptionName {
+  font-size: 0.87rem;
+  margin-bottom: 3px;
+}
+
+.assumptionSource {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 1040px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .scene {
+    min-height: 520px;
+    height: 62vh;
+  }
+
+  .side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .scene {
+    min-height: 430px;
+    height: 56vh;
+  }
+
+  .hud,
+  .side {
+    grid-template-columns: 1fr;
+  }
+}
