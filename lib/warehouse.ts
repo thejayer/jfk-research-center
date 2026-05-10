@@ -1355,6 +1355,7 @@ async function fetchDocumentTopics(id: string): Promise<TopicCard[]> {
   const membershipSql = MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => {
     const t = TOPIC_CATALOG[slug]!;
     return `SELECT '${slug}' AS slug
+              FROM (SELECT 1)
               WHERE EXISTS (
                 SELECT 1
                   FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\`
