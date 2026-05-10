@@ -24,6 +24,7 @@ describe("normalizeSourceUrl", () => {
 
   it("preserves empty and malformed source values", () => {
     expect(normalizeSourceUrl(null)).toBeNull();
+    expect(normalizeSourceUrl("")).toBe("");
     expect(normalizeSourceUrl("not a url")).toBe("not a url");
   });
 });
