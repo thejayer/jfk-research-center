@@ -74,6 +74,34 @@
   margin-bottom: 12px;
 }
 
+.selectControl {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.selectLabel {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  padding: 7px 9px;
+  font: inherit;
+}
+
+.presetSummary {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+
 .controlGroup {
   display: grid;
   gap: 10px;
