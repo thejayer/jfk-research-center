@@ -192,6 +192,11 @@ export function SiteHeader() {
     return () => window.removeEventListener("pointerdown", onPointerDown);
   }, [activeMenu]);
 
+  /**
+   * /dealey-plaza and /about only highlight on exact matches because their
+   * child pages appear beside them in the same menus. Other routes use prefix
+   * matching so sub-routes still keep their parent navigation destination active.
+   */
   const isActive = (href: string) =>
     pathname === href ||
     (href !== "/" &&
@@ -199,6 +204,7 @@ export function SiteHeader() {
       href !== "/about" &&
       pathname.startsWith(`${href}/`));
 
+  // Uses isActive so the Dealey Plaza/About exact-match exceptions stay consistent.
   const hasActiveItem = (groups: NavGroup[]) =>
     groups.some((group) => group.items.some((item) => isActive(item.href)));
 
@@ -335,7 +341,7 @@ function DropdownMenu({
   isActive: (href: string) => boolean;
 }) {
   return (
-    <div id={id} className={styles.dropdown} aria-label={label}>
+    <nav id={id} className={styles.dropdown} aria-label={label}>
       {groups.map((group) => (
         <section key={group.title} className={styles.dropdownGroup}>
           <h2 className={styles.dropdownTitle}>{group.title}</h2>
@@ -358,7 +364,7 @@ function DropdownMenu({
           </div>
         </section>
       ))}
-    </div>
+    </nav>
   );
 }
 
