@@ -2,55 +2,275 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ThemeToggle } from "./theme-toggle";
 import styles from "./site-header.module.css";
 
-const NAV: Array<{ label: string; href: string }> = [
-  { label: "Search", href: "/search" },
-  { label: "Entities", href: "/entities" },
-  { label: "Topics", href: "/topics" },
-  { label: "Timeline", href: "/timeline" },
-  { label: "Network", href: "/graph" },
+type NavItem = {
+  label: string;
+  href: string;
+  description?: string;
+};
+
+type NavGroup = {
+  title: string;
+  items: NavItem[];
+};
+
+type MenuKey = "dealey" | "explore";
+
+const PRIMARY_NAV: NavItem[] = [
   { label: "Evidence", href: "/evidence" },
-  { label: "Open Questions", href: "/open-questions" },
-  { label: "Established Facts", href: "/established-facts" },
+  { label: "Timeline", href: "/timeline" },
+];
+
+const DEALEY_GROUPS: NavGroup[] = [
+  {
+    title: "Dealey Plaza",
+    items: [
+      {
+        label: "Witness map",
+        href: "/dealey-plaza",
+        description: "Interactive schematic with witness positions and claims.",
+      },
+      {
+        label: "Trajectory sandbox",
+        href: "/dealey-plaza/trajectory",
+        description: "3D assumptions, presets, and deterministic ray math.",
+      },
+      {
+        label: "Topic dossier",
+        href: "/topic/dealey-plaza",
+        description: "Documents, context, and related evidence for the plaza.",
+      },
+    ],
+  },
+];
+
+const EXPLORE_GROUPS: NavGroup[] = [
+  {
+    title: "Research",
+    items: [
+      {
+        label: "Search",
+        href: "/search",
+        description: "Search documents, entities, topics, and timelines.",
+      },
+      {
+        label: "Topics",
+        href: "/topics",
+        description: "Browse curated subject areas and dossiers.",
+      },
+      {
+        label: "Entities",
+        href: "/entities",
+        description: "People, agencies, locations, and organizations.",
+      },
+      {
+        label: "Bibliography",
+        href: "/bibliography",
+        description: "Reference list for sources used across the site.",
+      },
+    ],
+  },
+  {
+    title: "Analysis",
+    items: [
+      {
+        label: "Network graph",
+        href: "/graph",
+        description: "Explore entity co-occurrence and relationships.",
+      },
+      {
+        label: "Compare",
+        href: "/compare",
+        description: "Put evidence and documents side by side.",
+      },
+      {
+        label: "Established facts",
+        href: "/established-facts",
+        description: "High-confidence record-backed facts.",
+      },
+      {
+        label: "Open questions",
+        href: "/open-questions",
+        description: "Unresolved questions and competing interpretations.",
+      },
+    ],
+  },
+  {
+    title: "Project",
+    items: [
+      {
+        label: "Research paths",
+        href: "/research-paths",
+        description: "Guided entry points through the archive.",
+      },
+      {
+        label: "Methodology",
+        href: "/about/methodology",
+        description: "How the archive handles sources and uncertainty.",
+      },
+      {
+        label: "Roadmap",
+        href: "/about/roadmap",
+        description: "What is planned next for the research center.",
+      },
+      {
+        label: "Releases",
+        href: "/releases",
+        description: "Release notes and newly available records.",
+      },
+    ],
+  },
+];
+
+const MOBILE_GROUPS: NavGroup[] = [
+  {
+    title: "Start",
+    items: [
+      { label: "Search", href: "/search" },
+      { label: "Evidence", href: "/evidence" },
+      { label: "Timeline", href: "/timeline" },
+      { label: "Topics", href: "/topics" },
+    ],
+  },
+  ...DEALEY_GROUPS,
+  {
+    title: "Research",
+    items: [
+      { label: "Entities", href: "/entities" },
+      { label: "Bibliography", href: "/bibliography" },
+      { label: "Research paths", href: "/research-paths" },
+    ],
+  },
+  EXPLORE_GROUPS[1]!,
+  {
+    title: "Project",
+    items: [
+      { label: "About", href: "/about" },
+      { label: "Methodology", href: "/about/methodology" },
+      { label: "Editorial policy", href: "/about/editorial-policy" },
+      { label: "Roadmap", href: "/about/roadmap" },
+      { label: "Releases", href: "/releases" },
+      { label: "Corrections", href: "/corrections" },
+    ],
+  },
 ];
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<MenuKey | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
   const pathname = usePathname();
 
   useEffect(() => {
     setOpen(false);
+    setActiveMenu(null);
   }, [pathname]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open && !activeMenu) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        setActiveMenu(null);
+      }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
+  }, [open, activeMenu]);
+
+  useEffect(() => {
+    if (!activeMenu) return;
+    function onPointerDown(e: PointerEvent) {
+      if (!headerRef.current?.contains(e.target as Node)) {
+        setActiveMenu(null);
+      }
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [activeMenu]);
+
+  const isActive = (href: string) =>
+    pathname === href ||
+    (href !== "/" &&
+      href !== "/dealey-plaza" &&
+      href !== "/about" &&
+      pathname.startsWith(`${href}/`));
+
+  const hasActiveItem = (groups: NavGroup[]) =>
+    groups.some((group) => group.items.some((item) => isActive(item.href)));
+
+  const toggleMenu = (menu: MenuKey) => {
+    setOpen(false);
+    setActiveMenu((current) => (current === menu ? null : menu));
+  };
 
   return (
-    <header className={styles.header}>
+    <header className={styles.header} ref={headerRef}>
       <div className={`container ${styles.inner}`}>
-        <Link href="/" className={styles.brand} aria-label="JFK Research Center — home">
+        <Link href="/" className={styles.brand} aria-label="JFK Research Center home">
           <Logo />
           <span className={styles.brandText}>
             <span className={styles.brandLine}>JFK Research Center</span>
-            <span className={styles.brandSub}>Archival Study · MVP</span>
+            <span className={styles.brandSub}>Archival Study / MVP</span>
           </span>
         </Link>
 
         <nav className={styles.nav} aria-label="Primary">
-          {NAV.map((item) => (
-            <Link key={item.href} href={item.href} className={styles.navLink}>
+          {PRIMARY_NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={styles.navLink}
+              aria-current={isActive(item.href) ? "page" : undefined}
+            >
               {item.label}
             </Link>
           ))}
+          <div className={styles.navMenu}>
+            <button
+              type="button"
+              className={styles.menuTrigger}
+              aria-expanded={activeMenu === "dealey"}
+              aria-controls="dealey-nav-menu"
+              data-active={activeMenu === "dealey" || hasActiveItem(DEALEY_GROUPS)}
+              onClick={() => toggleMenu("dealey")}
+            >
+              Dealey Plaza
+              <ChevronIcon />
+            </button>
+            {activeMenu === "dealey" && (
+              <DropdownMenu
+                id="dealey-nav-menu"
+                label="Dealey Plaza navigation"
+                groups={DEALEY_GROUPS}
+                isActive={isActive}
+              />
+            )}
+          </div>
+          <div className={styles.navMenu}>
+            <button
+              type="button"
+              className={styles.menuTrigger}
+              aria-expanded={activeMenu === "explore"}
+              aria-controls="explore-nav-menu"
+              data-active={activeMenu === "explore" || hasActiveItem(EXPLORE_GROUPS)}
+              onClick={() => toggleMenu("explore")}
+            >
+              Explore
+              <ChevronIcon />
+            </button>
+            {activeMenu === "explore" && (
+              <DropdownMenu
+                id="explore-nav-menu"
+                label="Explore site navigation"
+                groups={EXPLORE_GROUPS}
+                isActive={isActive}
+              />
+            )}
+          </div>
         </nav>
 
         <div className={styles.actions}>
@@ -66,7 +286,10 @@ export function SiteHeader() {
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
             aria-controls="primary-mobile-nav"
-            onClick={() => setOpen((v) => !v)}
+            onClick={() => {
+              setActiveMenu(null);
+              setOpen((v) => !v);
+            }}
           >
             {open ? <CloseIcon /> : <MenuIcon />}
           </button>
@@ -79,19 +302,63 @@ export function SiteHeader() {
           className={styles.mobilePanel}
           aria-label="Primary"
         >
-          {NAV.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={styles.mobileLink}
-              aria-current={pathname === item.href ? "page" : undefined}
-            >
-              {item.label}
-            </Link>
+          {MOBILE_GROUPS.map((group) => (
+            <div key={group.title} className={styles.mobileGroup}>
+              <div className={styles.mobileGroupTitle}>{group.title}</div>
+              {group.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={styles.mobileLink}
+                  aria-current={isActive(item.href) ? "page" : undefined}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           ))}
         </nav>
       )}
     </header>
+  );
+}
+
+function DropdownMenu({
+  id,
+  label,
+  groups,
+  isActive,
+}: {
+  id: string;
+  label: string;
+  groups: NavGroup[];
+  isActive: (href: string) => boolean;
+}) {
+  return (
+    <div id={id} className={styles.dropdown} aria-label={label}>
+      {groups.map((group) => (
+        <section key={group.title} className={styles.dropdownGroup}>
+          <h2 className={styles.dropdownTitle}>{group.title}</h2>
+          <div className={styles.dropdownLinks}>
+            {group.items.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={styles.dropdownLink}
+                aria-current={isActive(item.href) ? "page" : undefined}
+              >
+                <span className={styles.dropdownLabel}>{item.label}</span>
+                {item.description && (
+                  <span className={styles.dropdownDescription}>
+                    {item.description}
+                  </span>
+                )}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -127,6 +394,26 @@ function Logo() {
         strokeLinejoin="round"
       />
       <circle cx="30" cy="12" r="1.8" fill="var(--accent)" />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M4 6l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
