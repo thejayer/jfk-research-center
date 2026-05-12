@@ -63,4 +63,28 @@ describe("trajectory evidence metadata", () => {
     );
     expect(trail.some((item) => item.id === "coordinate-frame")).toBe(true);
   });
+
+  it("builds a manual-target source trail without frame-backed links", () => {
+    const preset = TRAJECTORY_PRESETS[0]!;
+    const frameMark = TRAJECTORY_FRAME_MARKS[1]!;
+    const trail = buildTrajectorySourceTrail({
+      preset,
+      frameMark: null,
+      origin: preset.origin,
+      target: { x: 12, y: 6, z: -34 },
+      uncertaintyDegrees: 2.8,
+    });
+
+    expect(frameMark.id).toBe("z225");
+    expect(trail).toContainEqual(
+      expect.objectContaining({
+        id: "frame",
+        value: "Manual target",
+      }),
+    );
+    expect(trail.some((item) => item.id === "coordinate-frame")).toBe(true);
+    expect(trail.some((item) => item.href === "/evidence/zapruder-film")).toBe(
+      false,
+    );
+  });
 });

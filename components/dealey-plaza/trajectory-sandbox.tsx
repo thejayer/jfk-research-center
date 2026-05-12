@@ -13,7 +13,7 @@ import {
 } from "@/lib/trajectory-evidence";
 import {
   TRAJECTORY_PRESETS,
-  getTrajectoryPreset,
+  type TrajectoryPreset,
 } from "@/lib/trajectory-presets";
 import {
   formatDegrees,
@@ -22,9 +22,6 @@ import {
   type TrajectoryPoint,
 } from "@/lib/trajectory";
 import styles from "./trajectory-sandbox.module.css";
-
-const INITIAL_PRESET = TRAJECTORY_PRESETS[0]!;
-const INITIAL_FRAME = TRAJECTORY_FRAME_MARKS[1]!;
 
 type ControlSpec = {
   key: keyof TrajectoryPoint;
@@ -46,6 +43,17 @@ const TARGET_CONTROLS: ControlSpec[] = [
   { key: "z", label: "Target north/south", min: -95, max: 10 },
 ];
 
+const FALLBACK_POINT: TrajectoryPoint = { x: 0, y: 0, z: 0 };
+const FALLBACK_PRESET: TrajectoryPreset = {
+  id: "manual",
+  name: "Manual scenario",
+  summary: "Fallback manual scenario used when no configured presets are available.",
+  origin: FALLBACK_POINT,
+  target: FALLBACK_POINT,
+  uncertaintyDegrees: 1,
+  sources: [],
+};
+
 export function TrajectorySandbox() {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const objectsRef = useRef<{
@@ -54,17 +62,28 @@ export function TrajectorySandbox() {
     ray: THREE.Line;
     cone: THREE.Mesh;
   } | null>(null);
-  const [activePresetId, setActivePresetId] = useState(INITIAL_PRESET.id);
-  const [activeFrameId, setActiveFrameId] = useState<string | null>(
-    INITIAL_FRAME.id,
+  const initialPreset = TRAJECTORY_PRESETS[0] ?? null;
+  const initialFrame = TRAJECTORY_FRAME_MARKS[1] ?? TRAJECTORY_FRAME_MARKS[0] ?? null;
+  const [activePresetId, setActivePresetId] = useState(
+    initialPreset?.id ?? "",
   );
-  const [origin, setOrigin] = useState(INITIAL_PRESET.origin);
-  const [target, setTarget] = useState(INITIAL_FRAME.target);
+  const [activeFrameId, setActiveFrameId] = useState<string | null>(
+    initialFrame?.id ?? null,
+  );
+  const [origin, setOrigin] = useState(
+    initialPreset?.origin ?? FALLBACK_POINT,
+  );
+  const [target, setTarget] = useState(
+    initialFrame?.target ?? initialPreset?.target ?? FALLBACK_POINT,
+  );
   const [uncertaintyDegrees, setUncertaintyDegrees] = useState(
-    INITIAL_FRAME.uncertaintyDegrees,
+    initialFrame?.uncertaintyDegrees ?? initialPreset?.uncertaintyDegrees ?? 1,
   );
 
-  const activePreset = getTrajectoryPreset(activePresetId);
+  const activePreset =
+    TRAJECTORY_PRESETS.find((preset) => preset.id === activePresetId) ??
+    initialPreset ??
+    FALLBACK_PRESET;
   const activeFrame = getTrajectoryFrameMark(activeFrameId);
   const solution = useMemo(() => solveTrajectory(origin, target), [origin, target]);
   const sourceTrail = useMemo(
@@ -213,7 +232,10 @@ export function TrajectorySandbox() {
   }, [origin, target, uncertaintyDegrees]);
 
   const applyPreset = (presetId: string) => {
-    const preset = getTrajectoryPreset(presetId);
+    const preset =
+      TRAJECTORY_PRESETS.find((candidate) => candidate.id === presetId) ??
+      initialPreset ??
+      FALLBACK_PRESET;
     setActivePresetId(preset.id);
     setOrigin(preset.origin);
     setTarget(preset.target);
@@ -258,10 +280,13 @@ export function TrajectorySandbox() {
           </label>
           <p className={styles.presetSummary}>{activePreset.summary}</p>
           <div className={styles.frameSelector}>
-            <div className="eyebrow">Zapruder frame marker</div>
+            <div id="trajectory-frame-selector-label" className="eyebrow">
+              Zapruder frame timeline selector
+            </div>
             <div
               className={styles.frameRail}
-              aria-label="Zapruder frame timeline selector"
+              role="group"
+              aria-labelledby="trajectory-frame-selector-label"
             >
               {TRAJECTORY_FRAME_MARKS.map((frame) => (
                 <button

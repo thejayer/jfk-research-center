@@ -7,6 +7,100 @@ export const RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
 
 export const DEFAULT_MUZZLE_VELOCITY_FPS = 2000;
 
+export type TrajectorySourceReference = {
+  id: string;
+  label: string;
+  kind: "record" | "film" | "model" | "assumption";
+  note: string;
+  href?: string;
+};
+
+export type TrajectoryFrameMark = {
+  id: string;
+  label: string;
+  frame: number;
+  timeSeconds: number;
+  summary: string;
+  target: {
+    x: number;
+    y: number;
+    z: number;
+  };
+  uncertaintyDegrees: number;
+  sourceIds: readonly string[];
+};
+
+export const TRAJECTORY_SOURCE_REFERENCES: readonly TrajectorySourceReference[] = [
+  {
+    id: "wc-report-1964",
+    label: "Warren Commission report",
+    kind: "record",
+    href: "/document/wc-report-1964",
+    note: "Primary report page used here as a stable entry point for Commission-era timing, exhibit, and scene references.",
+  },
+  {
+    id: "zapruder-film",
+    label: "Zapruder film evidence item",
+    kind: "film",
+    href: "/evidence/zapruder-film",
+    note: "Visual timing reference for frame-labeled comparison points. This sandbox uses frame markers as navigation aids, not as forensic conclusions.",
+  },
+  {
+    id: "dealey-plaza-topic",
+    label: "Dealey Plaza topic dossier",
+    kind: "record",
+    href: "/topic/dealey-plaza",
+    note: "Topic context for the plaza geography, witness map, and source records connected to the scene.",
+  },
+  {
+    id: "coordinate-frame",
+    label: "Plaza-relative coordinate frame",
+    kind: "model",
+    note: "Approximate local feet with +X east/right, +Y elevation, and +Z north/forward. Coordinates are current model inputs, not survey-grade measurements.",
+  },
+];
+
+export const TRAJECTORY_FRAME_MARKS: readonly TrajectoryFrameMark[] = [
+  {
+    id: "z210",
+    label: "Approach window",
+    frame: 210,
+    timeSeconds: 0,
+    summary:
+      "Representative pre-impact marker for comparing line geometry before the main impact frames.",
+    target: { x: 38, y: 5, z: -50 },
+    uncertaintyDegrees: 3.6,
+    sourceIds: ["zapruder-film", "dealey-plaza-topic", "coordinate-frame"],
+  },
+  {
+    id: "z225",
+    label: "Reaction window",
+    frame: 225,
+    timeSeconds: 0.82,
+    summary:
+      "Approximate timing checkpoint after the limousine has moved farther down Elm Street.",
+    target: { x: 46, y: 5, z: -58 },
+    uncertaintyDegrees: 3.1,
+    sourceIds: ["zapruder-film", "wc-report-1964", "coordinate-frame"],
+  },
+  {
+    id: "z313",
+    label: "Head-shot frame",
+    frame: 313,
+    timeSeconds: 5.64,
+    summary:
+      "Common frame reference for trajectory comparisons. The coordinate point remains schematic and adjustable.",
+    target: { x: 58, y: 7, z: -70 },
+    uncertaintyDegrees: 4.4,
+    sourceIds: [
+      "zapruder-film",
+      "wc-report-1964",
+      "dealey-plaza-topic",
+      "coordinate-frame",
+    ],
+  },
+];
+
 export const FEATURED_ENTITY_SLUGS = [
   "oswald",
   "ruby",
