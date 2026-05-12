@@ -102,6 +102,60 @@
   margin: 0 0 14px;
 }
 
+.frameSelector {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 2px;
+}
+
+.frameRail {
+  display: grid;
+  gap: 8px;
+}
+
+.frameButton {
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+  color: var(--text);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.frameButton:hover,
+.frameButton:focus-visible {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.frameButton[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 66%, var(--border));
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.frameNumber {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--accent-strong);
+}
+
+.frameLabel {
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.frameTime {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
 .controlGroup {
   display: grid;
   gap: 10px;
@@ -180,6 +234,63 @@
   color: var(--text-muted);
   font-size: 0.78rem;
   line-height: 1.45;
+}
+
+.sourceTrail {
+  counter-reset: source-trail;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 11px;
+}
+
+.sourceTrailItem {
+  counter-increment: source-trail;
+  position: relative;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  padding: 12px 12px 12px 40px;
+}
+
+.sourceTrailItem::before {
+  content: counter(source-trail);
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+
+.sourceTrailLabel {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.sourceTrailValue {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+
+.sourceTrailDetail {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.sourceLink {
+  color: var(--accent-strong);
+  text-decoration-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
 @media (max-width: 1040px) {

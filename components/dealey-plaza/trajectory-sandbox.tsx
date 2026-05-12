@@ -5,6 +5,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
 import {
+  TRAJECTORY_FRAME_MARKS,
+  buildTrajectorySourceTrail,
+  getTrajectoryFrameMark,
+  type TrajectoryFrameMark,
+  type TrajectorySourceTrailItem,
+} from "@/lib/trajectory-evidence";
+import {
   TRAJECTORY_PRESETS,
   getTrajectoryPreset,
 } from "@/lib/trajectory-presets";
@@ -17,6 +24,7 @@ import {
 import styles from "./trajectory-sandbox.module.css";
 
 const INITIAL_PRESET = TRAJECTORY_PRESETS[0]!;
+const INITIAL_FRAME = TRAJECTORY_FRAME_MARKS[1]!;
 
 type ControlSpec = {
   key: keyof TrajectoryPoint;
@@ -47,14 +55,29 @@ export function TrajectorySandbox() {
     cone: THREE.Mesh;
   } | null>(null);
   const [activePresetId, setActivePresetId] = useState(INITIAL_PRESET.id);
+  const [activeFrameId, setActiveFrameId] = useState<string | null>(
+    INITIAL_FRAME.id,
+  );
   const [origin, setOrigin] = useState(INITIAL_PRESET.origin);
-  const [target, setTarget] = useState(INITIAL_PRESET.target);
+  const [target, setTarget] = useState(INITIAL_FRAME.target);
   const [uncertaintyDegrees, setUncertaintyDegrees] = useState(
-    INITIAL_PRESET.uncertaintyDegrees,
+    INITIAL_FRAME.uncertaintyDegrees,
   );
 
   const activePreset = getTrajectoryPreset(activePresetId);
+  const activeFrame = getTrajectoryFrameMark(activeFrameId);
   const solution = useMemo(() => solveTrajectory(origin, target), [origin, target]);
+  const sourceTrail = useMemo(
+    () =>
+      buildTrajectorySourceTrail({
+        preset: activePreset,
+        frameMark: activeFrame,
+        origin,
+        target,
+        uncertaintyDegrees,
+      }),
+    [activeFrame, activePreset, origin, target, uncertaintyDegrees],
+  );
   const uncertaintyRadiusFeet =
     Math.tan((uncertaintyDegrees * Math.PI) / 180) * solution.lineDistanceFeet;
 
@@ -195,6 +218,13 @@ export function TrajectorySandbox() {
     setOrigin(preset.origin);
     setTarget(preset.target);
     setUncertaintyDegrees(preset.uncertaintyDegrees);
+    setActiveFrameId(null);
+  };
+
+  const applyFrame = (frame: TrajectoryFrameMark) => {
+    setActiveFrameId(frame.id);
+    setTarget(frame.target);
+    setUncertaintyDegrees(frame.uncertaintyDegrees);
   };
 
   return (
@@ -227,17 +257,46 @@ export function TrajectorySandbox() {
             </select>
           </label>
           <p className={styles.presetSummary}>{activePreset.summary}</p>
+          <div className={styles.frameSelector}>
+            <div className="eyebrow">Zapruder frame marker</div>
+            <div
+              className={styles.frameRail}
+              aria-label="Zapruder frame timeline selector"
+            >
+              {TRAJECTORY_FRAME_MARKS.map((frame) => (
+                <button
+                  key={frame.id}
+                  className={styles.frameButton}
+                  type="button"
+                  aria-pressed={activeFrameId === frame.id}
+                  onClick={() => applyFrame(frame)}
+                >
+                  <span className={styles.frameNumber}>Z{frame.frame}</span>
+                  <span className={styles.frameLabel}>{frame.label}</span>
+                  <span className={styles.frameTime}>
+                    +{frame.timeSeconds.toFixed(2)}s
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
           <ControlGroup
             title="Origin"
             point={origin}
             controls={ORIGIN_CONTROLS}
-            onChange={setOrigin}
+            onChange={(next) => {
+              setOrigin(next);
+              setActiveFrameId(null);
+            }}
           />
           <ControlGroup
             title="Target"
             point={target}
             controls={TARGET_CONTROLS}
-            onChange={setTarget}
+            onChange={(next) => {
+              setTarget(next);
+              setActiveFrameId(null);
+            }}
           />
           <div className={styles.controlGroup}>
             <div className="eyebrow">Uncertainty</div>
@@ -255,9 +314,10 @@ export function TrajectorySandbox() {
                 max={8}
                 step={0.1}
                 value={uncertaintyDegrees}
-                onChange={(event) =>
-                  setUncertaintyDegrees(Number(event.target.value))
-                }
+                onChange={(event) => {
+                  setUncertaintyDegrees(Number(event.target.value));
+                  setActiveFrameId(null);
+                }}
               />
             </label>
           </div>
@@ -303,6 +363,14 @@ export function TrajectorySandbox() {
             ))}
           </ul>
         </Panel>
+
+        <Panel title="Source Trail">
+          <ol className={styles.sourceTrail}>
+            {sourceTrail.map((item) => (
+              <SourceTrailItem key={item.id} item={item} />
+            ))}
+          </ol>
+        </Panel>
       </aside>
     </div>
   );
@@ -340,6 +408,24 @@ function Assumption({ name, source }: { name: string; source: string }) {
     <li className={styles.assumption}>
       <div className={styles.assumptionName}>{name}</div>
       <div className={styles.assumptionSource}>{source}</div>
+    </li>
+  );
+}
+
+function SourceTrailItem({ item }: { item: TrajectorySourceTrailItem }) {
+  const value = item.href ? (
+    <a className={styles.sourceLink} href={item.href}>
+      {item.value}
+    </a>
+  ) : (
+    item.value
+  );
+
+  return (
+    <li className={styles.sourceTrailItem}>
+      <div className={styles.sourceTrailLabel}>{item.label}</div>
+      <div className={styles.sourceTrailValue}>{value}</div>
+      <div className={styles.sourceTrailDetail}>{item.detail}</div>
     </li>
   );
 }
