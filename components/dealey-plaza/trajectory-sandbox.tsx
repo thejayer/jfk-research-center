@@ -280,13 +280,13 @@ export function TrajectorySandbox() {
           </label>
           <p className={styles.presetSummary}>{activePreset.summary}</p>
           <div className={styles.frameSelector}>
-            <div id="trajectory-frame-selector-label" className="eyebrow">
+            <div id={frameSelectorLabelId} className="eyebrow">
               Zapruder frame timeline selector
             </div>
             <div
               className={styles.frameRail}
               role="group"
-              aria-labelledby="trajectory-frame-selector-label"
+              aria-labelledby={frameSelectorLabelId}
             >
               {TRAJECTORY_FRAME_MARKS.map((frame) => (
                 <button
