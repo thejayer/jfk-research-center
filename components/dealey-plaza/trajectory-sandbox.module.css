@@ -74,6 +74,13 @@
   margin-bottom: 12px;
 }
 
+.panelNote {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: -2px 0 12px;
+}
+
 .selectControl {
   display: grid;
   gap: 7px;
@@ -205,6 +212,75 @@
 .metricValue {
   font-family: var(--font-mono);
   font-size: 0.95rem;
+}
+
+.intersectionList {
+  display: grid;
+  gap: 10px;
+}
+
+.intersectionRow {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+  padding: 12px;
+}
+
+.intersectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 7px;
+}
+
+.intersectionFrame {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.intersectionLabel {
+  font-size: 0.82rem;
+  margin-top: 2px;
+}
+
+.intersectionStatus {
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  padding: 3px 6px;
+  white-space: nowrap;
+}
+
+.intersectionStatus[data-state="Inside cone"] {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  color: var(--accent);
+}
+
+.intersectionStatus[data-state="Misses cone"] {
+  border-color: color-mix(in srgb, #d97706 42%, var(--border));
+  color: #b45309;
+}
+
+.intersectionDetail {
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  margin-bottom: 8px;
+}
+
+.intersectionMetrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+}
+
+.intersectionMetrics strong {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 500;
 }
 
 .assumptionList {

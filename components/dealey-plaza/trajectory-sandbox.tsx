@@ -16,9 +16,11 @@ import {
   type TrajectoryPreset,
 } from "@/lib/trajectory-presets";
 import {
+  compareTrajectoryToPlanePoint,
   formatDegrees,
   formatFeet,
   solveTrajectory,
+  type TrajectoryPlanePointComparison,
   type TrajectoryPoint,
 } from "@/lib/trajectory";
 import styles from "./trajectory-sandbox.module.css";
@@ -43,6 +45,7 @@ const TARGET_CONTROLS: ControlSpec[] = [
   { key: "z", label: "Target north/south", min: -95, max: 10 },
 ];
 
+const FRAME_SELECTOR_LABEL_ID = "trajectory-frame-selector-label";
 const FALLBACK_POINT: TrajectoryPoint = { x: 0, y: 0, z: 0 };
 const FALLBACK_PRESET: TrajectoryPreset = {
   id: "manual",
@@ -96,6 +99,20 @@ export function TrajectorySandbox() {
         uncertaintyDegrees,
       }),
     [activeFrame, activePreset, origin, target, uncertaintyDegrees],
+  );
+  const frameComparisons = useMemo(
+    () =>
+      TRAJECTORY_FRAME_MARKS.map((frame) => ({
+        frame,
+        comparison: compareTrajectoryToPlanePoint({
+          origin,
+          target,
+          point: frame.target,
+          axis: "z",
+          uncertaintyDegrees,
+        }),
+      })),
+    [origin, target, uncertaintyDegrees],
   );
   const uncertaintyRadiusFeet =
     Math.tan((uncertaintyDegrees * Math.PI) / 180) * solution.lineDistanceFeet;
@@ -280,13 +297,13 @@ export function TrajectorySandbox() {
           </label>
           <p className={styles.presetSummary}>{activePreset.summary}</p>
           <div className={styles.frameSelector}>
-            <div id={frameSelectorLabelId} className="eyebrow">
+            <div id={FRAME_SELECTOR_LABEL_ID} className="eyebrow">
               Zapruder frame timeline selector
             </div>
             <div
               className={styles.frameRail}
               role="group"
-              aria-labelledby={frameSelectorLabelId}
+              aria-labelledby={FRAME_SELECTOR_LABEL_ID}
             >
               {TRAJECTORY_FRAME_MARKS.map((frame) => (
                 <button
@@ -361,6 +378,23 @@ export function TrajectorySandbox() {
           </div>
         </Panel>
 
+        <Panel title="Frame Intersections">
+          <p className={styles.panelNote}>
+            Each row projects the active ray through a frame target&apos;s
+            north/south plane and compares that crossing to the sourced frame
+            marker.
+          </p>
+          <div className={styles.intersectionList}>
+            {frameComparisons.map(({ frame, comparison }) => (
+              <FrameIntersectionRow
+                key={frame.id}
+                frame={frame}
+                comparison={comparison}
+              />
+            ))}
+          </div>
+        </Panel>
+
         <Panel title="Assumptions">
           <ul className={styles.assumptionList}>
             <Assumption
@@ -424,6 +458,62 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className={styles.metric}>
       <div className={styles.metricLabel}>{label}</div>
       <div className={styles.metricValue}>{value}</div>
+    </div>
+  );
+}
+
+function FrameIntersectionRow({
+  frame,
+  comparison,
+}: {
+  frame: TrajectoryFrameMark;
+  comparison: TrajectoryPlanePointComparison;
+}) {
+  const { intersection, missDistanceFeet, coneRadiusFeet } = comparison;
+  const hasCrossing =
+    intersection !== null &&
+    intersection.isWithinSegment &&
+    missDistanceFeet !== null &&
+    coneRadiusFeet !== null;
+  const status = !hasCrossing
+    ? "Outside ray"
+    : comparison.isWithinCone
+      ? "Inside cone"
+      : "Misses cone";
+  const crossing = hasCrossing
+    ? `Crosses at X ${intersection.point.x.toFixed(1)} / Y ${intersection.point.y.toFixed(1)}`
+    : "No crossing inside the current ray segment";
+
+  return (
+    <div className={styles.intersectionRow}>
+      <div className={styles.intersectionHeader}>
+        <div>
+          <div className={styles.intersectionFrame}>Z{frame.frame}</div>
+          <div className={styles.intersectionLabel}>{frame.label}</div>
+        </div>
+        <span className={styles.intersectionStatus} data-state={status}>
+          {status}
+        </span>
+      </div>
+      <div className={styles.intersectionDetail}>{crossing}</div>
+      <div className={styles.intersectionMetrics}>
+        <span>
+          Miss{" "}
+          <strong>
+            {missDistanceFeet === null
+              ? "n/a"
+              : formatFeet(missDistanceFeet)}
+          </strong>
+        </span>
+        <span>
+          Cone{" "}
+          <strong>
+            {coneRadiusFeet === null
+              ? "n/a"
+              : formatFeet(coneRadiusFeet)}
+          </strong>
+        </span>
+      </div>
     </div>
   );
 }

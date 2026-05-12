@@ -17,6 +17,24 @@ export type TrajectorySolution = {
   timeOfFlightSeconds: number;
 };
 
+export type TrajectoryAxis = keyof TrajectoryPoint;
+
+export type TrajectoryPlaneIntersection = {
+  axis: TrajectoryAxis;
+  value: number;
+  point: TrajectoryPoint;
+  t: number;
+  isWithinSegment: boolean;
+  distanceFromOriginFeet: number;
+};
+
+export type TrajectoryPlanePointComparison = {
+  intersection: TrajectoryPlaneIntersection | null;
+  missDistanceFeet: number | null;
+  coneRadiusFeet: number | null;
+  isWithinCone: boolean | null;
+};
+
 /**
  * solveTrajectory computes straight-line geometry in plaza-relative feet.
  *
@@ -50,12 +68,86 @@ export function solveTrajectory(
   };
 }
 
+export function intersectTrajectoryPlane(
+  origin: TrajectoryPoint,
+  target: TrajectoryPoint,
+  axis: TrajectoryAxis,
+  value: number,
+): TrajectoryPlaneIntersection | null {
+  const delta = target[axis] - origin[axis];
+  if (delta === 0) return null;
+
+  const t = (value - origin[axis]) / delta;
+  const point = interpolatePoint(origin, target, t);
+
+  return {
+    axis,
+    value,
+    point,
+    t,
+    isWithinSegment: t >= 0 && t <= 1,
+    distanceFromOriginFeet: distanceBetweenPoints(origin, point),
+  };
+}
+
+export function compareTrajectoryToPlanePoint({
+  origin,
+  target,
+  point,
+  axis,
+  uncertaintyDegrees,
+}: {
+  origin: TrajectoryPoint;
+  target: TrajectoryPoint;
+  point: TrajectoryPoint;
+  axis: TrajectoryAxis;
+  uncertaintyDegrees: number;
+}): TrajectoryPlanePointComparison {
+  const intersection = intersectTrajectoryPlane(origin, target, axis, point[axis]);
+  if (!intersection || !intersection.isWithinSegment) {
+    return {
+      intersection,
+      missDistanceFeet: null,
+      coneRadiusFeet: null,
+      isWithinCone: null,
+    };
+  }
+
+  const missDistanceFeet = distanceBetweenPoints(intersection.point, point);
+  const coneRadiusFeet =
+    Math.tan((uncertaintyDegrees * Math.PI) / 180) *
+    intersection.distanceFromOriginFeet;
+
+  return {
+    intersection,
+    missDistanceFeet,
+    coneRadiusFeet,
+    isWithinCone: missDistanceFeet <= coneRadiusFeet,
+  };
+}
+
 export function formatDegrees(value: number): string {
   return `${value.toFixed(1)}°`;
 }
 
 export function formatFeet(value: number): string {
   return `${value.toFixed(1)} ft`;
+}
+
+function interpolatePoint(
+  origin: TrajectoryPoint,
+  target: TrajectoryPoint,
+  t: number,
+): TrajectoryPoint {
+  return {
+    x: origin.x + (target.x - origin.x) * t,
+    y: origin.y + (target.y - origin.y) * t,
+    z: origin.z + (target.z - origin.z) * t,
+  };
+}
+
+function distanceBetweenPoints(a: TrajectoryPoint, b: TrajectoryPoint): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 }
 
 function radiansToDegrees(value: number): number {
