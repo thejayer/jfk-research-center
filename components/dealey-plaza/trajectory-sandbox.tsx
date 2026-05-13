@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
 import {
@@ -45,7 +45,6 @@ const TARGET_CONTROLS: ControlSpec[] = [
   { key: "z", label: "Target north/south", min: -95, max: 10 },
 ];
 
-const FRAME_SELECTOR_LABEL_ID = "trajectory-frame-selector-label";
 const FALLBACK_POINT: TrajectoryPoint = { x: 0, y: 0, z: 0 };
 const FALLBACK_PRESET: TrajectoryPreset = {
   id: "manual",
@@ -58,6 +57,7 @@ const FALLBACK_PRESET: TrajectoryPreset = {
 };
 
 export function TrajectorySandbox() {
+  const frameSelectorLabelId = useId();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const objectsRef = useRef<{
     origin: THREE.Mesh;
@@ -297,13 +297,13 @@ export function TrajectorySandbox() {
           </label>
           <p className={styles.presetSummary}>{activePreset.summary}</p>
           <div className={styles.frameSelector}>
-            <div id={FRAME_SELECTOR_LABEL_ID} className="eyebrow">
+            <div id={frameSelectorLabelId} className="eyebrow">
               Zapruder frame timeline selector
             </div>
             <div
               className={styles.frameRail}
               role="group"
-              aria-labelledby={FRAME_SELECTOR_LABEL_ID}
+              aria-labelledby={frameSelectorLabelId}
             >
               {TRAJECTORY_FRAME_MARKS.map((frame) => (
                 <button

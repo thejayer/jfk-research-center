@@ -85,6 +85,28 @@ describe("trajectory intersections", () => {
     expect(comparison.isWithinCone).toBe(true);
   });
 
+  it("sanitizes invalid uncertainty angles before computing cone radius", () => {
+    const invalid = compareTrajectoryToPlanePoint({
+      origin: { x: 0, y: 0, z: 0 },
+      target: { x: 0, y: 0, z: -100 },
+      point: { x: 1, y: 0, z: -50 },
+      axis: "z",
+      uncertaintyDegrees: Number.NaN,
+    });
+    const huge = compareTrajectoryToPlanePoint({
+      origin: { x: 0, y: 0, z: 0 },
+      target: { x: 0, y: 0, z: -100 },
+      point: { x: 1, y: 0, z: -50 },
+      axis: "z",
+      uncertaintyDegrees: 180,
+    });
+
+    expect(invalid.coneRadiusFeet).toBe(0);
+    expect(invalid.isWithinCone).toBe(false);
+    expect(Number.isFinite(huge.coneRadiusFeet)).toBe(true);
+    expect(huge.isWithinCone).toBe(true);
+  });
+
   it("marks comparisons outside the segment as unavailable", () => {
     const comparison = compareTrajectoryToPlanePoint({
       origin: { x: 0, y: 0, z: 0 },
