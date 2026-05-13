@@ -35,6 +35,18 @@ export type TrajectoryPlanePointComparison = {
   isWithinCone: boolean | null;
 };
 
+export type TrajectoryPlanBounds = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+export type TrajectoryPlanPoint = {
+  x: number;
+  y: number;
+};
+
 /**
  * solveTrajectory computes straight-line geometry in plaza-relative feet.
  *
@@ -160,6 +172,76 @@ export function compareTrajectoryToPlanePoint({
     missDistanceFeet,
     coneRadiusFeet,
     isWithinCone: missDistanceFeet <= coneRadiusFeet,
+  };
+}
+
+/**
+ * Builds padded X/Z bounds for a top-down plaza projection.
+ *
+ * Coordinates are plaza-relative feet. `y` is ignored because this is a plan
+ * view. Empty inputs return a symmetric fallback around the origin, and
+ * degenerate one-point spans are widened slightly so projection never divides
+ * by zero.
+ */
+export function buildTrajectoryPlanBounds(
+  points: readonly TrajectoryPoint[],
+  paddingFeet = 16,
+): TrajectoryPlanBounds {
+  if (points.length === 0) {
+    return {
+      minX: -paddingFeet,
+      maxX: paddingFeet,
+      minZ: -paddingFeet,
+      maxZ: paddingFeet,
+    };
+  }
+
+  const xs = points.map((point) => point.x);
+  const zs = points.map((point) => point.z);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minZ = Math.min(...zs);
+  const maxZ = Math.max(...zs);
+  const xSpan = Math.max(maxX - minX, 1);
+  const zSpan = Math.max(maxZ - minZ, 1);
+
+  return {
+    minX: minX - paddingFeet - (xSpan === 1 ? 0.5 : 0),
+    maxX: maxX + paddingFeet + (xSpan === 1 ? 0.5 : 0),
+    minZ: minZ - paddingFeet - (zSpan === 1 ? 0.5 : 0),
+    maxZ: maxZ + paddingFeet + (zSpan === 1 ? 0.5 : 0),
+  };
+}
+
+/**
+ * Projects a plaza-relative point into SVG coordinates for a top-down plan.
+ *
+ * X maps left-to-right. Z is inverted so larger/northern Z values render higher
+ * on the SVG. Width, height, and padding are CSS/SVG pixels; source bounds are
+ * in feet. The helper is deterministic and clamps zero-size drawable areas or
+ * spans to one unit to avoid NaN/Infinity at narrow sizes.
+ */
+export function projectTrajectoryPlanPoint({
+  point,
+  bounds,
+  width,
+  height,
+  padding = 18,
+}: {
+  point: TrajectoryPoint;
+  bounds: TrajectoryPlanBounds;
+  width: number;
+  height: number;
+  padding?: number;
+}): TrajectoryPlanPoint {
+  const drawableWidth = Math.max(width - padding * 2, 1);
+  const drawableHeight = Math.max(height - padding * 2, 1);
+  const xSpan = Math.max(bounds.maxX - bounds.minX, 1);
+  const zSpan = Math.max(bounds.maxZ - bounds.minZ, 1);
+
+  return {
+    x: padding + ((point.x - bounds.minX) / xSpan) * drawableWidth,
+    y: padding + ((bounds.maxZ - point.z) / zSpan) * drawableHeight,
   };
 }
 
