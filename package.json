@@ -30,8 +30,8 @@
     "d3-zoom": "^3.0.0",
     "google-auth-library": "^10.6.2",
     "next": "15.5.18",
-    "react": "19.2.5",
-    "react-dom": "19.2.5",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
     "three": "^0.184.0"
   },
   "overrides": {
