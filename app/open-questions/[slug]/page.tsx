@@ -8,6 +8,7 @@ import { OpenQuestionsThreadList } from "@/components/open-questions/thread-list
 import { EditorialFootnotes } from "@/components/open-questions/editorial-footnotes";
 import { LinkButton } from "@/components/ui/button";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import {
   TENSION_ORDER,
   tensionAnchorId,
@@ -133,6 +134,17 @@ export default async function OpenQuestionsTopicPage({
           <LinkButton href={data.topicHref} variant="secondary">
             Back to topic overview
           </LinkButton>
+          <div style={{ marginTop: 12 }}>
+            <SaveResearchButton
+              item={{
+                type: "question",
+                sourceId: data.slug,
+                title: data.title,
+                href: `/open-questions/${encodeURIComponent(data.slug)}`,
+                context: `${data.questionCount.toLocaleString()} question threads`,
+              }}
+            />
+          </div>
         </div>
 
         <aside

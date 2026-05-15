@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { formatDate } from "@/lib/format";
 import { normalizeHttpUrl } from "@/lib/safe-url";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import { TimelinePermalink } from "./timeline-permalink";
 
 const CATEGORY_LABEL: Record<CaseTimelineCategory, string> = {
@@ -84,6 +85,16 @@ export function EventCard({
           </span>
         )}
         {showPermalink && <TimelinePermalink eventId={e.id} title={e.title} />}
+        <SaveResearchButton
+          compact
+          item={{
+            type: "timeline",
+            sourceId: e.id,
+            title: e.title,
+            href: `/timeline?view=list#${encodeURIComponent(e.id)}`,
+            context: formatDate(e.date) ?? undefined,
+          }}
+        />
       </div>
       <div
         style={{

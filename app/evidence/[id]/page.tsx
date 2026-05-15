@@ -6,6 +6,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import { formatDate } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -127,6 +128,17 @@ export default async function EvidenceItemPage({
           >
             Evidence ID: {data.id}
           </p>
+          <div style={{ marginTop: 18 }}>
+            <SaveResearchButton
+              item={{
+                type: "evidence",
+                sourceId: data.id,
+                title: data.shortName,
+                href: data.href,
+                context: categoryLabel,
+              }}
+            />
+          </div>
         </div>
 
         <aside

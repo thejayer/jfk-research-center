@@ -4,6 +4,7 @@ import { formatCitation } from "@/lib/citations";
 import { formatDateRange, formatNumber } from "@/lib/format";
 import { Badge, OcrBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import { CiteButton } from "./cite-button";
 import { CopyNaidButton } from "./copy-naid-button";
 
@@ -117,6 +118,15 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
               </LinkButton>
             )}
             <CiteButton citations={citations} />
+            <SaveResearchButton
+              item={{
+                type: "document",
+                sourceId: doc.id,
+                title: doc.title,
+                href: doc.href,
+                context: doc.naid ? `NAID ${doc.naid}` : doc.agency ?? undefined,
+              }}
+            />
           </div>
         </div>
 

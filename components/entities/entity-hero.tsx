@@ -1,6 +1,7 @@
 import type { EntityDetail } from "@/lib/api-types";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import { formatNumber, formatYearRange } from "@/lib/format";
 
 export function EntityHero({
@@ -102,6 +103,15 @@ export function EntityHero({
                 <ArrowRightIcon />
               </LinkButton>
             )}
+            <SaveResearchButton
+              item={{
+                type: "entity",
+                sourceId: entity.slug,
+                title: entity.name,
+                href: `/entity/${encodeURIComponent(entity.slug)}`,
+                context: typeLabel,
+              }}
+            />
           </div>
         </div>
 
