@@ -6,6 +6,9 @@ import {
   listSavedResearchItems,
   parseSavedResearchItems,
   removeSavedResearchItem,
+  savedResearchKey,
+  savedResearchTypeLabel,
+  type SavedResearchType,
 } from "../saved-research";
 
 class MemoryStorage {
@@ -25,13 +28,39 @@ class MemoryStorage {
 }
 
 describe("saved research storage", () => {
+  it("labels every saved research type", () => {
+    const labels: Record<SavedResearchType, string> = {
+      document: "Document",
+      evidence: "Evidence",
+      entity: "Entity",
+      topic: "Topic",
+      timeline: "Timeline",
+      question: "Question",
+    };
+
+    for (const [type, label] of Object.entries(labels) as Array<
+      [SavedResearchType, string]
+    >) {
+      expect(savedResearchTypeLabel(type)).toBe(label);
+    }
+  });
+
+  it("builds stable keys from trimmed source ids", () => {
+    expect(
+      savedResearchKey({
+        type: "document",
+        sourceId: "  wc-report-1964  ",
+      }),
+    ).toBe("document:wc-report-1964");
+  });
+
   it("persists, deduplicates, and sorts saved research items", () => {
     const storage = new MemoryStorage();
 
     addSavedResearchItem(
       {
         type: "document",
-        sourceId: "wc-report-1964",
+        sourceId: "  wc-report-1964  ",
         title: "Warren Commission Report",
         href: "/document/wc-report-1964",
         context: "Document",
@@ -53,6 +82,7 @@ describe("saved research storage", () => {
     expect(listSavedResearchItems(storage)).toEqual([
       expect.objectContaining({
         id: "document:wc-report-1964",
+        sourceId: "wc-report-1964",
         title: "Updated title",
         savedAt: 200,
       }),
@@ -94,7 +124,7 @@ describe("saved research storage", () => {
     const parsed = parseSavedResearchItems([
       {
         type: "entity",
-        sourceId: "lee-harvey-oswald",
+        sourceId: "  lee-harvey-oswald  ",
         title: "Lee Harvey Oswald",
         href: "/entity/lee-harvey-oswald",
         savedAt: 200,
@@ -118,6 +148,7 @@ describe("saved research storage", () => {
     expect(parsed).toEqual([
       expect.objectContaining({
         id: "entity:lee-harvey-oswald",
+        sourceId: "lee-harvey-oswald",
         href: "/entity/lee-harvey-oswald",
       }),
     ]);

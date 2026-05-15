@@ -14,7 +14,9 @@ export function ResearchTray() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<SavedResearchItem[]>([]);
+  const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -29,7 +31,13 @@ export function ResearchTray() {
   }, []);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      if (wasOpenRef.current) triggerButtonRef.current?.focus();
+      wasOpenRef.current = false;
+      return;
+    }
+
+    wasOpenRef.current = true;
     closeButtonRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
@@ -49,6 +57,7 @@ export function ResearchTray() {
   return (
     <>
       <button
+        ref={triggerButtonRef}
         type="button"
         className="research-tray-trigger"
         aria-label={`Open saved research tray${items.length > 0 ? `, ${items.length} saved items` : ""}`}

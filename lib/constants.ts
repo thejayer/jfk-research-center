@@ -5,6 +5,19 @@ export const PUBLIC_ROUTE_CACHE_CONTROL =
 
 export const RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
 
+export const STORAGE_KEY = "jfkrc-saved-research";
+export const CHANGE_EVENT = "jfkrc:saved-research-changed";
+export const MAX_ITEMS = 80;
+
+export const TYPE_LABELS = {
+  document: "Document",
+  evidence: "Evidence",
+  entity: "Entity",
+  topic: "Topic",
+  timeline: "Timeline",
+  question: "Question",
+} as const;
+
 export const DEFAULT_MUZZLE_VELOCITY_FPS = 2000;
 
 export type TrajectorySourceReference = {

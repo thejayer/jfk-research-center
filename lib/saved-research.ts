@@ -1,14 +1,11 @@
-const STORAGE_KEY = "jfkrc-saved-research";
-const CHANGE_EVENT = "jfkrc:saved-research-changed";
-const MAX_ITEMS = 80;
+import {
+  CHANGE_EVENT,
+  MAX_ITEMS,
+  STORAGE_KEY,
+  TYPE_LABELS,
+} from "./constants";
 
-export type SavedResearchType =
-  | "document"
-  | "evidence"
-  | "entity"
-  | "topic"
-  | "timeline"
-  | "question";
+export type SavedResearchType = keyof typeof TYPE_LABELS;
 
 export type SavedResearchItem = {
   id: string;
@@ -24,23 +21,23 @@ export type SavedResearchInput = Omit<SavedResearchItem, "id" | "savedAt">;
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-const TYPE_LABELS: Record<SavedResearchType, string> = {
-  document: "Document",
-  evidence: "Evidence",
-  entity: "Entity",
-  topic: "Topic",
-  timeline: "Timeline",
-  question: "Question",
-};
-
+/** Returns the user-facing label for a saved research item type. */
 export function savedResearchTypeLabel(type: SavedResearchType): string {
   return TYPE_LABELS[type];
 }
 
+/** Builds the stable storage identity for a saved item from type and source id. */
 export function savedResearchKey(input: Pick<SavedResearchItem, "type" | "sourceId">): string {
-  return `${input.type}:${input.sourceId}`;
+  return `${input.type}:${input.sourceId.trim()}`;
 }
 
+/**
+ * Coerces unknown stored JSON into valid saved items.
+ *
+ * Invalid entries are dropped, duplicate ids are ignored after the first valid
+ * occurrence, the result is sorted newest-first, and the list is capped to the
+ * configured storage limit.
+ */
 export function parseSavedResearchItems(value: unknown): SavedResearchItem[] {
   if (!Array.isArray(value)) return [];
 
@@ -57,6 +54,12 @@ export function parseSavedResearchItems(value: unknown): SavedResearchItem[] {
     .slice(0, MAX_ITEMS);
 }
 
+/**
+ * Reads saved research items from storage.
+ *
+ * Missing storage, malformed JSON, or unavailable browser storage all resolve
+ * to an empty list so the client UI can degrade without throwing.
+ */
 export function listSavedResearchItems(storage = browserStorage()): SavedResearchItem[] {
   if (!storage) return [];
   try {
@@ -68,6 +71,12 @@ export function listSavedResearchItems(storage = browserStorage()): SavedResearc
   }
 }
 
+/**
+ * Creates or replaces a saved research item, then persists it newest-first.
+ *
+ * Re-saving the same type/source pair deduplicates by stable id and moves the
+ * item to the front of the tray.
+ */
 export function addSavedResearchItem(
   input: SavedResearchInput,
   storage = browserStorage(),
@@ -82,6 +91,7 @@ export function addSavedResearchItem(
   return item;
 }
 
+/** Removes one saved item by stable id and persists the remaining list. */
 export function removeSavedResearchItem(
   id: string,
   storage = browserStorage(),
@@ -90,6 +100,12 @@ export function removeSavedResearchItem(
   persistSavedResearchItems(next, storage);
 }
 
+/**
+ * Clears all saved research items.
+ *
+ * Storage failures are ignored because this feature is local-only convenience
+ * state and must not break page interaction.
+ */
 export function clearSavedResearchItems(storage = browserStorage()): void {
   if (!storage) return;
   try {
@@ -100,6 +116,7 @@ export function clearSavedResearchItems(storage = browserStorage()): void {
   }
 }
 
+/** Checks whether a type/source pair is currently saved in storage. */
 export function isResearchItemSaved(
   input: Pick<SavedResearchItem, "type" | "sourceId">,
   storage = browserStorage(),
@@ -108,14 +125,16 @@ export function isResearchItemSaved(
   return listSavedResearchItems(storage).some((item) => item.id === id);
 }
 
+// Normalizes fresh user/page input into the persisted schema.
 function createSavedResearchItem(
   input: SavedResearchInput,
   savedAt: number,
 ): SavedResearchItem {
+  const trimmedSourceId = input.sourceId.trim();
   return {
-    id: savedResearchKey(input),
+    id: savedResearchKey({ type: input.type, sourceId: trimmedSourceId }),
     type: input.type,
-    sourceId: input.sourceId.trim(),
+    sourceId: trimmedSourceId,
     title: input.title.trim() || "Untitled item",
     href: safeInternalHref(input.href) ?? "/",
     context: input.context?.trim() || undefined,
@@ -123,6 +142,7 @@ function createSavedResearchItem(
   };
 }
 
+// Accepts only persisted records that match the current schema and safe hrefs.
 function normalizeSavedResearchItem(value: unknown): SavedResearchItem | null {
   if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
@@ -155,6 +175,7 @@ function normalizeSavedResearchItem(value: unknown): SavedResearchItem | null {
   };
 }
 
+// Persists the complete list and notifies same-tab listeners; failures are soft.
 function persistSavedResearchItems(
   items: SavedResearchItem[],
   storage: StorageLike | null,
@@ -168,14 +189,20 @@ function persistSavedResearchItems(
   }
 }
 
+// Broadcasts same-tab changes; cross-tab sync is handled by the storage event.
 function notifySavedResearchChanged(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
 }
 
+// Reads browser storage defensively because some modes throw on localStorage access.
 function browserStorage(): StorageLike | null {
   if (typeof window === "undefined") return null;
-  return window.localStorage;
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function isSavedResearchType(value: unknown): value is SavedResearchType {
