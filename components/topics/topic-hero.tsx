@@ -1,6 +1,7 @@
 import type { TopicDetail } from "@/lib/api-types";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import { formatNumber } from "@/lib/format";
 
 export function TopicHero({
@@ -80,6 +81,15 @@ export function TopicHero({
               Browse records
               <ArrowRightIcon />
             </LinkButton>
+            <SaveResearchButton
+              item={{
+                type: "topic",
+                sourceId: topic.slug,
+                title: topic.title,
+                href: topic.href,
+                context: `${formatNumber(topic.documentCount)} documents`,
+              }}
+            />
           </div>
         </div>
 
