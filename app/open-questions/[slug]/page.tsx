@@ -16,6 +16,7 @@ import {
 } from "@/components/open-questions/tension-labels";
 import { formatNumber } from "@/lib/format";
 import layout from "@/components/ui/two-column.module.css";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,15 @@ export default async function OpenQuestionsTopicPage({
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "question",
+          sourceId: data.slug,
+          title: data.title,
+          href: `/open-questions/${encodeURIComponent(data.slug)}`,
+          context: `${data.questionCount.toLocaleString()} question threads`,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

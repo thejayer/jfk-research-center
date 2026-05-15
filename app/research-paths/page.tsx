@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { RESEARCH_PATHS } from "@/lib/research-paths";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const metadata: Metadata = {
   title: "Research paths",
@@ -12,6 +13,15 @@ export const metadata: Metadata = {
 export default function ResearchPathsPage() {
   return (
     <div className="container" style={{ paddingTop: 24, paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "path",
+          sourceId: "research-paths",
+          title: "Research paths",
+          href: "/research-paths",
+          context: `${RESEARCH_PATHS.length} guided routes`,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

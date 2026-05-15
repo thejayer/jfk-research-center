@@ -6,6 +6,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { DallasView } from "@/components/timeline/dallas-view";
 import { ListView } from "@/components/timeline/list-view";
 import { ZoomableTimeline } from "@/components/timeline/zoomable-timeline";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,24 @@ export default async function TimelinePage({ searchParams }: Props) {
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "timeline",
+          sourceId: `case-timeline-${view}${selectedCategory ? `-${selectedCategory}` : ""}`,
+          title: `${VIEW_COPY[view].title} timeline`,
+          href:
+            view === "zoom" && !selectedCategory
+              ? "/timeline"
+              : `/timeline?${new URLSearchParams({
+                  ...(view === "zoom" ? {} : { view }),
+                  ...(selectedCategory ? { category: selectedCategory } : {}),
+                }).toString()}`,
+          context:
+            selectedCategory
+              ? `${CATEGORY_LABELS[selectedCategory]} events`
+              : `${data.events.length.toLocaleString()} case events`,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

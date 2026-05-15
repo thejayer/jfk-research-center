@@ -26,9 +26,18 @@ export function SearchBar({
     e.preventDefault();
     const q = value.trim();
     const mode = params?.get("mode");
+    const group = params?.get("group");
     const next = new URLSearchParams();
     if (q) next.set("q", q);
     if (mode === "mention" || mode === "semantic") next.set("mode", mode);
+    if (
+      group === "entities" ||
+      group === "topics" ||
+      group === "timeline" ||
+      group === "questions"
+    ) {
+      next.set("group", group);
+    }
     router.push(`/search?${next.toString()}`);
   }
 

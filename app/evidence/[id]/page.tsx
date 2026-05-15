@@ -8,6 +8,7 @@ import { RelatedEntities } from "@/components/entities/related-entities";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import { SaveResearchButton } from "@/components/research/save-research-button";
 import { formatDate } from "@/lib/format";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +58,15 @@ export default async function EvidenceItemPage({
 
   return (
     <div className="container" style={{ paddingTop: 24, paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "evidence",
+          sourceId: data.id,
+          title: data.shortName,
+          href: data.href,
+          context: categoryLabel,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

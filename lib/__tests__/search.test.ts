@@ -11,6 +11,7 @@ describe("parseSearchParams", () => {
     const r = parseSearchParams({});
     expect(r.q).toBe("");
     expect(r.mode).toBe("document");
+    expect(r.group).toBe("results");
     expect(hasAnyFilter(r.filters)).toBe(false);
   });
 
@@ -22,6 +23,14 @@ describe("parseSearchParams", () => {
 
   it("treats unknown modes as document", () => {
     expect(parseSearchParams({ mode: "garbage" }).mode).toBe("document");
+  });
+
+  it("reads supported search groups and defaults unsupported values", () => {
+    expect(parseSearchParams({ group: "entities" }).group).toBe("entities");
+    expect(parseSearchParams({ group: "topics" }).group).toBe("topics");
+    expect(parseSearchParams({ group: "timeline" }).group).toBe("timeline");
+    expect(parseSearchParams({ group: "questions" }).group).toBe("questions");
+    expect(parseSearchParams({ group: "garbage" }).group).toBe("results");
   });
 
   it("accepts repeated filter values as an array", () => {
@@ -121,6 +130,15 @@ describe("buildSearchUrl", () => {
     );
     expect(buildSearchUrl("x", "document", emptyFilters, 3)).toContain(
       "page=3",
+    );
+  });
+
+  it("serializes non-default result groups", () => {
+    expect(buildSearchUrl("x", "document", emptyFilters, 1, "entities")).toContain(
+      "group=entities",
+    );
+    expect(buildSearchUrl("x", "document", emptyFilters, 1, "results")).not.toContain(
+      "group=",
     );
   });
 
