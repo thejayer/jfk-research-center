@@ -19,6 +19,127 @@
   overflow: hidden;
 }
 
+.planPanel {
+  border: 1px solid var(--border);
+  border-top: 0;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.planHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.planLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.planLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.planLegend i {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  border-radius: 999px;
+}
+
+.legendOrigin {
+  background: #b3422f;
+}
+
+.legendTarget {
+  background: #1f6f8b;
+}
+
+.legendCrossing {
+  background: var(--accent);
+}
+
+.planSvg {
+  width: 100%;
+  aspect-ratio: 31 / 13;
+  display: block;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 72%, var(--surface));
+}
+
+.planGround {
+  fill: color-mix(in srgb, var(--surface) 80%, var(--bg));
+}
+
+.planRoad {
+  fill: none;
+  stroke: color-mix(in srgb, var(--text-muted) 46%, transparent);
+  stroke-width: 18;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.planTsbd {
+  fill: color-mix(in srgb, #8e715a 76%, var(--surface));
+  stroke: color-mix(in srgb, #2d2520 42%, var(--border));
+  stroke-width: 1.2;
+}
+
+.planRay {
+  stroke: var(--text);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.planFramePoint {
+  fill: var(--surface);
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.planFramePoint[data-active="true"] {
+  fill: color-mix(in srgb, var(--accent) 20%, var(--surface));
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.planFrameLabel {
+  fill: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.planCrossing {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.planOrigin {
+  fill: #b3422f;
+  stroke: var(--surface);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.planTarget {
+  fill: #1f6f8b;
+  stroke: var(--surface);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
 .canvas {
   width: 100%;
   height: 100%;
@@ -394,5 +515,13 @@
   .hud,
   .side {
     grid-template-columns: 1fr;
+  }
+
+  .planHeader {
+    display: grid;
+  }
+
+  .planLegend {
+    justify-content: flex-start;
   }
 }

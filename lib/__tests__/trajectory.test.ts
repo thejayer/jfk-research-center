@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildTrajectoryPlanBounds,
   compareTrajectoryToPlanePoint,
   formatDegrees,
   formatFeet,
   intersectTrajectoryPlane,
+  projectTrajectoryPlanPoint,
   solveTrajectory,
 } from "../trajectory";
 
@@ -42,6 +44,48 @@ describe("solveTrajectory", () => {
     expect(formatFeet(50.9902)).toBe("51.0 ft");
     expect(formatFeet(0)).toBe("0.0 ft");
     expect(formatFeet(-12.24)).toBe("-12.2 ft");
+  });
+});
+
+describe("trajectory plan projection", () => {
+  it("builds padded x/z bounds for plan-view points", () => {
+    const bounds = buildTrajectoryPlanBounds(
+      [
+        { x: -10, y: 30, z: 20 },
+        { x: 30, y: 2, z: -40 },
+      ],
+      10,
+    );
+
+    expect(bounds).toEqual({
+      minX: -20,
+      maxX: 40,
+      minZ: -50,
+      maxZ: 30,
+    });
+  });
+
+  it("returns stable plan-view bounds for empty point sets", () => {
+    expect(buildTrajectoryPlanBounds([], 12)).toEqual({
+      minX: -12,
+      maxX: 12,
+      minZ: -12,
+      maxZ: 12,
+    });
+  });
+
+  it("projects plaza x/z coordinates into SVG coordinates", () => {
+    const bounds = { minX: -20, maxX: 40, minZ: -50, maxZ: 30 };
+    const projected = projectTrajectoryPlanPoint({
+      point: { x: 10, y: 99, z: -10 },
+      bounds,
+      width: 180,
+      height: 100,
+      padding: 10,
+    });
+
+    expect(projected.x).toBeCloseTo(90);
+    expect(projected.y).toBeCloseTo(50);
   });
 });
 

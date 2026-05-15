@@ -16,9 +16,11 @@ import {
   type TrajectoryPreset,
 } from "@/lib/trajectory-presets";
 import {
+  buildTrajectoryPlanBounds,
   compareTrajectoryToPlanePoint,
   formatDegrees,
   formatFeet,
+  projectTrajectoryPlanPoint,
   solveTrajectory,
   type TrajectoryPlanePointComparison,
   type TrajectoryPoint,
@@ -55,6 +57,16 @@ const FALLBACK_PRESET: TrajectoryPreset = {
   uncertaintyDegrees: 1,
   sources: [],
 };
+
+const PLAN_VIEW_WIDTH = 620;
+const PLAN_VIEW_HEIGHT = 260;
+const PLAN_VIEW_PADDING = 24;
+const PLAN_LANDMARK_POINTS: TrajectoryPoint[] = [
+  { x: -86, y: 0, z: 10 },
+  { x: -58, y: 0, z: 42 },
+  { x: 78, y: 0, z: -84 },
+  { x: 50, y: 0, z: 24 },
+];
 
 export function TrajectorySandbox() {
   const frameSelectorLabelId = useId();
@@ -113,6 +125,21 @@ export function TrajectorySandbox() {
         }),
       })),
     [origin, target, uncertaintyDegrees],
+  );
+  const planBounds = useMemo(
+    () =>
+      buildTrajectoryPlanBounds([
+        ...PLAN_LANDMARK_POINTS,
+        origin,
+        target,
+        ...TRAJECTORY_FRAME_MARKS.map((frame) => frame.target),
+        ...frameComparisons.flatMap(({ comparison }) =>
+          comparison.intersection?.isWithinSegment
+            ? [comparison.intersection.point]
+            : [],
+        ),
+      ]),
+    [frameComparisons, origin, target],
   );
   const uncertaintyRadiusFeet =
     Math.tan((uncertaintyDegrees * Math.PI) / 180) * solution.lineDistanceFeet;
@@ -277,6 +304,13 @@ export function TrajectorySandbox() {
             <HudItem label="Azimuth" value={formatDegrees(solution.azimuthDegrees)} />
           </div>
         </div>
+        <PlanView
+          origin={origin}
+          target={target}
+          activeFrameId={activeFrameId}
+          frameComparisons={frameComparisons}
+          bounds={planBounds}
+        />
       </section>
 
       <aside className={styles.side}>
@@ -462,6 +496,129 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function PlanView({
+  origin,
+  target,
+  activeFrameId,
+  frameComparisons,
+  bounds,
+}: {
+  origin: TrajectoryPoint;
+  target: TrajectoryPoint;
+  activeFrameId: string | null;
+  frameComparisons: Array<{
+    frame: TrajectoryFrameMark;
+    comparison: TrajectoryPlanePointComparison;
+  }>;
+  bounds: ReturnType<typeof buildTrajectoryPlanBounds>;
+}) {
+  const originPoint = projectPlanPoint(origin, bounds);
+  const targetPoint = projectPlanPoint(target, bounds);
+  const elmStreetPath = [
+    projectPlanPoint({ x: -86, y: 0, z: 10 }, bounds),
+    projectPlanPoint({ x: -26, y: 0, z: -16 }, bounds),
+    projectPlanPoint({ x: 28, y: 0, z: -48 }, bounds),
+    projectPlanPoint({ x: 78, y: 0, z: -84 }, bounds),
+  ];
+
+  return (
+    <section className={styles.planPanel} aria-label="Linked 2D trajectory plan view">
+      <div className={styles.planHeader}>
+        <div>
+          <div className={styles.panelTitle}>Linked 2D Plan View</div>
+          <p className={styles.panelNote}>
+            Top-down X/Z projection using the same active ray, frame markers,
+            and intersection math as the 3D scene.
+          </p>
+        </div>
+        <div className={styles.planLegend} aria-hidden="true">
+          <span><i className={styles.legendOrigin} /> Origin</span>
+          <span><i className={styles.legendTarget} /> Target</span>
+          <span><i className={styles.legendCrossing} /> Crossing</span>
+        </div>
+      </div>
+      <svg
+        className={styles.planSvg}
+        viewBox={`0 0 ${PLAN_VIEW_WIDTH} ${PLAN_VIEW_HEIGHT}`}
+        role="img"
+        aria-label="Top-down plan view of the active trajectory ray and frame intersections"
+      >
+        <rect
+          className={styles.planGround}
+          x="0"
+          y="0"
+          width={PLAN_VIEW_WIDTH}
+          height={PLAN_VIEW_HEIGHT}
+        />
+        <polyline
+          className={styles.planRoad}
+          points={elmStreetPath.map((point) => `${point.x},${point.y}`).join(" ")}
+        />
+        <rect
+          className={styles.planTsbd}
+          x={projectPlanPoint({ x: -79, y: 0, z: 59 }, bounds).x}
+          y={projectPlanPoint({ x: -79, y: 0, z: 59 }, bounds).y}
+          width="56"
+          height="38"
+          rx="2"
+        />
+        <line
+          className={styles.planRay}
+          x1={originPoint.x}
+          y1={originPoint.y}
+          x2={targetPoint.x}
+          y2={targetPoint.y}
+        />
+        {frameComparisons.map(({ frame, comparison }) => {
+          const framePoint = projectPlanPoint(frame.target, bounds);
+          const crossing = comparison.intersection?.isWithinSegment
+            ? projectPlanPoint(comparison.intersection.point, bounds)
+            : null;
+
+          return (
+            <g key={frame.id}>
+              <circle
+                className={styles.planFramePoint}
+                data-active={activeFrameId === frame.id}
+                cx={framePoint.x}
+                cy={framePoint.y}
+                r={activeFrameId === frame.id ? 5 : 3.5}
+              />
+              <text
+                className={styles.planFrameLabel}
+                x={framePoint.x + 7}
+                y={framePoint.y - 6}
+              >
+                Z{frame.frame}
+              </text>
+              {crossing ? (
+                <circle
+                  className={styles.planCrossing}
+                  cx={crossing.x}
+                  cy={crossing.y}
+                  r="4"
+                />
+              ) : null}
+            </g>
+          );
+        })}
+        <circle
+          className={styles.planOrigin}
+          cx={originPoint.x}
+          cy={originPoint.y}
+          r="6"
+        />
+        <circle
+          className={styles.planTarget}
+          cx={targetPoint.x}
+          cy={targetPoint.y}
+          r="6"
+        />
+      </svg>
+    </section>
+  );
+}
+
 function FrameIntersectionRow({
   frame,
   comparison,
@@ -516,6 +673,19 @@ function FrameIntersectionRow({
       </div>
     </div>
   );
+}
+
+function projectPlanPoint(
+  point: TrajectoryPoint,
+  bounds: ReturnType<typeof buildTrajectoryPlanBounds>,
+) {
+  return projectTrajectoryPlanPoint({
+    point,
+    bounds,
+    width: PLAN_VIEW_WIDTH,
+    height: PLAN_VIEW_HEIGHT,
+    padding: PLAN_VIEW_PADDING,
+  });
 }
 
 function Assumption({ name, source }: { name: string; source: string }) {
