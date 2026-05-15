@@ -52,18 +52,20 @@ export function SaveResearchButton({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: 8,
-        minHeight: compact ? 32 : 40,
-        padding: compact ? "5px 10px" : "8px 14px",
+        gap: "var(--space-md)",
+        minHeight: compact ? "32px" : "var(--space-10xl)",
+        padding: compact
+          ? "calc(var(--space-md) - var(--space-2xs)) var(--space-lg)"
+          : "var(--space-md) var(--space-2xl)",
         border: saved
           ? "1px solid var(--accent)"
           : "1px solid var(--border-strong)",
         borderRadius: "var(--radius-sm)",
         background: saved ? "var(--accent-soft)" : "var(--surface)",
-        color: saved ? "var(--text)" : "var(--text)",
-        fontSize: compact ? "0.8rem" : "0.9rem",
-        fontWeight: 600,
-        lineHeight: 1.2,
+        color: "var(--text)",
+        fontSize: compact ? "var(--font-size-sm)" : "var(--font-size-action)",
+        fontWeight: "var(--font-weight-semibold, 600)",
+        lineHeight: "var(--line-title)",
         whiteSpace: "nowrap",
       }}
     >

@@ -37,6 +37,14 @@ export function EventCard({
   showPermalink?: boolean;
 }) {
   const Container = as;
+  const externalSources = Array.from(
+    new Set(
+      e.sourceExternal
+        .map((url) => normalizeHttpUrl(url))
+        .filter((url): url is string => typeof url === "string" && url.length > 0),
+    ),
+  );
+
   return (
     <Container
       id={e.id}
@@ -54,12 +62,12 @@ export function EventCard({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: "var(--space-md)",
           flexWrap: "wrap",
           fontSize: "0.74rem",
           color: "var(--text-muted)",
           letterSpacing: "0.04em",
-          marginBottom: 6,
+          marginBottom: "var(--space-sm)",
         }}
       >
         <span>{formatDate(e.date)}</span>
@@ -99,10 +107,10 @@ export function EventCard({
       <div
         style={{
           fontFamily: "var(--font-serif)",
-          fontSize: "1.05rem",
+          fontSize: "var(--step-3)",
           letterSpacing: 0,
-          marginBottom: 4,
-          lineHeight: 1.3,
+          marginBottom: "var(--space-xs)",
+          lineHeight: "var(--line-snug)",
         }}
       >
         {e.title}
@@ -110,9 +118,9 @@ export function EventCard({
       <p
         style={{
           fontSize: "0.92rem",
-          lineHeight: 1.55,
+          lineHeight: "var(--line-content)",
           color: "var(--text)",
-          marginTop: 4,
+          marginTop: "var(--space-xs)",
           marginBottom: 0,
         }}
       >
@@ -145,17 +153,13 @@ export function EventCard({
           ))}
         </TimelineChipRow>
       )}
-      {e.sourceExternal.some((url) => normalizeHttpUrl(url)) && (
+      {externalSources.length > 0 && (
         <TimelineChipRow label="Sources">
-          {e.sourceExternal.map((url) => {
-            const safeUrl = normalizeHttpUrl(url);
-            if (!safeUrl) return null;
-            return (
-              <TimelineChip key={safeUrl} href={safeUrl} external>
-                {hostLabel(safeUrl)} external
-              </TimelineChip>
-            );
-          })}
+          {externalSources.map((url) => (
+            <TimelineChip key={url} href={url} external>
+              {hostLabel(url)} external
+            </TimelineChip>
+          ))}
         </TimelineChipRow>
       )}
     </Container>
@@ -172,7 +176,7 @@ function TimelineChipRow({
   return (
     <div
       style={{
-        marginTop: 8,
+        marginTop: "var(--space-md)",
         fontSize: "0.72rem",
         color: "var(--text-muted)",
         display: "flex",

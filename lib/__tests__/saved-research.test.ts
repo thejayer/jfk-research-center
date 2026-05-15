@@ -89,6 +89,38 @@ describe("saved research storage", () => {
     ]);
   });
 
+  it("rejects blank source ids before writing saved research items", () => {
+    const storage = new MemoryStorage();
+    const emptyId = savedResearchKey({ type: "document", sourceId: "   " });
+
+    expect(emptyId).toBe("document:");
+    expect(() =>
+      addSavedResearchItem(
+        {
+          type: "document",
+          sourceId: "   ",
+          title: "Blank source",
+          href: "/document/blank-source",
+        },
+        storage,
+        100,
+      ),
+    ).toThrow("sourceId required");
+    expect(listSavedResearchItems(storage)).toHaveLength(0);
+    expect(isResearchItemSaved({ type: "document", sourceId: "   " }, storage)).toBe(false);
+    expect(
+      parseSavedResearchItems([
+        {
+          type: "document",
+          sourceId: "   ",
+          title: "Blank source",
+          href: "/document/blank-source",
+          savedAt: 100,
+        },
+      ]),
+    ).toHaveLength(0);
+  });
+
   it("removes and clears saved research items", () => {
     const storage = new MemoryStorage();
     addSavedResearchItem(

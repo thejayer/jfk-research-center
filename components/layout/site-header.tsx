@@ -253,6 +253,7 @@ export function SiteHeader() {
                 label="Dealey Plaza navigation"
                 groups={DEALEY_GROUPS}
                 isActive={isActive}
+                onItemClick={() => setActiveMenu(null)}
               />
             )}
           </div>
@@ -274,6 +275,7 @@ export function SiteHeader() {
                 label="Explore site navigation"
                 groups={EXPLORE_GROUPS}
                 isActive={isActive}
+                onItemClick={() => setActiveMenu(null)}
               />
             )}
           </div>
@@ -334,11 +336,13 @@ function DropdownMenu({
   label,
   groups,
   isActive,
+  onItemClick,
 }: {
   id: string;
   label: string;
   groups: NavGroup[];
   isActive: (href: string) => boolean;
+  onItemClick: () => void;
 }) {
   return (
     <nav id={id} className={styles.dropdown} aria-label={label}>
@@ -352,6 +356,7 @@ function DropdownMenu({
                 href={item.href}
                 className={styles.dropdownLink}
                 aria-current={isActive(item.href) ? "page" : undefined}
+                onClick={onItemClick}
               >
                 <span className={styles.dropdownLabel}>{item.label}</span>
                 {item.description && (

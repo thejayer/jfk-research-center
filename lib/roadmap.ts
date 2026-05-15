@@ -10,7 +10,7 @@
 export type RoadmapStatus = "shipped" | "in_progress" | "planned";
 
 export type RoadmapItem = {
-  /** Path or external URL the item describes. */
+  /** Path, external URL, or non-routable surface label the item describes. */
   surface: string;
   /** Short human-readable label. */
   label: string;
