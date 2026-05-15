@@ -131,6 +131,9 @@ function createSavedResearchItem(
   savedAt: number,
 ): SavedResearchItem {
   const trimmedSourceId = input.sourceId.trim();
+  if (!trimmedSourceId) {
+    throw new Error("sourceId required");
+  }
   return {
     id: savedResearchKey({ type: input.type, sourceId: trimmedSourceId }),
     type: input.type,
