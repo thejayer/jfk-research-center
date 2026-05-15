@@ -97,6 +97,31 @@ describe("highlightHTML", () => {
     );
   });
 
+  it("keeps hostile OCR/search snippets inert before marked highlights are inserted", () => {
+    const result = highlightHTML(
+      `<img src=x onerror="alert('xss')"> Oswald & <svg onload=alert(1)>`,
+      ["Oswald", "alert"],
+    );
+
+    expect(result).toContain("&lt;img src=x onerror=&quot;");
+    expect(result).toContain("&#39;xss&#39;");
+    expect(result).toContain("&lt;svg onload=<mark>alert</mark>(1)&gt;");
+    expect(result).toContain("<mark>Oswald</mark>");
+    expect(result).not.toContain("<img");
+    expect(result).not.toContain("<svg");
+    expect(result).not.toContain("onerror=\"");
+  });
+
+  it("does not allow markup-shaped search terms to create HTML tags", () => {
+    const result = highlightHTML("literal <mark> tag and <script> tag", [
+      "<mark>",
+      "<script>",
+    ]);
+
+    expect(result).toBe("literal &lt;mark&gt; tag and &lt;script&gt; tag");
+    expect(result).not.toContain("<script>");
+  });
+
   it("ignores terms shorter than 2 chars", () => {
     expect(highlightHTML("a big cat", ["a", "big"])).toBe("a <mark>big</mark> cat");
   });
