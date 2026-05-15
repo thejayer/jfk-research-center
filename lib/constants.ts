@@ -5,11 +5,15 @@ export const PUBLIC_ROUTE_CACHE_CONTROL =
 
 export const RECORD_ID_RE = /^[a-z0-9-]{1,120}$/i;
 
-export const STORAGE_KEY = "jfkrc-saved-research";
-export const CHANGE_EVENT = "jfkrc:saved-research-changed";
-export const MAX_ITEMS = 80;
+/** localStorage key used to persist saved research items; string key. */
+export const storageKey = "jfkrc-saved-research";
+/** Event name emitted after saved research changes; string CustomEvent name. */
+export const changeEvent = "jfkrc:saved-research-changed";
+/** Maximum saved research items retained; overflow drops oldest items. */
+export const maxItems = 80;
 
-export const TYPE_LABELS = {
+/** Human-readable saved research labels; readonly record keys: document, evidence, entity, topic, timeline, question. */
+export const typeLabels = {
   document: "Document",
   evidence: "Evidence",
   entity: "Entity",

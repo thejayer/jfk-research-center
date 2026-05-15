@@ -1,11 +1,11 @@
 import {
-  CHANGE_EVENT,
-  MAX_ITEMS,
-  STORAGE_KEY,
-  TYPE_LABELS,
+  changeEvent,
+  maxItems,
+  storageKey,
+  typeLabels,
 } from "./constants";
 
-export type SavedResearchType = keyof typeof TYPE_LABELS;
+export type SavedResearchType = keyof typeof typeLabels;
 
 export type SavedResearchItem = {
   id: string;
@@ -23,7 +23,7 @@ type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 /** Returns the user-facing label for a saved research item type. */
 export function savedResearchTypeLabel(type: SavedResearchType): string {
-  return TYPE_LABELS[type];
+  return typeLabels[type];
 }
 
 /** Builds the stable storage identity for a saved item from type and source id. */
@@ -51,7 +51,7 @@ export function parseSavedResearchItems(value: unknown): SavedResearchItem[] {
   }
   return items
     .toSorted((a, b) => b.savedAt - a.savedAt)
-    .slice(0, MAX_ITEMS);
+    .slice(0, maxItems);
 }
 
 /**
@@ -63,7 +63,7 @@ export function parseSavedResearchItems(value: unknown): SavedResearchItem[] {
 export function listSavedResearchItems(storage = browserStorage()): SavedResearchItem[] {
   if (!storage) return [];
   try {
-    const raw = storage.getItem(STORAGE_KEY);
+    const raw = storage.getItem(storageKey);
     if (!raw) return [];
     return parseSavedResearchItems(JSON.parse(raw));
   } catch {
@@ -86,7 +86,7 @@ export function addSavedResearchItem(
   const next = [
     item,
     ...listSavedResearchItems(storage).filter((saved) => saved.id !== item.id),
-  ].slice(0, MAX_ITEMS);
+  ].slice(0, maxItems);
   persistSavedResearchItems(next, storage);
   return item;
 }
@@ -109,7 +109,7 @@ export function removeSavedResearchItem(
 export function clearSavedResearchItems(storage = browserStorage()): void {
   if (!storage) return;
   try {
-    storage.removeItem(STORAGE_KEY);
+    storage.removeItem(storageKey);
     notifySavedResearchChanged();
   } catch {
     // Storage can be unavailable in private mode; the UI simply degrades.
@@ -182,7 +182,7 @@ function persistSavedResearchItems(
 ): void {
   if (!storage) return;
   try {
-    storage.setItem(STORAGE_KEY, JSON.stringify(items));
+    storage.setItem(storageKey, JSON.stringify(items));
     notifySavedResearchChanged();
   } catch {
     // Quota exceeded or storage disabled; keep the rest of the app usable.
@@ -192,7 +192,7 @@ function persistSavedResearchItems(
 // Broadcasts same-tab changes; cross-tab sync is handled by the storage event.
 function notifySavedResearchChanged(): void {
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(CHANGE_EVENT));
+  window.dispatchEvent(new CustomEvent(changeEvent));
 }
 
 // Reads browser storage defensively because some modes throw on localStorage access.
