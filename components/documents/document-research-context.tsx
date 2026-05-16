@@ -16,6 +16,16 @@ type DocumentResearchContextProps = {
   relatedDocuments: DocumentCard[];
 };
 
+/**
+ * Builds the document-level research context panel from already-fetched
+ * document relationships.
+ *
+ * @param doc Current document detail used for title search and NAID labels.
+ * @param topics Topic lanes connected to the document.
+ * @param entities Named entities mentioned by the document.
+ * @param mentions OCR passage matches with optional chunk anchors.
+ * @param relatedDocuments Neighboring records to compare against.
+ */
 export function DocumentResearchContext({
   doc,
   topics,
@@ -23,6 +33,8 @@ export function DocumentResearchContext({
   mentions,
   relatedDocuments,
 }: DocumentResearchContextProps) {
+  // Primary items drive the suggested action rail; conditional spreads below
+  // omit actions when a relationship type is unavailable.
   const primaryEntity = entities[0];
   const primaryTopic = topics[0];
   const primaryMention = mentions.find((mention) => mention.chunkOrder != null);
@@ -34,6 +46,8 @@ export function DocumentResearchContext({
       title="How this record connects"
       description="Jump from the archival item into its topic lanes, named entities, matched passages, and neighboring records."
       sections={[
+        // Sections keep relationship groups compact and cap each list to the
+        // strongest few items already ranked by the upstream data layer.
         {
           title: "Topic lanes",
           emptyText: "No topic lane is indexed yet.",
@@ -56,6 +70,8 @@ export function DocumentResearchContext({
           title: "Passage anchors",
           emptyText: "No passage anchors are indexed yet.",
           links: mentions.slice(0, 3).map((mention) => ({
+            // Mentions with chunk order deep-link to the OCR chunk; otherwise
+            // fall back to the full OCR section so every passage link lands.
             href:
               mention.chunkOrder != null
                 ? `#chunk-${mention.chunkOrder}`
@@ -67,6 +83,8 @@ export function DocumentResearchContext({
         },
       ]}
       actions={[
+        // Conditional spreads keep the action rail focused on available
+        // relationships while the title search remains a stable fallback.
         ...(primaryTopic
           ? [
               {

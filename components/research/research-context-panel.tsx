@@ -1,6 +1,12 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 
+/**
+ * Link rendered inside a context section.
+ *
+ * `href` may be internal or external, `label` is the visible title, `meta` is
+ * the short relationship label, and `external` opens the link in a new tab.
+ */
 export type ResearchContextLink = {
   href: string;
   label: string;
@@ -8,6 +14,12 @@ export type ResearchContextLink = {
   external?: boolean;
 };
 
+/**
+ * Prominent next-step link rendered in the panel action rail.
+ *
+ * `detail` should explain why the action is useful; `external` marks off-site
+ * destinations so the panel can render safe target/rel attributes.
+ */
 export type ResearchContextAction = {
   href: string;
   label: string;
@@ -15,12 +27,33 @@ export type ResearchContextAction = {
   external?: boolean;
 };
 
+/**
+ * A grouped list of related research links.
+ *
+ * `emptyText` is shown when the section has no links so pages can still explain
+ * missing relationship coverage.
+ */
 export type ResearchContextSection = {
   title: string;
   emptyText: string;
   links: ResearchContextLink[];
 };
 
+/**
+ * Renders a reusable research context panel with relationship sections and
+ * suggested next moves.
+ *
+ * @param id Stable section id used for the heading relationship; defaults to
+ * `research-context`.
+ * @param eyebrow Small label above the title; defaults to `Research context`.
+ * @param title Panel heading that names the current relationship hub.
+ * @param description Short explanatory copy for the current page context.
+ * @param sections Grouped relationship links shown in columns.
+ * @param actions Suggested next-step links shown in the action rail.
+ * @param actionEyebrow Accessible label and visual eyebrow for actions;
+ * defaults to `Suggested moves`.
+ * @returns The panel, or `null` when there are no section links and no actions.
+ */
 export function ResearchContextPanel({
   id = "research-context",
   eyebrow = "Research context",
