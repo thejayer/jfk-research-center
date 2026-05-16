@@ -126,6 +126,12 @@ export function EventCard({
       >
         {e.description}
       </p>
+      {(e.documentLinks.length > 0 || externalSources.length > 0) && (
+        <TimelineSourceTrail
+          documents={e.documentLinks}
+          externalSources={externalSources}
+        />
+      )}
       {(e.relatedEntityIds.length > 0 || e.relatedTopicIds.length > 0) && (
         <TimelineChipRow label="Related">
           {e.relatedEntityIds.map((id) => (
@@ -140,29 +146,121 @@ export function EventCard({
           ))}
         </TimelineChipRow>
       )}
-      {e.documentLinks.length > 0 && (
-        <TimelineChipRow label="Documents">
-          {e.documentLinks.map((d) => (
-            <TimelineChip
-              key={d.documentId}
-              href={`/document/${encodeURIComponent(d.documentId)}`}
-              title={d.note ?? undefined}
-            >
-              {d.title ?? d.documentId}
-            </TimelineChip>
-          ))}
-        </TimelineChipRow>
-      )}
-      {externalSources.length > 0 && (
-        <TimelineChipRow label="Sources">
-          {externalSources.map((url) => (
-            <TimelineChip key={url} href={url} external>
-              {hostLabel(url)} external
-            </TimelineChip>
-          ))}
-        </TimelineChipRow>
-      )}
     </Container>
+  );
+}
+
+function TimelineSourceTrail({
+  documents,
+  externalSources,
+}: {
+  documents: CaseTimelineEvent["documentLinks"];
+  externalSources: string[];
+}) {
+  return (
+    <div
+      aria-label="Source trail"
+      style={{
+        marginTop: "var(--space-md)",
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-sm)",
+        background: "color-mix(in srgb, var(--text) 3%, var(--surface))",
+        padding: "10px 11px",
+        display: "grid",
+        gap: 8,
+      }}
+    >
+      <div className="eyebrow" style={{ fontSize: "0.66rem", letterSpacing: "0.1em" }}>
+        Source trail
+      </div>
+      <div style={{ display: "grid", gap: 7 }}>
+        {documents.map((document) => (
+          <SourceTrailLink
+            key={`document-${document.documentId}`}
+            href={`/document/${encodeURIComponent(document.documentId)}`}
+            label={document.title ?? document.documentId}
+            meta={document.note ?? "Primary record"}
+            kind="Primary source"
+          />
+        ))}
+        {externalSources.map((url) => (
+          <SourceTrailLink
+            key={`external-${url}`}
+            href={url}
+            label={hostLabel(url)}
+            meta="External source"
+            kind="External"
+            external
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SourceTrailLink({
+  href,
+  label,
+  meta,
+  kind,
+  external,
+}: {
+  href: string;
+  label: string;
+  meta: string;
+  kind: string;
+  external?: boolean;
+}) {
+  const content = (
+    <>
+      <span style={{ minWidth: 0 }}>
+        <span
+          style={{
+            display: "block",
+            color: "var(--text)",
+            fontSize: "0.84rem",
+            fontWeight: 600,
+            lineHeight: 1.35,
+          }}
+        >
+          {label}
+        </span>
+        <span
+          className="muted"
+          style={{ display: "block", fontSize: "0.74rem", lineHeight: 1.35 }}
+        >
+          {kind} / {meta}
+        </span>
+      </span>
+      <ArrowRightIcon />
+    </>
+  );
+
+  const style = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: "8px 9px",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    background: "var(--surface)",
+    color: "var(--text)",
+    textDecoration: "none",
+  } as const;
+
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer noopener" style={style}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link href={href} style={style}>
+      {content}
+    </Link>
   );
 }
 
@@ -222,6 +320,20 @@ function TimelineChip({
     <Link href={href} title={title} style={chipStyle}>
       {children}
     </Link>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
