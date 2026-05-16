@@ -18,6 +18,12 @@ const CATEGORY_LABELS: Record<CaseTimelineCategory, string> = {
   death: "Death",
 };
 
+/**
+ * Renders up to six chronologically ordered timeline events for a document.
+ *
+ * @param doc Current document; source-role notes are resolved by matching its id/NAID to each event document link.
+ * @param events Ascending timeline events already matched to the document.
+ */
 export function DocumentTimelineBridge({
   doc,
   events,

@@ -41,10 +41,12 @@ export default async function DocumentPage({
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
-  const [data, timeline] = await Promise.all([
+  const [documentResult, timelineResult] = await Promise.allSettled([
     fetchDocument(id),
-    fetchCaseTimeline().catch(() => null),
+    fetchCaseTimeline(),
   ]);
+  const data = documentResult.status === "fulfilled" ? documentResult.value : null;
+  const timeline = timelineResult.status === "fulfilled" ? timelineResult.value : null;
   if (!data) notFound();
   const timelineEvents = timeline
     ? findTimelineEventsForDocument(timeline.events, data.document)
