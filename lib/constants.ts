@@ -26,7 +26,7 @@ export const historyStorageKey = "jfkrc-research-history";
 export const historyChangeEvent = "jfkrc:research-history-changed";
 export const historyMaxItems = 24;
 
-export const SEARCH_GROUPS = [
+export const searchGroups = [
   "results",
   "entities",
   "topics",
@@ -34,12 +34,12 @@ export const SEARCH_GROUPS = [
   "questions",
 ] as const;
 
-export type SearchGroup = (typeof SEARCH_GROUPS)[number];
+export type SearchGroup = (typeof searchGroups)[number];
 
 export function isSearchGroup(value: unknown): value is SearchGroup {
   return (
     typeof value === "string" &&
-    (SEARCH_GROUPS as readonly string[]).includes(value)
+    (searchGroups as readonly string[]).includes(value)
   );
 }
 
