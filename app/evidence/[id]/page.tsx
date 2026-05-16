@@ -6,6 +6,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
+import { ResearchContextPanel } from "@/components/research/research-context-panel";
 import { SaveResearchButton } from "@/components/research/save-research-button";
 import { formatDate } from "@/lib/format";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
@@ -263,6 +264,67 @@ export default async function EvidenceItemPage({
         </figure>
       )}
 
+      <ResearchContextPanel
+        title={`How ${data.shortName} is grounded`}
+        description="Move from the physical item into custody steps, archival records, testimony references, and connected people or organizations."
+        sections={[
+          {
+            title: "Archival records",
+            emptyText: "No NARA record references are attached yet.",
+            links: data.referencedNaids.slice(0, 4).map((naid) => ({
+              href: `https://catalog.archives.gov/id/${encodeURIComponent(naid)}`,
+              label: `NAID ${naid}`,
+              meta: "National Archives Catalog",
+              external: true,
+            })),
+          },
+          {
+            title: "Testimony",
+            emptyText: "No Warren Commission testimony references are attached yet.",
+            links: data.referencedWcTestimony.slice(0, 4).map((testimony) => ({
+              href: "#testimony",
+              label: testimony.witness,
+              meta: `Vol. ${testimony.volume}, p. ${testimony.page}`,
+            })),
+          },
+          {
+            title: "Related entities",
+            emptyText: "No related entities are indexed for this evidence item yet.",
+            links: data.relatedEntities.slice(0, 4).map((entity) => ({
+              href: entity.href,
+              label: entity.name,
+              meta: entity.type,
+            })),
+          },
+        ]}
+        actions={[
+          {
+            href: `/search?q=${encodeURIComponent(data.shortName)}&mode=document`,
+            label: "Search this evidence item",
+            detail: categoryLabel,
+          },
+          ...(data.canonicalCopyUrl && data.canonicalCopyHost
+            ? [
+                {
+                  href: data.canonicalCopyUrl,
+                  label: "Open canonical copy",
+                  detail: data.canonicalCopyHost,
+                  external: true,
+                },
+              ]
+            : []),
+          ...(data.chainOfCustody.length > 0
+            ? [
+                {
+                  href: "#chain-of-custody",
+                  label: "Review custody trail",
+                  detail: `${data.chainOfCustody.length} steps`,
+                },
+              ]
+            : []),
+        ]}
+      />
+
       <RelatedDocumentsRail
         references={referencedRecords}
         title="Records to read next"
@@ -300,7 +362,7 @@ export default async function EvidenceItemPage({
           </section>
 
           {data.chainOfCustody.length > 0 && (
-            <section aria-label="Chain of custody">
+            <section id="chain-of-custody" aria-label="Chain of custody" style={{ scrollMarginTop: 24 }}>
               <SectionHeading
                 eyebrow="Provenance"
                 title="Chain of custody"
@@ -383,7 +445,7 @@ export default async function EvidenceItemPage({
 
         <aside style={{ display: "grid", gap: 28 }}>
           {data.referencedWcTestimony.length > 0 && (
-            <section aria-label="Warren Commission testimony references">
+            <section id="testimony" aria-label="Warren Commission testimony references" style={{ scrollMarginTop: 24 }}>
               <SectionHeading
                 eyebrow="Testimony"
                 title="Warren Commission hearings"

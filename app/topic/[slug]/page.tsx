@@ -14,6 +14,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { LinkButton } from "@/components/ui/button";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
+import { ResearchContextPanel } from "@/components/research/research-context-panel";
 import layout from "@/components/ui/two-column.module.css";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
@@ -104,6 +105,61 @@ export default async function TopicPage({
         documents={data.topDocuments}
         mentions={data.mentionExcerpts}
         documentsHref="#documents"
+      />
+
+      <ResearchContextPanel
+        title={`How ${data.topic.title} branches`}
+        description="Use this topic as a hub for its strongest records, connected entities, and passage evidence before widening back into search."
+        sections={[
+          {
+            title: "Records",
+            emptyText: "No records are attached to this topic yet.",
+            links: data.topDocuments.slice(0, 4).map((doc) => ({
+              href: doc.href,
+              label: doc.title,
+              meta: doc.agency ?? doc.dateLabel ?? "Document",
+            })),
+          },
+          {
+            title: "Entities",
+            emptyText: "No related entities are indexed for this topic yet.",
+            links: data.relatedEntities.slice(0, 4).map((entity) => ({
+              href: entity.href,
+              label: entity.name,
+              meta: entity.type,
+            })),
+          },
+          {
+            title: "Passages",
+            emptyText: "No passage evidence is indexed for this topic yet.",
+            links: data.mentionExcerpts.slice(0, 3).map((mention) => ({
+              href: mention.documentHref,
+              label: mention.documentTitle,
+              meta: mention.pageLabel ?? mention.source,
+            })),
+          },
+        ]}
+        actions={[
+          {
+            href: topicSearchHref,
+            label: "Search inside topic",
+            detail: data.topic.title,
+          },
+          {
+            href: archiveSearchHref,
+            label: "Search whole archive",
+            detail: "Drop topic filter",
+          },
+          ...(data.topDocuments[0]
+            ? [
+                {
+                  href: data.topDocuments[0].href,
+                  label: "Start with top record",
+                  detail: data.topDocuments[0].title,
+                },
+              ]
+            : []),
+        ]}
       />
 
       <RelatedDocumentsRail
