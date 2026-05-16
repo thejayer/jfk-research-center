@@ -14,6 +14,7 @@ import { LinkButton } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
+import { ResearchContextPanel } from "@/components/research/research-context-panel";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
@@ -94,6 +95,65 @@ export default async function EntityPage({
         entityName={data.entity.name}
       />
 
+      <ResearchContextPanel
+        title={`Where ${data.entity.name} connects`}
+        description="Move from this profile into the strongest records, topic lanes, related people or organizations, and chronology entries already tied to the entity."
+        sections={[
+          {
+            title: "Records",
+            emptyText: "No record links are indexed for this entity yet.",
+            links: data.topDocuments.slice(0, 4).map((doc) => ({
+              href: doc.href,
+              label: doc.title,
+              meta: doc.agency ?? doc.dateLabel ?? "Document",
+            })),
+          },
+          {
+            title: "Topics",
+            emptyText: "No topic lanes are indexed for this entity yet.",
+            links: data.relatedTopics.slice(0, 4).map((topic) => ({
+              href: topic.href,
+              label: topic.title,
+              meta: `${topic.documentCount.toLocaleString()} documents`,
+            })),
+          },
+          {
+            title: "Related entities",
+            emptyText: "No related entities are indexed yet.",
+            links: data.relatedEntities.slice(0, 4).map((entity) => ({
+              href: entity.href,
+              label: entity.name,
+              meta: entity.type,
+            })),
+          },
+        ]}
+        actions={[
+          {
+            href: searchHref,
+            label: "Open mention search",
+            detail: data.entity.name,
+          },
+          ...(hasDocuments
+            ? [
+                {
+                  href: documentsHref,
+                  label: "View document set",
+                  detail: `${(data.entity.documentCount ?? 0).toLocaleString()} records`,
+                },
+              ]
+            : []),
+          ...(data.timeline[0]
+            ? [
+                {
+                  href: "#timeline",
+                  label: "Read chronology",
+                  detail: data.timeline[0].dateLabel,
+                },
+              ]
+            : []),
+        ]}
+      />
+
       <RelatedDocumentsRail
         documents={data.topDocuments}
         title="Documents to read next"
@@ -107,7 +167,7 @@ export default async function EntityPage({
       />
 
       {data.timeline.length > 0 && (
-        <section aria-label="Timeline" style={{ marginTop: 56 }}>
+        <section id="timeline" aria-label="Timeline" style={{ marginTop: 56, scrollMarginTop: 24 }}>
           <SectionHeading
             eyebrow="Timeline"
             title="Chronology"
