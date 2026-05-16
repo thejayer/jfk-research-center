@@ -57,7 +57,7 @@ export default async function TimelinePage({ searchParams }: Props) {
     ? sp.category
     : undefined;
 
-  const sortedEvents = data.events.toSorted((a, b) =>
+  const sortedEvents = [...data.events].sort((a, b) =>
     a.date === b.date
       ? (a.timeLocal ?? "").localeCompare(b.timeLocal ?? "")
       : a.date.localeCompare(b.date),
@@ -70,29 +70,30 @@ export default async function TimelinePage({ searchParams }: Props) {
   const sourcedCount = data.events.filter(
     (event) => event.documentLinks.length > 0 || event.sourceExternal.length > 0,
   ).length;
-  const topCategory = data.countsByCategory.toSorted((a, b) => b.count - a.count)[0];
-  const topDecades = data.countsByDecade.toSorted((a, b) => b.count - a.count).slice(0, 4);
+  const topCategory = [...data.countsByCategory].sort((a, b) => b.count - a.count)[0];
+  const topDecades = [...data.countsByDecade].sort((a, b) => b.count - a.count).slice(0, 4);
   const sourcePackets = sortedEvents
     .filter((event) => event.documentLinks.length > 0 || event.sourceExternal.length > 0)
-    .toSorted((a, b) => b.importance - a.importance)
+    .sort((a, b) => b.importance - a.importance)
     .slice(0, 3);
+  const isListMode = view === "list";
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 96 }}>
       <ResearchHistoryTracker
         item={{
           type: "timeline",
-          sourceId: `case-timeline-${view}${selectedCategory ? `-${selectedCategory}` : ""}`,
+          sourceId: `case-timeline-${view}${isListMode && selectedCategory ? `-${selectedCategory}` : ""}`,
           title: `${VIEW_COPY[view].title} timeline`,
           href:
-            view === "zoom" && !selectedCategory
+            view === "zoom"
               ? "/timeline"
               : `/timeline?${new URLSearchParams({
-                  ...(view === "zoom" ? {} : { view }),
-                  ...(selectedCategory ? { category: selectedCategory } : {}),
+                  view,
+                  ...(isListMode && selectedCategory ? { category: selectedCategory } : {}),
                 }).toString()}`,
           context:
-            selectedCategory
+            isListMode && selectedCategory
               ? `${CATEGORY_LABELS[selectedCategory]} events`
               : `${data.events.length.toLocaleString()} case events`,
         }}

@@ -1,3 +1,9 @@
+import {
+  historyChangeEvent,
+  historyMaxItems,
+  historyStorageKey,
+} from "./constants";
+
 export type ResearchHistoryType =
   | "document"
   | "evidence"
@@ -21,10 +27,6 @@ export type ResearchHistoryItem = {
 export type ResearchHistoryInput = Omit<ResearchHistoryItem, "id" | "viewedAt">;
 
 type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
-const historyStorageKey = "jfkrc-research-history";
-const historyChangeEvent = "jfkrc:research-history-changed";
-const historyMaxItems = 24;
 
 export function researchHistoryTypeLabel(type: ResearchHistoryType): string {
   switch (type) {
@@ -63,8 +65,8 @@ export function parseResearchHistoryItems(value: unknown): ResearchHistoryItem[]
     seen.add(item.id);
     items.push(item);
   }
-  return items
-    .toSorted((a, b) => b.viewedAt - a.viewedAt)
+  return [...items]
+    .sort((a, b) => b.viewedAt - a.viewedAt)
     .slice(0, historyMaxItems);
 }
 

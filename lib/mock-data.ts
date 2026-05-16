@@ -1651,7 +1651,7 @@ export function buildEntityResponse(slug: string): EntityResponse | null {
 }
 
 export function buildCaseTimelineIndex(): CaseTimelineIndex {
-  const events = CASE_TIMELINE_EVENTS.toSorted((a, b) =>
+  const events = [...CASE_TIMELINE_EVENTS].sort((a, b) =>
     a.date === b.date
       ? (a.timeLocal ?? "").localeCompare(b.timeLocal ?? "")
       : a.date.localeCompare(b.date),

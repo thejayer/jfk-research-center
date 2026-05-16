@@ -141,7 +141,7 @@ export default async function TopicsPage() {
         openQuestionsHref: openQuestionTopic?.href ?? null,
       };
     })
-    .toSorted((a, b) => b.topic.documentCount - a.topic.documentCount);
+    .sort((a, b) => b.topic.documentCount - a.topic.documentCount);
 
   const documentCount = topics.reduce(
     (total, topic) => total + topic.documentCount,

@@ -5,8 +5,8 @@ import {
   parseSearchParams,
   buildSearchUrl,
   SEARCH_PAGE_SIZE,
-  type SearchGroup,
 } from "@/lib/search";
+import type { SearchGroup } from "@/lib/constants";
 import { SearchBar } from "@/components/search/search-bar";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SavedSearches } from "@/components/search/saved-searches";
@@ -36,7 +36,7 @@ export default async function SearchPage({
   const { q, mode, group, filters, page } = parseSearchParams(params);
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
   const offset = mode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
-  const returnHref = buildSearchUrl(q, mode, filters, page);
+  const returnHref = buildSearchUrl(q, mode, filters, page, group);
   const [response, manifest] = await Promise.all([
     fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
@@ -449,7 +449,7 @@ function SearchGroupedPanel({
     );
   }
 
-  const query = q.trim() || "Oswald";
+  const query = q.trim();
   const cards =
     group === "timeline"
       ? [
@@ -465,7 +465,7 @@ function SearchGroupedPanel({
           },
           {
             href: buildSearchUrl(query, "mention", filters),
-            title: `Find OCR mentions of ${query}`,
+            title: query ? `Find OCR mentions of ${query}` : "Find OCR mentions",
             detail: "Use source passages as the bridge back into chronology.",
           },
         ]
@@ -477,7 +477,9 @@ function SearchGroupedPanel({
           },
           {
             href: buildSearchUrl(query, "semantic", filters),
-            title: `Find semantically related records for ${query}`,
+            title: query
+              ? `Find semantically related records for ${query}`
+              : "Find semantically related records",
             detail: "Use semantic mode when exact words are not enough.",
           },
           {
@@ -668,7 +670,7 @@ function rankFacetItems(
       count: counts[id] ?? 0,
     }))
     .filter((item) => item.count > 0)
-    .toSorted((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 function formatModeLabel(mode: import("@/lib/search").SearchMode): string {

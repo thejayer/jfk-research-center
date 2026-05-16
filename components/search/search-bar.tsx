@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { isSearchGroup } from "@/lib/constants";
 
 export function SearchBar({
   autoFocus,
@@ -30,12 +31,7 @@ export function SearchBar({
     const next = new URLSearchParams();
     if (q) next.set("q", q);
     if (mode === "mention" || mode === "semantic") next.set("mode", mode);
-    if (
-      group === "entities" ||
-      group === "topics" ||
-      group === "timeline" ||
-      group === "questions"
-    ) {
+    if (isSearchGroup(group) && group !== "results") {
       next.set("group", group);
     }
     router.push(`/search?${next.toString()}`);

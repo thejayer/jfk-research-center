@@ -68,18 +68,17 @@ export default async function OpenQuestionsTopicPage({
   ]
     .map((type) => ({ type, count: tensionCounts.get(type) ?? 0 }))
     .filter((item) => item.count > 0);
+  const researchItem = {
+    type: "question" as const,
+    sourceId: data.slug,
+    title: data.title,
+    href: `/open-questions/${encodeURIComponent(data.slug)}`,
+    context: `${data.questionCount.toLocaleString()} question threads`,
+  };
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
-      <ResearchHistoryTracker
-        item={{
-          type: "question",
-          sourceId: data.slug,
-          title: data.title,
-          href: `/open-questions/${encodeURIComponent(data.slug)}`,
-          context: `${data.questionCount.toLocaleString()} question threads`,
-        }}
-      />
+      <ResearchHistoryTracker item={researchItem} />
       <nav
         aria-label="Breadcrumb"
         style={{
@@ -145,15 +144,7 @@ export default async function OpenQuestionsTopicPage({
             Back to topic overview
           </LinkButton>
           <div style={{ marginTop: 12 }}>
-            <SaveResearchButton
-              item={{
-                type: "question",
-                sourceId: data.slug,
-                title: data.title,
-                href: `/open-questions/${encodeURIComponent(data.slug)}`,
-                context: `${data.questionCount.toLocaleString()} question threads`,
-              }}
-            />
+            <SaveResearchButton item={researchItem} />
           </div>
         </div>
 

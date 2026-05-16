@@ -6,9 +6,10 @@
  */
 
 import type { ConfidenceLevel } from "./api-types";
+import { isSearchGroup, type SearchGroup } from "./constants";
 
 export type SearchMode = "document" | "mention" | "semantic";
-export type SearchGroup = "results" | "entities" | "topics" | "timeline" | "questions";
+export type { SearchGroup } from "./constants";
 
 export type ParsedSearch = {
   q: string;
@@ -63,13 +64,7 @@ export function parseSearchParams(
       : modeStr === "semantic"
         ? "semantic"
         : "document";
-  const group: SearchGroup =
-    groupStr === "entities" ||
-    groupStr === "topics" ||
-    groupStr === "timeline" ||
-    groupStr === "questions"
-      ? groupStr
-      : "results";
+  const group: SearchGroup = isSearchGroup(groupStr) ? groupStr : "results";
 
   const pageRaw = singleInt(searchParams.page);
   const page = pageRaw && pageRaw > 0 ? pageRaw : 1;

@@ -46,7 +46,7 @@ export function EntityExplorer({ entities }: { entities: EntityCard[] }) {
         );
         return haystack.includes(normalizedQuery);
       })
-      .toSorted((a, b) => {
+      .sort((a, b) => {
         const mentionDelta = (b.mentionCount ?? 0) - (a.mentionCount ?? 0);
         if (mentionDelta !== 0) return mentionDelta;
         return a.name.localeCompare(b.name);

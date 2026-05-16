@@ -12,7 +12,11 @@ export function ResearchHistoryTracker({
   item: ResearchHistoryInput;
 }) {
   useEffect(() => {
-    addResearchHistoryItem(item);
+    try {
+      addResearchHistoryItem(item);
+    } catch {
+      // History is best-effort local state; invalid page metadata must not affect browsing.
+    }
   }, [item.type, item.sourceId, item.title, item.href, item.context]);
 
   return null;
