@@ -6,6 +6,7 @@ import {
   buildSearchUrl,
   SEARCH_PAGE_SIZE,
 } from "@/lib/search";
+import type { SearchGroup } from "@/lib/constants";
 import { SearchBar } from "@/components/search/search-bar";
 import { SearchFilters } from "@/components/search/search-filters";
 import { SavedSearches } from "@/components/search/saved-searches";
@@ -16,6 +17,7 @@ import { ActiveTopicChip } from "@/components/search/active-topic-chip";
 import { PaginationControls } from "@/components/search/pagination-controls";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -31,18 +33,34 @@ export default async function SearchPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const { q, mode, filters, page } = parseSearchParams(params);
+  const { q, mode, group, filters, page } = parseSearchParams(params);
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
   const offset = mode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
-  const returnHref = buildSearchUrl(q, mode, filters, page);
+  const returnHref = buildSearchUrl(q, mode, filters, page, group);
   const [response, manifest] = await Promise.all([
     fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
   ]);
   const triage = buildSearchTriage(response.results);
+  const groupCounts = buildSearchGroupCounts(response);
+  const trimmedQuery = q.trim();
 
   return (
     <div>
+      {trimmedQuery && (
+        <ResearchHistoryTracker
+          item={{
+            type: "search",
+            sourceId: `${mode}:${group}:${trimmedQuery}`,
+            title: `Search: ${trimmedQuery}`,
+            href: returnHref,
+            context:
+              group === "results"
+                ? `${formatModeLabel(mode)} results`
+                : `${formatGroupLabel(group)} research lane`,
+          }}
+        />
+      )}
       {/* Sticky search band */}
       <div
         style={{
@@ -118,11 +136,28 @@ export default async function SearchPage({
             <div className="search-main">
               <ActiveTopicChip topicLabels={response.filters.topicLabels} />
               <ResultHeading q={q} mode={mode} total={response.total} manifest={manifest} />
+              {(q || hasSelectedFilters(filters)) && (
+                <SearchGroupTabs
+                  q={q}
+                  mode={mode}
+                  group={group}
+                  filters={filters}
+                  counts={groupCounts}
+                />
+              )}
               {response.total > 0 && mode === "document" && (
                 <SearchTriageStrip triage={triage} />
               )}
 
-              {response.total === 0 ? (
+              {group !== "results" ? (
+                <SearchGroupedPanel
+                  q={q}
+                  group={group}
+                  mode={mode}
+                  filters={filters}
+                  searchFilters={response.filters}
+                />
+              ) : response.total === 0 ? (
                 <SearchEmptyPanel
                   q={q}
                   mode={mode}
@@ -237,6 +272,428 @@ function buildSearchTriage(
     highConfidenceCount,
     visibleCount: documentResults.length,
   };
+}
+
+function buildSearchGroupCounts(
+  response: import("@/lib/api-types").SearchResponse,
+) {
+  return {
+    results: response.total,
+    entities: Object.keys(response.filters.entityCounts).length,
+    topics: Object.keys(response.filters.topicCounts).length,
+  };
+}
+
+function SearchGroupTabs({
+  q,
+  mode,
+  group,
+  filters,
+  counts,
+}: {
+  q: string;
+  mode: import("@/lib/search").SearchMode;
+  group: SearchGroup;
+  filters: import("@/lib/search").ParsedSearch["filters"];
+  counts: ReturnType<typeof buildSearchGroupCounts>;
+}) {
+  const groups: Array<{
+    value: SearchGroup;
+    label: string;
+    count?: number;
+    detail: string;
+  }> = [
+    {
+      value: "results",
+      label: "Results",
+      count: counts.results,
+      detail: "Current document, mention, or semantic mode",
+    },
+    {
+      value: "entities",
+      label: "Entities",
+      count: counts.entities,
+      detail: "People, agencies, places, and concepts",
+    },
+    {
+      value: "topics",
+      label: "Topics",
+      count: counts.topics,
+      detail: "Curated subject lanes",
+    },
+    {
+      value: "timeline",
+      label: "Timeline",
+      detail: "Chronology routes for this query",
+    },
+    {
+      value: "questions",
+      label: "Questions",
+      detail: "Open-question routes",
+    },
+  ];
+
+  return (
+    <nav
+      aria-label="Search result groups"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
+        gap: 8,
+        marginBottom: 16,
+      }}
+    >
+      {groups.map((item) => {
+        const active = group === item.value;
+        return (
+          <Link
+            key={item.value}
+            href={buildSearchUrl(q, mode, filters, 1, item.value)}
+            aria-current={active ? "page" : undefined}
+            style={{
+              border: "1px solid",
+              borderColor: active ? "var(--text)" : "var(--border)",
+              borderRadius: "var(--radius-md)",
+              background: active ? "var(--text)" : "var(--surface)",
+              color: active ? "var(--bg)" : "var(--text)",
+              padding: "10px 12px",
+              textDecoration: "none",
+              minHeight: 76,
+              display: "grid",
+              gap: 4,
+            }}
+          >
+            <span
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 8,
+                alignItems: "baseline",
+              }}
+            >
+              <span style={{ fontWeight: 650, fontSize: "0.9rem" }}>
+                {item.label}
+              </span>
+              {typeof item.count === "number" && (
+                <span className="num" style={{ fontSize: "0.78rem" }}>
+                  {formatNumber(item.count)}
+                </span>
+              )}
+            </span>
+            <span
+              style={{
+                color: active ? "color-mix(in srgb, var(--bg) 72%, transparent)" : "var(--text-muted)",
+                fontSize: "0.74rem",
+                lineHeight: 1.35,
+              }}
+            >
+              {item.detail}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function SearchGroupedPanel({
+  q,
+  group,
+  mode,
+  filters,
+  searchFilters,
+}: {
+  q: string;
+  group: SearchGroup;
+  mode: import("@/lib/search").SearchMode;
+  filters: import("@/lib/search").ParsedSearch["filters"];
+  searchFilters: import("@/lib/api-types").SearchFilters;
+}) {
+  if (group === "entities") {
+    const entities = rankFacetItems(
+      searchFilters.entities,
+      searchFilters.entityLabels,
+      searchFilters.entityCounts,
+    );
+    return (
+      <FacetGroupPanel
+        eyebrow="Entity matches"
+        title="People, agencies, places, and concepts tied to this search"
+        emptyText="No entity facets are available for this query yet."
+        items={entities.map((item) => ({
+          ...item,
+          href: `/entity/${encodeURIComponent(item.id)}`,
+          action: "Open entity",
+        }))}
+      />
+    );
+  }
+
+  if (group === "topics") {
+    const topics = rankFacetItems(
+      searchFilters.topics,
+      searchFilters.topicLabels,
+      searchFilters.topicCounts,
+    );
+    return (
+      <FacetGroupPanel
+        eyebrow="Topic matches"
+        title="Curated topic lanes connected to this search"
+        emptyText="No topic facets are available for this query yet."
+        items={topics.map((item) => ({
+          ...item,
+          href: `/topic/${encodeURIComponent(item.id)}`,
+          action: "Open topic",
+        }))}
+      />
+    );
+  }
+
+  const query = q.trim();
+  const cards =
+    group === "timeline"
+      ? [
+          {
+            href: `/timeline?view=list`,
+            title: "Open the full case timeline",
+            detail: "Use the list view to scan chronology, categories, and source anchors.",
+          },
+          {
+            href: `/timeline?view=dallas`,
+            title: "Read the Dallas weekend sequence",
+            detail: "Focus on the compact Nov. 22-25 chronology.",
+          },
+          {
+            href: buildSearchUrl(query, "mention", filters),
+            title: query ? `Find OCR mentions of ${query}` : "Find OCR mentions",
+            detail: "Use source passages as the bridge back into chronology.",
+          },
+        ]
+      : [
+          {
+            href: "/open-questions",
+            title: "Browse open questions",
+            detail: "Review unresolved threads, tensions, and supporting records.",
+          },
+          {
+            href: buildSearchUrl(query, "semantic", filters),
+            title: query
+              ? `Find semantically related records for ${query}`
+              : "Find semantically related records",
+            detail: "Use semantic mode when exact words are not enough.",
+          },
+          {
+            href: "/established-facts",
+            title: "Balance against established facts",
+            detail: "Read settled findings alongside open threads.",
+          },
+        ];
+
+  return (
+    <section
+      aria-label={`${formatGroupLabel(group)} search routes`}
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        padding: 20,
+      }}
+    >
+      <div className="eyebrow" style={{ marginBottom: 8 }}>
+        {formatGroupLabel(group)}
+      </div>
+      <h2
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "1.45rem",
+          letterSpacing: 0,
+          marginBottom: 14,
+        }}
+      >
+        {group === "timeline"
+          ? "Move from search into chronology."
+          : "Move from search into unresolved threads."}
+      </h2>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+          gap: 10,
+        }}
+      >
+        {cards.map((card) => (
+          <Link
+            key={card.href}
+            href={card.href}
+            style={{
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              padding: "14px 16px",
+              color: "var(--text)",
+              textDecoration: "none",
+              display: "grid",
+              gap: 7,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "1.08rem",
+                lineHeight: 1.25,
+                letterSpacing: 0,
+              }}
+            >
+              {card.title}
+            </span>
+            <span className="muted" style={{ fontSize: "0.82rem", lineHeight: 1.45 }}>
+              {card.detail}
+            </span>
+          </Link>
+        ))}
+      </div>
+      {mode !== "document" && (
+        <p className="muted" style={{ marginTop: 14, fontSize: "0.82rem" }}>
+          This lane keeps your query and filters shareable while pointing to the
+          research surface that best fits the selected object type.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function FacetGroupPanel({
+  eyebrow,
+  title,
+  emptyText,
+  items,
+}: {
+  eyebrow: string;
+  title: string;
+  emptyText: string;
+  items: Array<{
+    id: string;
+    label: string;
+    count: number;
+    href: string;
+    action: string;
+  }>;
+}) {
+  return (
+    <section
+      aria-label={eyebrow}
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        padding: 20,
+      }}
+    >
+      <div className="eyebrow" style={{ marginBottom: 8 }}>
+        {eyebrow}
+      </div>
+      <h2
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "1.45rem",
+          letterSpacing: 0,
+          marginBottom: 16,
+        }}
+      >
+        {title}
+      </h2>
+      {items.length === 0 ? (
+        <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+          {emptyText}
+        </p>
+      ) : (
+        <ol
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+            gap: 10,
+          }}
+        >
+          {items.slice(0, 18).map((item) => (
+            <li key={item.id}>
+              <Link
+                href={item.href}
+                style={{
+                  minHeight: 118,
+                  border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)",
+                  padding: "13px 14px",
+                  color: "var(--text)",
+                  textDecoration: "none",
+                  display: "grid",
+                  gridTemplateRows: "auto 1fr auto",
+                  gap: 8,
+                }}
+              >
+                <span className="muted num" style={{ fontSize: "0.76rem" }}>
+                  {formatNumber(item.count)} matching records
+                </span>
+                <span
+                  style={{
+                    fontFamily: "var(--font-serif)",
+                    fontSize: "1.08rem",
+                    lineHeight: 1.25,
+                    letterSpacing: 0,
+                  }}
+                >
+                  {item.label}
+                </span>
+                <span style={{ fontSize: "0.82rem", fontWeight: 600 }}>
+                  {item.action}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function rankFacetItems(
+  values: string[],
+  labels: Record<string, string>,
+  counts: Record<string, number>,
+) {
+  const ids = Array.from(new Set([...values, ...Object.keys(counts)]));
+  return ids
+    .map((id) => ({
+      id,
+      label: labels[id] ?? id,
+      count: counts[id] ?? 0,
+    }))
+    .filter((item) => item.count > 0)
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function formatModeLabel(mode: import("@/lib/search").SearchMode): string {
+  return mode === "document"
+    ? "Document"
+    : mode === "mention"
+      ? "Mention"
+      : "Semantic";
+}
+
+function formatGroupLabel(group: SearchGroup): string {
+  switch (group) {
+    case "results":
+      return "Results";
+    case "entities":
+      return "Entities";
+    case "topics":
+      return "Topics";
+    case "timeline":
+      return "Timeline";
+    case "questions":
+      return "Open questions";
+  }
 }
 
 function SearchTriageStrip({

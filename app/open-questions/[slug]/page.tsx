@@ -16,6 +16,7 @@ import {
 } from "@/components/open-questions/tension-labels";
 import { formatNumber } from "@/lib/format";
 import layout from "@/components/ui/two-column.module.css";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -67,9 +68,17 @@ export default async function OpenQuestionsTopicPage({
   ]
     .map((type) => ({ type, count: tensionCounts.get(type) ?? 0 }))
     .filter((item) => item.count > 0);
+  const researchItem = {
+    type: "question" as const,
+    sourceId: data.slug,
+    title: data.title,
+    href: `/open-questions/${encodeURIComponent(data.slug)}`,
+    context: `${data.questionCount.toLocaleString()} question threads`,
+  };
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
+      <ResearchHistoryTracker item={researchItem} />
       <nav
         aria-label="Breadcrumb"
         style={{
@@ -135,15 +144,7 @@ export default async function OpenQuestionsTopicPage({
             Back to topic overview
           </LinkButton>
           <div style={{ marginTop: 12 }}>
-            <SaveResearchButton
-              item={{
-                type: "question",
-                sourceId: data.slug,
-                title: data.title,
-                href: `/open-questions/${encodeURIComponent(data.slug)}`,
-                context: `${data.questionCount.toLocaleString()} question threads`,
-              }}
-            />
+            <SaveResearchButton item={researchItem} />
           </div>
         </div>
 

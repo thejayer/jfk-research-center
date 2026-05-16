@@ -12,6 +12,7 @@ import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,15 @@ export default async function DocumentPage({
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "document",
+          sourceId: data.document.id,
+          title: data.document.title,
+          href: data.document.href,
+          context: `NAID ${data.document.naid}`,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

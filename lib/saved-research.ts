@@ -49,8 +49,8 @@ export function parseSavedResearchItems(value: unknown): SavedResearchItem[] {
     seen.add(item.id);
     items.push(item);
   }
-  return items
-    .toSorted((a, b) => b.savedAt - a.savedAt)
+  return [...items]
+    .sort((a, b) => b.savedAt - a.savedAt)
     .slice(0, maxItems);
 }
 

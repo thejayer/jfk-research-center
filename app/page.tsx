@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatDate, formatNumber } from "@/lib/format";
 import { RESEARCH_PATHS } from "@/lib/research-paths";
+import { ContinueResearchPanel } from "@/components/research/continue-research-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,8 @@ export default async function HomePage() {
         documentCount={data.corpusManifest.totalRecords}
         ocrPassages={data.corpusManifest.ocrPassages}
       />
+
+      <ContinueResearchPanel />
 
       <GuidedResearchPaths />
 

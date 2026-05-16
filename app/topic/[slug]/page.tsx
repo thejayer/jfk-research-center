@@ -15,6 +15,7 @@ import { LinkButton } from "@/components/ui/button";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import layout from "@/components/ui/two-column.module.css";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +60,15 @@ export default async function TopicPage({
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "topic",
+          sourceId: data.topic.slug,
+          title: data.topic.title,
+          href: data.topic.href,
+          context: `${data.topic.documentCount.toLocaleString()} documents`,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

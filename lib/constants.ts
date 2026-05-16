@@ -22,6 +22,27 @@ export const typeLabels = {
   question: "Question",
 } as const;
 
+export const historyStorageKey = "jfkrc-research-history";
+export const historyChangeEvent = "jfkrc:research-history-changed";
+export const historyMaxItems = 24;
+
+export const searchGroups = [
+  "results",
+  "entities",
+  "topics",
+  "timeline",
+  "questions",
+] as const;
+
+export type SearchGroup = (typeof searchGroups)[number];
+
+export function isSearchGroup(value: unknown): value is SearchGroup {
+  return (
+    typeof value === "string" &&
+    (searchGroups as readonly string[]).includes(value)
+  );
+}
+
 export const DEFAULT_MUZZLE_VELOCITY_FPS = 2000;
 
 export type TrajectorySourceReference = {

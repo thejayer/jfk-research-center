@@ -14,6 +14,7 @@ import { LinkButton } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
+import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,15 @@ export default async function EntityPage({
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
+      <ResearchHistoryTracker
+        item={{
+          type: "entity",
+          sourceId: data.entity.slug,
+          title: data.entity.name,
+          href: data.entity.href,
+          context: data.entity.type,
+        }}
+      />
       <nav
         aria-label="Breadcrumb"
         style={{

@@ -6,12 +6,15 @@
  */
 
 import type { ConfidenceLevel } from "./api-types";
+import { isSearchGroup, type SearchGroup } from "./constants";
 
 export type SearchMode = "document" | "mention" | "semantic";
+export type { SearchGroup } from "./constants";
 
 export type ParsedSearch = {
   q: string;
   mode: SearchMode;
+  group: SearchGroup;
   /** 1-indexed, for buildSearchUrl + pagination UI. */
   page: number;
   filters: {
@@ -53,12 +56,15 @@ export function parseSearchParams(
 
   const q = Array.isArray(qRaw) ? (qRaw[0] ?? "") : (qRaw ?? "");
   const modeStr = Array.isArray(modeRaw) ? modeRaw[0] : modeRaw;
+  const groupRaw = searchParams.group;
+  const groupStr = Array.isArray(groupRaw) ? groupRaw[0] : groupRaw;
   const mode: SearchMode =
     modeStr === "mention"
       ? "mention"
       : modeStr === "semantic"
         ? "semantic"
         : "document";
+  const group: SearchGroup = isSearchGroup(groupStr) ? groupStr : "results";
 
   const pageRaw = singleInt(searchParams.page);
   const page = pageRaw && pageRaw > 0 ? pageRaw : 1;
@@ -66,6 +72,7 @@ export function parseSearchParams(
   return {
     q,
     mode,
+    group,
     page,
     filters: {
       agency: multi(searchParams.agency),
@@ -83,10 +90,12 @@ export function buildSearchUrl(
   mode: SearchMode,
   filters: ParsedSearch["filters"] = emptyFilters(),
   page = 1,
+  group: SearchGroup = "results",
 ): string {
   const params = new URLSearchParams();
   if (q) params.set("q", q);
   if (mode !== "document") params.set("mode", mode);
+  if (group !== "results") params.set("group", group);
   for (const key of ["agency", "entity", "topic", "confidence"] as const) {
     for (const v of filters[key]) params.append(key, v);
   }
