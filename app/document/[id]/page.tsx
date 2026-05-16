@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchDocument } from "@/lib/api-client";
+import { fetchCaseTimeline, fetchDocument } from "@/lib/api-client";
 import { DocumentHeader } from "@/components/documents/document-header";
 import { MetadataPanel } from "@/components/documents/metadata-panel";
 import { OcrPanel } from "@/components/documents/ocr-panel";
 import { SourceLinks } from "@/components/documents/source-links";
 import { ReleaseHistory } from "@/components/documents/release-history";
 import { DocumentResearchContext } from "@/components/documents/document-research-context";
+import { DocumentTimelineBridge } from "@/components/documents/document-timeline-bridge";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { findTimelineEventsForDocument } from "@/lib/timeline-source-bridge";
 
 export const dynamic = "force-dynamic";
 
@@ -39,8 +41,14 @@ export default async function DocumentPage({
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
-  const data = await fetchDocument(id);
+  const [data, timeline] = await Promise.all([
+    fetchDocument(id),
+    fetchCaseTimeline().catch(() => null),
+  ]);
   if (!data) notFound();
+  const timelineEvents = timeline
+    ? findTimelineEventsForDocument(timeline.events, data.document)
+    : [];
   const returnHref = parseReturnHref(resolvedSearchParams.from);
   const releaseHistory = data.document.releaseHistory ?? [];
   const hasReleaseHistory = releaseHistory.length > 0;
@@ -51,6 +59,7 @@ export default async function DocumentPage({
     data.relatedDocuments.length > 0;
   const hasRelatedEntities = data.relatedEntities.length > 0;
   const hasRelatedDocuments = data.relatedDocuments.length > 0;
+  const hasTimelineEvents = timelineEvents.length > 0;
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -104,6 +113,8 @@ export default async function DocumentPage({
         relatedDocuments={data.relatedDocuments}
       />
 
+      <DocumentTimelineBridge doc={data.document} events={timelineEvents} />
+
       <div
         className="document-grid"
         style={{
@@ -149,6 +160,7 @@ export default async function DocumentPage({
             returnHref={returnHref}
             hasResearchContext={hasResearchContext}
             hasReleaseHistory={hasReleaseHistory}
+            hasTimelineEvents={hasTimelineEvents}
             hasRelatedEntities={hasRelatedEntities}
             hasRelatedDocuments={hasRelatedDocuments}
           />
@@ -190,18 +202,21 @@ function DocumentJumpNav({
   returnHref,
   hasResearchContext,
   hasReleaseHistory,
+  hasTimelineEvents,
   hasRelatedEntities,
   hasRelatedDocuments,
 }: {
   returnHref: string | null;
   hasResearchContext: boolean;
   hasReleaseHistory: boolean;
+  hasTimelineEvents: boolean;
   hasRelatedEntities: boolean;
   hasRelatedDocuments: boolean;
 }) {
   const links = [
     hasReleaseHistory ? { href: "#release-history", label: "Release history" } : null,
     hasResearchContext ? { href: "#research-context", label: "Research context" } : null,
+    hasTimelineEvents ? { href: "#timeline-moments", label: "Timeline moments" } : null,
     { href: "#ocr-text", label: "OCR text" },
     hasRelatedEntities ? { href: "#related-entities", label: "Entities" } : null,
     hasRelatedDocuments ? { href: "#related-records", label: "Related records" } : null,
