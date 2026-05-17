@@ -6,6 +6,8 @@ import {
   parseIntOrNull,
   preflight,
 } from "@/lib/api-v1";
+import { findPublicApiEndpointPolicy } from "@/lib/public-api-access";
+import { enforcePublicApiAccess } from "@/lib/public-api-enforcement";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
@@ -21,6 +23,12 @@ export const OPTIONS = preflight;
  */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+  const policy = findPublicApiEndpointPolicy("GET", url.pathname);
+  if (policy) {
+    const access = await enforcePublicApiAccess(req, policy);
+    if (!access.ok) return access.response;
+  }
+
   const q = (url.searchParams.get("q") ?? "").trim();
   if (!q) return errorResponse("query param `q` is required", 400);
 
