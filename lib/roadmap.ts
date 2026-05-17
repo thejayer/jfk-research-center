@@ -166,7 +166,9 @@ export const ROADMAP: RoadmapItem[] = [
     status: "planned",
     phase: "Phase 5-D",
     description:
-      "Hard-cited Q&A grounded in the corpus via Vertex AI. Highest-risk addition; gold-set eval and citation guardrails required first.",
+      "Hard-cited Q&A grounded in the corpus via Vertex AI. Gold-set eval and citation guardrails are documented before public UI work.",
+    trackingUrl:
+      "https://linear.app/commerce-street/issue/COM-59/define-grounded-ask-chatbot-evaluation-and-citation-guardrails",
   },
   {
     surface: "/compare",

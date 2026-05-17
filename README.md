@@ -30,6 +30,11 @@ This repo uses Linear as the planning layer and GitHub as the code/deploy layer.
 See `docs/development-workflow.md` before starting substantial app, deploy, or
 data-ingestion work.
 
+The deferred `/ask` assistant is gated on
+`docs/ask-evaluation-guardrails.md`, which defines the gold-set questions,
+citation contract, refusal behavior, and regression checks required before any
+public chat UI ships.
+
 ## Running locally
 
 ```bash
