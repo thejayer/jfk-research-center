@@ -5,6 +5,8 @@ import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { formatDate } from "@/lib/format";
 import { normalizeHttpUrl } from "@/lib/safe-url";
 import { SaveResearchButton } from "@/components/research/save-research-button";
+import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
+import type { SourceReliabilityKind } from "@/lib/source-reliability";
 import { TimelinePermalink } from "./timeline-permalink";
 
 const CATEGORY_LABEL: Record<CaseTimelineCategory, string> = {
@@ -181,6 +183,7 @@ function TimelineSourceTrail({
             label={document.title ?? document.documentId}
             meta={document.note ?? "Primary record"}
             kind="Primary source"
+            reliability="primary_source"
           />
         ))}
         {externalSources.map((url) => (
@@ -190,6 +193,7 @@ function TimelineSourceTrail({
             label={hostLabel(url)}
             meta="External source"
             kind="External"
+            reliability="external_reference"
             external
           />
         ))}
@@ -203,12 +207,14 @@ function SourceTrailLink({
   label,
   meta,
   kind,
+  reliability,
   external,
 }: {
   href: string;
   label: string;
   meta: string;
   kind: string;
+  reliability: SourceReliabilityKind;
   external?: boolean;
 }) {
   const content = (
@@ -230,6 +236,9 @@ function SourceTrailLink({
           style={{ display: "block", fontSize: "0.74rem", lineHeight: 1.35 }}
         >
           {kind} / {meta}
+        </span>
+        <span style={{ display: "inline-flex", marginTop: 6 }}>
+          <SourceReliabilityBadge kind={reliability} />
         </span>
       </span>
       <ArrowRightIcon />

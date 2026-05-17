@@ -2,12 +2,18 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import type { DocumentCard } from "@/lib/api-types";
 import { Badge, OcrBadge } from "@/components/ui/badge";
+import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
+import {
+  sourceReliabilityForDocument,
+  type SourceReliabilityKind,
+} from "@/lib/source-reliability";
 
 type ReferenceLink = {
   id: string;
   label: string;
   href: string;
   meta?: string;
+  reliability?: SourceReliabilityKind;
   external?: boolean;
 };
 
@@ -173,6 +179,7 @@ function DocumentRailCard({
         {document.hasOcr && <OcrBadge />}
       </span>
       <span style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: "auto" }}>
+        <SourceReliabilityBadge kind={sourceReliabilityForDocument(document)} />
         {document.tags.slice(0, 2).map((tag) => (
           <Badge key={tag} tone="muted" size="sm">
             {tag}
@@ -208,6 +215,11 @@ function ReferenceRailCard({
       {reference.meta && (
         <span className="muted" style={{ fontSize: "0.8rem", lineHeight: 1.4 }}>
           {reference.meta}
+        </span>
+      )}
+      {reference.reliability && (
+        <span style={{ display: "inline-flex", marginTop: "auto" }}>
+          <SourceReliabilityBadge kind={reference.reliability} />
         </span>
       )}
     </>

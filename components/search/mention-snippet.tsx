@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { MentionExcerpt } from "@/lib/api-types";
 import { Badge, ConfidenceBadge } from "@/components/ui/badge";
 import { highlightHTML } from "@/lib/format";
+import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
+import { sourceReliabilityForMentionSource } from "@/lib/source-reliability";
 
 export function MentionSnippet({
   mention,
@@ -75,6 +77,9 @@ export function MentionSnippet({
         )}
         <span aria-hidden>·</span>
         <span>source: {mention.source}</span>
+        <SourceReliabilityBadge
+          kind={sourceReliabilityForMentionSource(mention.source)}
+        />
         {typeof mention.score === "number" ? (
           <span
             className="num"

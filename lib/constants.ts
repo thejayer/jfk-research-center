@@ -65,6 +65,39 @@ export const publicApiSemanticKeyedLimit: PublicApiRateWindow = {
   windowSeconds: 3600,
 };
 
+export const sourceReliabilityDefinitions = {
+  primary_source: {
+    label: "Primary source",
+    description: "Original archival record, testimony, or source document.",
+  },
+  ocr_text: {
+    label: "OCR text",
+    description: "Machine-extracted text that should be checked against the source image.",
+  },
+  curated_metadata: {
+    label: "Curated metadata",
+    description: "Structured catalog or editorial metadata normalized for browsing.",
+  },
+  evidence_record: {
+    label: "Evidence record",
+    description: "Physical or documentary evidence tied to the investigative record.",
+  },
+  research_lead: {
+    label: "Research lead",
+    description: "Open question or tension that requires source review before conclusion.",
+  },
+  external_reference: {
+    label: "External reference",
+    description: "Off-site source or catalog reference outside the local record page.",
+  },
+  derived_signal: {
+    label: "Derived signal",
+    description: "Search, semantic, or relationship signal derived from indexed data.",
+  },
+} as const;
+
+export type SourceReliabilityKind = keyof typeof sourceReliabilityDefinitions;
+
 export const askCitationRequirementStrict: AskCitationRequirement = {
   minInlineCitations: 2,
   allowOnlyRetrievedDocuments: true,

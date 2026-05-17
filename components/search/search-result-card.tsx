@@ -4,6 +4,8 @@ import type { DocumentCard, ConfidenceLevel } from "@/lib/api-types";
 import { Badge, ConfidenceBadge, OcrBadge } from "@/components/ui/badge";
 import { highlightHTML } from "@/lib/format";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
+import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
+import { sourceReliabilityForDocument } from "@/lib/source-reliability";
 
 export function SearchResultCard({
   document,
@@ -151,6 +153,7 @@ export function SearchResultCard({
         }}
       >
         <ConfidenceBadge level={confidence} />
+        <SourceReliabilityBadge kind={sourceReliabilityForDocument(document)} />
         {document.hasOcr && <OcrBadge />}
         {document.tags.slice(0, 4).map((t) => (
           <Badge key={t} tone="muted" size="sm">

@@ -6,7 +6,10 @@ import type {
   TopicCard,
 } from "@/lib/api-types";
 import { formatNumber } from "@/lib/format";
-import { ResearchContextPanel } from "@/components/research/research-context-panel";
+import {
+  ResearchContextPanel,
+  type ResearchContextAction,
+} from "@/components/research/research-context-panel";
 
 type DocumentResearchContextProps = {
   doc: DocumentDetail;
@@ -39,6 +42,56 @@ export function DocumentResearchContext({
   const primaryTopic = topics[0];
   const primaryMention = mentions.find((mention) => mention.chunkOrder != null);
   const primaryRelatedDocument = relatedDocuments[0];
+  const actions: ResearchContextAction[] = [
+    ...(primaryTopic
+      ? [
+          {
+            href: `/search?topic=${encodeURIComponent(primaryTopic.slug)}`,
+            label: "Search this topic",
+            detail: primaryTopic.title,
+            reliability: "curated_metadata" as const,
+          },
+        ]
+      : []),
+    ...(primaryEntity
+      ? [
+          {
+            href: `/search?entity=${encodeURIComponent(primaryEntity.slug)}&mode=mention`,
+            label: "Find matching passages",
+            detail: primaryEntity.name,
+            reliability: "derived_signal" as const,
+          },
+        ]
+      : []),
+    ...(primaryMention
+      ? [
+          {
+            href: `#chunk-${primaryMention.chunkOrder}`,
+            label: "Open first matched chunk",
+            detail: formatMentionMeta(primaryMention),
+            reliability: "ocr_text" as const,
+          },
+        ]
+      : []),
+    ...(primaryRelatedDocument
+      ? [
+          {
+            href: primaryRelatedDocument.href,
+            label: "Compare nearby record",
+            detail: primaryRelatedDocument.title,
+            reliability: primaryRelatedDocument.hasOcr
+              ? ("ocr_text" as const)
+              : ("curated_metadata" as const),
+          },
+        ]
+      : []),
+    {
+      href: `/search?q=${encodeURIComponent(doc.title)}&mode=document`,
+      label: "Search this title",
+      detail: `NAID ${doc.naid}`,
+      reliability: "curated_metadata",
+    },
+  ];
 
   return (
     <ResearchContextPanel
@@ -55,6 +108,7 @@ export function DocumentResearchContext({
             href: topic.href,
             label: topic.title,
             meta: `${formatNumber(topic.documentCount)} records`,
+            reliability: "curated_metadata",
           })),
         },
         {
@@ -64,6 +118,7 @@ export function DocumentResearchContext({
             href: entity.href,
             label: entity.name,
             meta: entity.type,
+            reliability: "curated_metadata",
           })),
         },
         {
@@ -79,54 +134,11 @@ export function DocumentResearchContext({
             label:
               mention.matchedTerms[0] ?? mention.pageLabel ?? "Matched passage",
             meta: formatMentionMeta(mention),
+            reliability: "ocr_text",
           })),
         },
       ]}
-      actions={[
-        // Conditional spreads keep the action rail focused on available
-        // relationships while the title search remains a stable fallback.
-        ...(primaryTopic
-          ? [
-              {
-                href: `/search?topic=${encodeURIComponent(primaryTopic.slug)}`,
-                label: "Search this topic",
-                detail: primaryTopic.title,
-              },
-            ]
-          : []),
-        ...(primaryEntity
-          ? [
-              {
-                href: `/search?entity=${encodeURIComponent(primaryEntity.slug)}&mode=mention`,
-                label: "Find matching passages",
-                detail: primaryEntity.name,
-              },
-            ]
-          : []),
-        ...(primaryMention
-          ? [
-              {
-                href: `#chunk-${primaryMention.chunkOrder}`,
-                label: "Open first matched chunk",
-                detail: formatMentionMeta(primaryMention),
-              },
-            ]
-          : []),
-        ...(primaryRelatedDocument
-          ? [
-              {
-                href: primaryRelatedDocument.href,
-                label: "Compare nearby record",
-                detail: primaryRelatedDocument.title,
-              },
-            ]
-          : []),
-        {
-          href: `/search?q=${encodeURIComponent(doc.title)}&mode=document`,
-          label: "Search this title",
-          detail: `NAID ${doc.naid}`,
-        },
-      ]}
+      actions={actions}
     />
   );
 }

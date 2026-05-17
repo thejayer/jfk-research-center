@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-type BadgeTone =
+export type BadgeTone =
   | "neutral"
   | "accent"
   | "muted"

@@ -250,6 +250,7 @@ export default async function OpenQuestionsTopicPage({
           label: documentId,
           href: `/document/${encodeURIComponent(documentId)}`,
           meta: "Supporting record cited by an underlying thread",
+          reliability: "research_lead" as const,
         }))}
         title="Documents behind the questions"
         description="Open the supporting records before reading the synthesized tensions."
