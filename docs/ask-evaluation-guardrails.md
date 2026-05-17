@@ -52,8 +52,7 @@ what was checked, what was not found, and where the user can continue searching.
 
 Use a refusal when the request asks for private current personal data, deception,
 harassment, or another task outside the research archive mission. Refusals
-should be short and should not cite archive documents unless the refusal also
-contains a separate archival fact.
+should be short and must not contain citations.
 
 ## Regression Gold Set
 
