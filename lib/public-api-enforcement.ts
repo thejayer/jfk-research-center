@@ -52,6 +52,7 @@ export async function enforcePublicApiAccess(
   const env = opts.env ?? readProcessEnv();
   const now = opts.now ?? Date.now();
   const store = opts.store ?? defaultPublicApiEnforcementStore;
+  const trustProxyHeaders = env.JFK_API_TRUST_PROXY_HEADERS === "1";
 
   if (policy.killSwitch && env[policy.killSwitch] === "1") {
     return denied("endpoint temporarily disabled", 503);
@@ -77,7 +78,7 @@ export async function enforcePublicApiAccess(
 
   const bucket = keyRecord
     ? `key:${keyRecord.keyId}:${policy.path}`
-    : `ip:${opts.clientIp ?? readClientIp(req) ?? DEFAULT_ANONYMOUS_IP}:${policy.path}`;
+    : `ip:${opts.clientIp ?? readClientIp(req, trustProxyHeaders) ?? DEFAULT_ANONYMOUS_IP}:${policy.path}`;
   const rateLimit = await store.incrementCounter(bucket, limit, now);
 
   if (rateLimit.count > limit.requests) {
@@ -150,7 +151,10 @@ function denied(
   };
 }
 
-function readClientIp(req: Request): string | null {
+function readClientIp(req: Request, trustProxyHeaders: boolean): string | null {
+  // Proxy headers are client-spoofable unless a trusted upstream strips them.
+  if (!trustProxyHeaders) return null;
+
   const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return (
     forwarded ||

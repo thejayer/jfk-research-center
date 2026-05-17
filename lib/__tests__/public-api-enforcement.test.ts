@@ -138,11 +138,74 @@ describe("public API enforcement", () => {
       expect(second.response.headers.get("retry-after")).toBe("50");
     }
   });
+
+  it("ignores spoofable proxy IP headers unless explicitly trusted", async () => {
+    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
+    expect(policy).not.toBeNull();
+
+    const limitedPolicy = {
+      ...policy!,
+      anonymousLimit: { requests: 1, windowSeconds: 60 },
+    };
+    const store = new InMemoryPublicApiEnforcementStore();
+    const first = await enforcePublicApiAccess(
+      forwardedRequest("198.51.100.10"),
+      limitedPolicy,
+      { now: NOW, store },
+    );
+    const second = await enforcePublicApiAccess(
+      forwardedRequest("198.51.100.11"),
+      limitedPolicy,
+      { now: NOW + 10_000, store },
+    );
+
+    expect(first).toMatchObject({ ok: true, rateLimit: { count: 1 } });
+    expect(second.ok).toBe(false);
+    if (!second.ok) expect(second.response.status).toBe(429);
+  });
+
+  it("uses proxy IP headers only when the deployment opts in", async () => {
+    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
+    expect(policy).not.toBeNull();
+
+    const limitedPolicy = {
+      ...policy!,
+      anonymousLimit: { requests: 1, windowSeconds: 60 },
+    };
+    const store = new InMemoryPublicApiEnforcementStore();
+    const first = await enforcePublicApiAccess(
+      forwardedRequest("198.51.100.10"),
+      limitedPolicy,
+      {
+        now: NOW,
+        env: { JFK_API_TRUST_PROXY_HEADERS: "1" },
+        store,
+      },
+    );
+    const second = await enforcePublicApiAccess(
+      forwardedRequest("198.51.100.11"),
+      limitedPolicy,
+      {
+        now: NOW + 10_000,
+        env: { JFK_API_TRUST_PROXY_HEADERS: "1" },
+        store,
+      },
+    );
+
+    expect(first).toMatchObject({ ok: true, rateLimit: { count: 1 } });
+    expect(second).toMatchObject({ ok: true, rateLimit: { count: 1 } });
+  });
 });
 
 function keyedRequest(key: string): Request {
   return new Request("https://example.test/api/v1/search/semantic?q=oswald", {
     headers: { authorization: `Bearer ${key}` },
+  });
+}
+
+function forwardedRequest(ip: string): Request {
+  return new Request("https://example.test/api/v1/documents?q=oswald", {
+    headers: { "x-forwarded-for": `${ip}, 203.0.113.1` },
   });
 }
 

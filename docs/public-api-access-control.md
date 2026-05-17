@@ -74,6 +74,11 @@ Accept keys with `Authorization: Bearer <key>` and optionally
 The first implementation uses an in-memory counter per running server process.
 This is intentionally conservative and easy to replace; it protects local and
 single-process deployments but is not a durable distributed quota system.
+Anonymous counters use a trusted platform-provided client IP when available.
+Proxy headers such as `X-Forwarded-For`, `X-Real-IP`, and `CF-Connecting-IP`
+are ignored unless `JFK_API_TRUST_PROXY_HEADERS=1`; only enable that flag when
+the deployment sits behind trusted upstream proxies that strip incoming client
+IP headers.
 
 Durable counters should be keyed by:
 
