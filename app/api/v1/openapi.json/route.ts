@@ -23,7 +23,7 @@ function buildSpec(baseUrl: string) {
       title: "JFK Research Center API",
       version: "1.0.0",
       description:
-        "Read-only HTTP API for the curated JFK Assassination Records collection. Endpoints are currently unauthenticated and CORS-open; the API key and rate-limit policy is documented in docs/public-api-access-control.md before enforcement is added.",
+        "Read-only HTTP API for the curated JFK Assassination Records collection. Low-cost catalog endpoints are CORS-open and anonymous; document search is anonymously metered, and semantic search requires an API key.",
       contact: {
         url: "https://github.com/thejayer/jfk-research-center",
       },
@@ -47,6 +47,9 @@ function buildSpec(baseUrl: string) {
           ],
           responses: {
             "200": { description: "SearchResponse", content: jsonContent() },
+            "403": { description: "API key not allowed", content: errorContent() },
+            "429": { description: "Rate limit exceeded", content: errorContent() },
+            "503": { description: "Endpoint temporarily disabled", content: errorContent() },
             "500": { description: "Warehouse error", content: errorContent() },
           },
         },
@@ -117,7 +120,8 @@ function buildSpec(baseUrl: string) {
         get: {
           summary: "Vector search over OCR chunks",
           description:
-            "Embeds `q` with Vertex text-embedding-005 (RETRIEVAL_QUERY) and runs cosine VECTOR_SEARCH over the 112k chunk embeddings. Returns up to `limit` MentionExcerpt-shaped results with a `score` field in [0,1] (higher = more relevant).",
+            "Requires an API key. Embeds `q` with Vertex text-embedding-005 (RETRIEVAL_QUERY) and runs cosine VECTOR_SEARCH over the 112k chunk embeddings. Returns up to `limit` MentionExcerpt-shaped results with a `score` field in [0,1] (higher = more relevant).",
+          security: [{ ApiKeyAuth: [] }, { ApiKeyHeader: [] }],
           parameters: [
             queryParam("q", "Natural-language query (required).", "string", true),
             queryParam("limit", "1..50, default 20.", "integer"),
@@ -125,12 +129,29 @@ function buildSpec(baseUrl: string) {
           responses: {
             "200": { description: "SearchResponse", content: jsonContent() },
             "400": { description: "Missing q", content: errorContent() },
+            "401": { description: "API key required", content: errorContent() },
+            "403": { description: "API key not allowed", content: errorContent() },
+            "429": { description: "Rate limit exceeded", content: errorContent() },
+            "503": { description: "Endpoint temporarily disabled", content: errorContent() },
             "500": { description: "Vertex / warehouse error", content: errorContent() },
           },
         },
       },
     },
     components: {
+      securitySchemes: {
+        ApiKeyAuth: {
+          type: "http",
+          scheme: "bearer",
+          description: "Preferred API key format: `Authorization: Bearer <key>`.",
+        },
+        ApiKeyHeader: {
+          type: "apiKey",
+          in: "header",
+          name: "X-JFKRC-API-Key",
+          description: "Script-friendly API key header for clients that cannot set Authorization.",
+        },
+      },
       schemas: {
         Error: {
           type: "object",

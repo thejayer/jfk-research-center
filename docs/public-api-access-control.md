@@ -1,28 +1,29 @@
-# Public API Access Control Plan
+# Public API Access Control
 
-COM-60 defines the access-control layer for the public `/api/v1/*` API before
-more expensive features, especially semantic search and future `/ask`, are
-expanded.
+COM-60 defined the access-control layer for the public `/api/v1/*` API. COM-167
+adds the first enforcement pass so expensive search surfaces have guardrails
+before semantic search and future `/ask` use are expanded.
 
 ## Current State
 
-The v1 API is read-only, CORS-open, and unauthenticated. It exposes the same
-warehouse-backed data used by public pages, with cache headers tuned for slow
-release-cadence data.
+The v1 API is read-only and CORS-open. Low-cost catalog endpoints stay
+anonymous, document search is anonymously metered, and semantic search requires
+an API key. The routes expose the same warehouse-backed data used by public
+pages, with cache headers tuned for slow release-cadence data.
 
 Current routes:
 
 | Route | Current access | Target access | Cost class | Cache | Notes |
 |---|---|---|---|---:|---|
 | `GET /api/v1/openapi.json` | Anonymous | Anonymous | Static | 3600s | Keep public for client discovery. |
-| `GET /api/v1/documents` | Anonymous | Anonymous metered | Warehouse | 300s | Query/filter combinations can create large BigQuery work. |
+| `GET /api/v1/documents` | Anonymous metered | Anonymous metered | Warehouse | 300s | Query/filter combinations can create large BigQuery work. |
 | `GET /api/v1/documents/{naid}` | Anonymous | Anonymous | Warehouse | 600s | Bounded record lookup. |
 | `GET /api/v1/entities` | Anonymous | Anonymous | Warehouse | 600s | Small catalog surface. |
 | `GET /api/v1/entities/{id}` | Anonymous | Anonymous | Warehouse | 600s | Bounded slug lookup. |
 | `GET /api/v1/topics` | Anonymous | Anonymous | Warehouse | 600s | Small catalog surface. |
 | `GET /api/v1/topics/{slug}` | Anonymous | Anonymous | Warehouse | 600s | Bounded slug lookup. |
 | `GET /api/v1/timeline` | Anonymous | Anonymous | Warehouse | 600s | Bounded timeline index with local filtering. |
-| `GET /api/v1/search/semantic` | Anonymous | Key required | Vertex | 60s | Generates embeddings for novel queries; should be keyed before scale-up. |
+| `GET /api/v1/search/semantic` | Key required | Key required | Vertex | 60s | Generates embeddings for novel queries; requires a configured API key. |
 
 The typed version of this inventory lives in `lib/public-api-access.ts` and is
 covered by `lib/__tests__/public-api-access.test.ts`.
@@ -45,14 +46,17 @@ Initial target rate windows:
 | Anonymous document search | 60 requests/hour/IP |
 | Keyed semantic search | 120 requests/hour/key |
 
-These are starting points, not contractual public quotas. The first enforcement
-PR should make them environment-configurable.
+These are starting points, not contractual public quotas.
 
 ## Key Model
 
 Use opaque API keys, not user accounts, for the first version.
 
-Store per-key metadata in a small backing store such as Firestore:
+The first implementation accepts a comma-separated `JFK_API_KEYS` environment
+variable and treats every configured key as an active `researcher` key. This is
+enough to protect high-cost routes while the backing store is still simple.
+
+Longer term, store per-key metadata in a small backing store such as Firestore:
 
 - `keyHash`: hashed key, never store the raw key;
 - `label`: human-readable owner/application label;
@@ -67,7 +71,11 @@ Accept keys with `Authorization: Bearer <key>` and optionally
 
 ## Rate-Limit Counters
 
-Counters should be keyed by:
+The first implementation uses an in-memory counter per running server process.
+This is intentionally conservative and easy to replace; it protects local and
+single-process deployments but is not a durable distributed quota system.
+
+Durable counters should be keyed by:
 
 - endpoint policy id/path;
 - API key hash for keyed requests;
@@ -103,13 +111,15 @@ Kill switches should fail closed with `503` and a short public error message.
 
 ## Rollout Sequence
 
-1. Land this policy inventory and documentation.
-2. Add middleware or route-helper enforcement that reads
-   `lib/public-api-access.ts`.
-3. Add a backing store for key hashes and rate counters.
-4. Update OpenAPI with security schemes and `429` / `401` / `403` responses.
-5. Turn on metering for `GET /api/v1/documents`.
-6. Require keys for `GET /api/v1/search/semantic`.
+1. Land this policy inventory and documentation. Done in COM-60.
+2. Add route-helper enforcement that reads `lib/public-api-access.ts`. Done in
+   COM-167.
+3. Update OpenAPI with security schemes and `429` / `401` / `403` responses.
+   Done in COM-167.
+4. Turn on metering for `GET /api/v1/documents`. Done in COM-167.
+5. Require keys for `GET /api/v1/search/semantic`. Done in COM-167.
+6. Replace the environment/in-memory key and counter store with durable
+   hashed-key metadata and distributed counters.
 7. Reuse the same policy layer for `/ask` before public launch.
 
 ## Non-Goals

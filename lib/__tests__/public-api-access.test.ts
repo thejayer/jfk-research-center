@@ -31,9 +31,18 @@ describe("publicApiEndpointPolicies", () => {
     );
 
     expect(policy?.costClass).toBe("vertex");
+    expect(policy?.currentAccess).toBe("key_required");
     expect(policy?.targetAccess).toBe("key_required");
     expect(policy?.anonymousLimit).toBeNull();
     expect(policy?.killSwitch).toBe("JFK_API_DISABLE_SEMANTIC_SEARCH");
+  });
+
+  it("keeps document search anonymously metered", () => {
+    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
+
+    expect(policy?.currentAccess).toBe("anonymous_metered");
+    expect(policy?.targetAccess).toBe("anonymous_metered");
+    expect(policy?.anonymousLimit?.requests).toBe(60);
   });
 
   it("keeps static discovery anonymous", () => {

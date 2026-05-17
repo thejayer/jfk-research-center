@@ -7,25 +7,26 @@
  * plus conservative cache headers since the underlying data changes
  * slowly (per-release cadence, not per-request).
  *
- * Access-control planning lives in docs/public-api-access-control.md and
- * lib/public-api-access.ts. All endpoints are currently unauthenticated and
- * open until that policy inventory is wired into enforcement.
+ * Access-control policy lives in docs/public-api-access-control.md and
+ * lib/public-api-access.ts. Expensive v1 routes apply that policy before
+ * doing warehouse or Vertex work.
  */
 
 const CORS_HEADERS: Record<string, string> = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, OPTIONS",
-  "access-control-allow-headers": "content-type",
+  "access-control-allow-headers": "authorization, content-type, x-jfkrc-api-key",
   "access-control-max-age": "86400",
 };
 
 export function jsonResponse<T>(
   data: T,
-  opts: { cacheSeconds?: number; status?: number } = {},
+  opts: { cacheSeconds?: number; status?: number; headers?: Record<string, string> } = {},
 ): Response {
   const headers: Record<string, string> = {
     "content-type": "application/json; charset=utf-8",
     ...CORS_HEADERS,
+    ...(opts.headers ?? {}),
   };
   if (opts.cacheSeconds && opts.cacheSeconds > 0) {
     headers["cache-control"] =
@@ -39,8 +40,12 @@ export function jsonResponse<T>(
   });
 }
 
-export function errorResponse(message: string, status = 500): Response {
-  return jsonResponse({ error: message }, { status });
+export function errorResponse(
+  message: string,
+  status = 500,
+  headers?: Record<string, string>,
+): Response {
+  return jsonResponse({ error: message }, { status, headers });
 }
 
 export function notFoundResponse(message = "not found"): Response {
