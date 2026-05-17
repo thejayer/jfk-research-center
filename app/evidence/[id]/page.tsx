@@ -54,6 +54,7 @@ export default async function EvidenceItemPage({
     label: `NAID ${naid}`,
     href: `https://catalog.archives.gov/id/${encodeURIComponent(naid)}`,
     meta: "National Archives Catalog record",
+    reliability: "primary_source" as const,
     external: true,
   }));
 
@@ -275,6 +276,7 @@ export default async function EvidenceItemPage({
               href: `https://catalog.archives.gov/id/${encodeURIComponent(naid)}`,
               label: `NAID ${naid}`,
               meta: "National Archives Catalog",
+              reliability: "primary_source",
               external: true,
             })),
           },
@@ -285,6 +287,7 @@ export default async function EvidenceItemPage({
               href: "#testimony",
               label: testimony.witness,
               meta: `Vol. ${testimony.volume}, p. ${testimony.page}`,
+              reliability: "primary_source",
             })),
           },
           {
@@ -294,6 +297,7 @@ export default async function EvidenceItemPage({
               href: entity.href,
               label: entity.name,
               meta: entity.type,
+              reliability: "curated_metadata",
             })),
           },
         ]}
@@ -302,6 +306,7 @@ export default async function EvidenceItemPage({
             href: `/search?q=${encodeURIComponent(data.shortName)}&mode=document`,
             label: "Search this evidence item",
             detail: categoryLabel,
+            reliability: "derived_signal",
           },
           ...(data.canonicalCopyUrl && data.canonicalCopyHost
             ? [
@@ -309,6 +314,7 @@ export default async function EvidenceItemPage({
                   href: data.canonicalCopyUrl,
                   label: "Open canonical copy",
                   detail: data.canonicalCopyHost,
+                  reliability: "external_reference" as const,
                   external: true,
                 },
               ]
@@ -319,6 +325,7 @@ export default async function EvidenceItemPage({
                   href: "#chain-of-custody",
                   label: "Review custody trail",
                   detail: `${data.chainOfCustody.length} steps`,
+                  reliability: "evidence_record" as const,
                 },
               ]
             : []),

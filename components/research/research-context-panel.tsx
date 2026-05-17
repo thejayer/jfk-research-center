@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
+import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
+import type { SourceReliabilityKind } from "@/lib/source-reliability";
 
 /**
  * Link rendered inside a context section.
@@ -11,6 +13,7 @@ export type ResearchContextLink = {
   href: string;
   label: string;
   meta: string;
+  reliability?: SourceReliabilityKind;
   external?: boolean;
 };
 
@@ -24,6 +27,7 @@ export type ResearchContextAction = {
   href: string;
   label: string;
   detail: string;
+  reliability?: SourceReliabilityKind;
   external?: boolean;
 };
 
@@ -142,6 +146,7 @@ function ContextLink({ item }: { item: ResearchContextLink }) {
       <span className="muted" style={metaStyle}>
         {item.meta}
       </span>
+      {item.reliability && <SourceReliabilityBadge kind={item.reliability} />}
     </>
   );
 
@@ -173,6 +178,11 @@ function MoveLink({ item }: { item: ResearchContextAction }) {
         <span className="muted" style={moveDetailStyle}>
           {item.detail}
         </span>
+        {item.reliability && (
+          <span style={{ display: "inline-flex", marginTop: 6 }}>
+            <SourceReliabilityBadge kind={item.reliability} />
+          </span>
+        )}
       </span>
       <ArrowRightIcon />
     </>
