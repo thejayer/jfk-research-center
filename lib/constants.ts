@@ -3,6 +3,7 @@ import type {
   AskGoldQuestion,
   AskRetrievalInput,
 } from "./ask-guardrails";
+import type { PublicApiRateWindow } from "./public-api-access";
 
 export const SITE_NAME = "JFK Research Center";
 
@@ -48,6 +49,21 @@ export function isSearchGroup(value: unknown): value is SearchGroup {
     (searchGroups as readonly string[]).includes(value)
   );
 }
+
+export const publicApiDefaultAnonymousLimit: PublicApiRateWindow = {
+  requests: 120,
+  windowSeconds: 3600,
+};
+
+export const publicApiSearchAnonymousLimit: PublicApiRateWindow = {
+  requests: 60,
+  windowSeconds: 3600,
+};
+
+export const publicApiSemanticKeyedLimit: PublicApiRateWindow = {
+  requests: 120,
+  windowSeconds: 3600,
+};
 
 export const askCitationRequirementStrict: AskCitationRequirement = {
   minInlineCitations: 2,

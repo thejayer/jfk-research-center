@@ -7,8 +7,9 @@
  * plus conservative cache headers since the underlying data changes
  * slowly (per-release cadence, not per-request).
  *
- * Rate limiting and API keys (ticket PW-5E-2) are deferred to a later
- * session. All endpoints are currently unauthenticated and open.
+ * Access-control planning lives in docs/public-api-access-control.md and
+ * lib/public-api-access.ts. All endpoints are currently unauthenticated and
+ * open until that policy inventory is wired into enforcement.
  */
 
 const CORS_HEADERS: Record<string, string> = {

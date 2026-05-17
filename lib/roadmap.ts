@@ -191,9 +191,11 @@ export const ROADMAP: RoadmapItem[] = [
   {
     surface: "API keys + rate limits",
     label: "Public API key + rate limit layer",
-    status: "planned",
+    status: "in_progress",
     phase: "Phase 5-E follow-up",
     description:
-      "Firestore-backed keys with per-key counters and a kill switch on Vertex-hit endpoints.",
+      "Policy inventory for anonymous, metered, and keyed public API access before enforcement is wired into the route layer.",
+    trackingUrl:
+      "https://linear.app/commerce-street/issue/COM-60/plan-public-api-key-and-rate-limit-layer",
   },
 ];
