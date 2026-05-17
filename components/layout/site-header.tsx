@@ -96,6 +96,11 @@ const EXPLORE_GROUPS: NavGroup[] = [
         href: "/open-questions",
         description: "Unresolved questions and competing interpretations.",
       },
+      {
+        label: "Tension map",
+        href: "/tensions",
+        description: "Contradictions, gaps, and timing issues grouped by source trail.",
+      },
     ],
   },
   {
