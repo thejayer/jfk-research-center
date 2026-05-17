@@ -35,6 +35,10 @@ The deferred `/ask` assistant is gated on
 citation contract, refusal behavior, and regression checks required before any
 public chat UI ships.
 
+The public `/api/v1/*` API remains unauthenticated today. Its planned API key,
+rate-limit, and kill-switch policy is tracked in
+`docs/public-api-access-control.md`.
+
 ## Running locally
 
 ```bash

@@ -23,7 +23,7 @@ function buildSpec(baseUrl: string) {
       title: "JFK Research Center API",
       version: "1.0.0",
       description:
-        "Read-only HTTP API for the curated JFK Assassination Records collection. Every endpoint is unauthenticated and CORS-open; please be a considerate neighbor with rate (ticket PW-5E-2 will add real limits).",
+        "Read-only HTTP API for the curated JFK Assassination Records collection. Endpoints are currently unauthenticated and CORS-open; the API key and rate-limit policy is documented in docs/public-api-access-control.md before enforcement is added.",
       contact: {
         url: "https://github.com/thejayer/jfk-research-center",
       },
