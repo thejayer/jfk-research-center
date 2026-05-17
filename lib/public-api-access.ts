@@ -1,3 +1,15 @@
+import {
+  publicApiDefaultAnonymousLimit,
+  publicApiSearchAnonymousLimit,
+  publicApiSemanticKeyedLimit,
+} from "./constants";
+
+export {
+  publicApiDefaultAnonymousLimit,
+  publicApiSearchAnonymousLimit,
+  publicApiSemanticKeyedLimit,
+} from "./constants";
+
 export type PublicApiAccessMode =
   | "anonymous"
   | "anonymous_metered"
@@ -22,21 +34,6 @@ export type PublicApiEndpointPolicy = {
   keyedLimit: PublicApiRateWindow | null;
   killSwitch: string | null;
   notes: string;
-};
-
-export const publicApiDefaultAnonymousLimit: PublicApiRateWindow = {
-  requests: 120,
-  windowSeconds: 3600,
-};
-
-export const publicApiSearchAnonymousLimit: PublicApiRateWindow = {
-  requests: 60,
-  windowSeconds: 3600,
-};
-
-export const publicApiSemanticKeyedLimit: PublicApiRateWindow = {
-  requests: 120,
-  windowSeconds: 3600,
 };
 
 export const publicApiEndpointPolicies: readonly PublicApiEndpointPolicy[] = [

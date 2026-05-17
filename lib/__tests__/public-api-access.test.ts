@@ -56,6 +56,12 @@ describe("publicApiEndpointPolicies", () => {
     ).toBe("/api/v1/topics/{slug}");
   });
 
+  it("normalizes lowercase HTTP methods before matching", () => {
+    expect(findPublicApiEndpointPolicy("get", "/api/v1/documents")?.path).toBe(
+      "/api/v1/documents",
+    );
+  });
+
   it("does not match unknown methods or routes", () => {
     expect(findPublicApiEndpointPolicy("POST", "/api/v1/documents")).toBeNull();
     expect(findPublicApiEndpointPolicy("GET", "/api/v1/ask")).toBeNull();
