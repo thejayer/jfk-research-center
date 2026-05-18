@@ -707,16 +707,22 @@ function HistoricalImageOverlay({
           <span><i className={styles.legendWitness} /> Witness</span>
           <span><i className={styles.legendCalibration} /> Fit point</span>
         </div>
-        <div
-          className={styles.historicalMeta}
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {frameSample ? `Z${frameSample.frame} / ` : ""}
-          {witnessStatusLabel} / fit residuals: ray{" "}
-          {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px,
-          witnesses{" "}
-          {HISTORICAL_MAP_CALIBRATION.witnessResidualPixels.toFixed(1)} px
+        <div className={styles.historicalMetaGroup}>
+          {frameSample ? (
+            <span className={styles.historicalFrameMeta} aria-hidden="true">
+              Z{frameSample.frame}
+            </span>
+          ) : null}
+          <div
+            className={styles.historicalMeta}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {witnessStatusLabel} / fit residuals: ray{" "}
+            {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px,
+            witnesses{" "}
+            {HISTORICAL_MAP_CALIBRATION.witnessResidualPixels.toFixed(1)} px
+          </div>
         </div>
       </div>
       <details className={styles.calibrationDetails}>

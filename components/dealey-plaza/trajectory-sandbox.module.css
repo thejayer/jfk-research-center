@@ -730,6 +730,18 @@
   background: #facc15;
 }
 
+.historicalMetaGroup {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+}
+
+.historicalFrameMeta {
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
 .historicalMeta {
   color: var(--text-muted);
   font-size: 0.72rem;
@@ -840,6 +852,10 @@
 
   .historicalMeta {
     text-align: left;
+  }
+
+  .historicalMetaGroup {
+    justify-items: start;
   }
 
   .calibrationStats {
