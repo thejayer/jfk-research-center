@@ -3,8 +3,9 @@
 import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import type { DealeyPlazaResponse, DealeyPlazaWitness } from "@/lib/api-types";
+import type { DealeyPlazaWitness } from "@/lib/api-types";
 import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
+import type { HistoricalWitnessStatus } from "@/lib/api-client";
 import {
   HISTORICAL_DEALEY_IMAGE,
   HISTORICAL_MAP_CALIBRATION,
@@ -76,7 +77,15 @@ const PLAN_LANDMARK_POINTS: TrajectoryPoint[] = [
   { x: 50, y: 0, z: 24 },
 ];
 
-export function TrajectorySandbox() {
+type TrajectorySandboxProps = {
+  historicalWitnesses: DealeyPlazaWitness[];
+  historicalWitnessStatus: HistoricalWitnessStatus;
+};
+
+export function TrajectorySandbox({
+  historicalWitnesses,
+  historicalWitnessStatus,
+}: TrajectorySandboxProps) {
   const frameSelectorLabelId = useId();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const objectsRef = useRef<{
@@ -102,12 +111,6 @@ export function TrajectorySandbox() {
   const [uncertaintyDegrees, setUncertaintyDegrees] = useState(
     initialFrame?.uncertaintyDegrees ?? initialPreset?.uncertaintyDegrees ?? 1,
   );
-  const [historicalWitnesses, setHistoricalWitnesses] = useState<
-    DealeyPlazaWitness[]
-  >([]);
-  const [historicalWitnessStatus, setHistoricalWitnessStatus] = useState<
-    "loading" | "ready" | "error"
-  >("loading");
 
   const activePreset =
     TRAJECTORY_PRESETS.find((preset) => preset.id === activePresetId) ??
@@ -157,38 +160,6 @@ export function TrajectorySandbox() {
   );
   const uncertaintyRadiusFeet =
     Math.tan((uncertaintyDegrees * Math.PI) / 180) * solution.lineDistanceFeet;
-
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 4500);
-
-    async function loadWitnesses() {
-      try {
-        const response = await fetch("/api/dealey-plaza", {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("Dealey Plaza witness request failed");
-        const data = (await response.json()) as DealeyPlazaResponse;
-        if (!cancelled) {
-          setHistoricalWitnesses(data.witnesses);
-          setHistoricalWitnessStatus("ready");
-        }
-      } catch {
-        if (!cancelled) setHistoricalWitnessStatus("error");
-      } finally {
-        window.clearTimeout(timeout);
-      }
-    }
-
-    loadWitnesses();
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, []);
 
   /**
    * Scene lifecycle: mount creates the Y-up Three.js scene, camera, renderer,
@@ -559,9 +530,7 @@ function HistoricalImageOverlay({
   const witnessStatusLabel =
     witnessStatus === "ready"
       ? `${witnesses.length} witness positions`
-      : witnessStatus === "loading"
-        ? "Witness positions loading"
-        : "Witness positions unavailable";
+      : "Witness positions unavailable";
 
   return (
     <section
@@ -669,7 +638,11 @@ function HistoricalImageOverlay({
           <span><i className={styles.legendCrossing} /> Frame</span>
           <span><i className={styles.legendWitness} /> Witness</span>
         </div>
-        <div className={styles.historicalMeta}>
+        <div
+          className={styles.historicalMeta}
+          aria-live="polite"
+          aria-atomic="true"
+        >
           {witnessStatusLabel} / fit residuals: ray{" "}
           {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px,
           witnesses{" "}

@@ -125,6 +125,15 @@ export const HISTORICAL_MAP_CALIBRATION = {
   witnessResidualPixels: WITNESS_TRANSFORM.meanResidualPixels,
 } as const;
 
+/**
+ * Projects a trajectory point from the sandbox's plaza-relative world frame
+ * into historical image pixel space.
+ *
+ * @param point - Trajectory world coordinates in feet. Only x (east/west) and
+ * z (north/south) are used; y/elevation is ignored for this top-down overlay.
+ * @returns HistoricalMapPoint pixel coordinates within the calibrated
+ * historical image.
+ */
 export function projectTrajectoryPointToHistoricalImage(
   point: Pick<TrajectoryPoint, "x" | "z">,
 ): HistoricalMapPoint {
@@ -134,6 +143,15 @@ export function projectTrajectoryPointToHistoricalImage(
   });
 }
 
+/**
+ * Projects a witness position from geographic coordinates into historical
+ * image pixel space.
+ *
+ * @param positionLat - WGS84 latitude for the witness position.
+ * @param positionLng - WGS84 longitude for the witness position.
+ * @returns HistoricalMapPoint pixel coordinates within the calibrated
+ * historical image.
+ */
 export function projectWitnessToHistoricalImage(
   positionLat: number,
   positionLng: number,
@@ -144,6 +162,21 @@ export function projectWitnessToHistoricalImage(
   });
 }
 
+/**
+ * Builds the top-down historical image footprint for the active trajectory
+ * path and uncertainty cone.
+ *
+ * @param origin - Trajectory origin in plaza-relative feet.
+ * @param target - Trajectory target in plaza-relative feet.
+ * @param uncertaintyDegrees - Cone half-angle in degrees. sanitizeConeDegrees
+ * is applied before computing the cone footprint.
+ * @returns Projected pixel positions for the path and cone: origin and target
+ * mark the active ray, while left and right mark the target-end cone edges.
+ *
+ * horizontalDistance and coneRadius are computed in plaza-relative feet from
+ * x/z only; y/elevation is intentionally ignored for this historical top-down
+ * overlay.
+ */
 export function buildHistoricalTrajectoryFootprint({
   origin,
   target,

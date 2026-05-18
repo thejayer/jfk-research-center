@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TrajectorySandbox } from "@/components/dealey-plaza/trajectory-sandbox";
+import { fetchHistoricalDealeyPlazaWitnesses } from "@/lib/api-client";
 
 export const metadata: Metadata = {
   title: "Dealey Plaza trajectory sandbox",
@@ -8,7 +9,9 @@ export const metadata: Metadata = {
     "A deterministic 3D geometry sandbox for Dealey Plaza trajectory assumptions and ray math.",
 };
 
-export default function DealeyPlazaTrajectoryPage() {
+export default async function DealeyPlazaTrajectoryPage() {
+  const historicalWitnessPayload = await fetchHistoricalDealeyPlazaWitnesses();
+
   return (
     <div style={{ paddingBottom: 96 }}>
       <div className="container" style={{ paddingTop: 32, marginBottom: 26 }}>
@@ -72,7 +75,10 @@ export default function DealeyPlazaTrajectoryPage() {
       </div>
 
       <div className="container">
-        <TrajectorySandbox />
+        <TrajectorySandbox
+          historicalWitnesses={historicalWitnessPayload.witnesses}
+          historicalWitnessStatus={historicalWitnessPayload.status}
+        />
       </div>
     </div>
   );
