@@ -490,6 +490,160 @@
   text-decoration-color: color-mix(in srgb, var(--accent) 42%, transparent);
 }
 
+.historicalPanel {
+  border: 1px solid var(--border);
+  border-top: 0;
+  background: var(--surface);
+  padding: 16px;
+}
+
+.historicalHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.historicalSource {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.78rem;
+  padding: 7px 10px;
+}
+
+.historicalSource:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  text-decoration: none;
+}
+
+.historicalSvg {
+  width: 100%;
+  aspect-ratio: 296 / 273;
+  display: block;
+  border: 1px solid var(--border);
+  background: #111;
+}
+
+.historicalScrim {
+  fill: color-mix(in srgb, var(--surface) 10%, transparent);
+}
+
+.historicalCone {
+  fill: color-mix(in srgb, var(--accent) 24%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 62%, transparent);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.historicalRay {
+  stroke: #f8fafc;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.72));
+  vector-effect: non-scaling-stroke;
+}
+
+.historicalFrame {
+  fill: #f8fafc;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.historicalFrame[data-active="true"] {
+  fill: var(--accent);
+  stroke: #f8fafc;
+}
+
+.historicalFrameLabel {
+  fill: #f8fafc;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.72);
+  stroke-width: 3px;
+}
+
+.historicalOrigin {
+  fill: #b3422f;
+  stroke: #f8fafc;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.historicalTarget {
+  fill: #1f6f8b;
+  stroke: #f8fafc;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.historicalWitness {
+  stroke: #f8fafc;
+  stroke-width: 1.2;
+  opacity: 0.88;
+  vector-effect: non-scaling-stroke;
+}
+
+.historicalWitness[data-origin="tsbd"] {
+  fill: var(--accent);
+}
+
+.historicalWitness[data-origin="knoll"] {
+  fill: #b45309;
+}
+
+.historicalWitness[data-origin="underpass"] {
+  fill: #0e7490;
+}
+
+.historicalWitness[data-origin="unknown"] {
+  fill: var(--text-muted);
+}
+
+.historicalFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-top: 11px;
+}
+
+.historicalLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.historicalLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.historicalLegend i {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  border-radius: 999px;
+}
+
+.legendWitness {
+  background: #b45309;
+}
+
+.historicalMeta {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+  text-align: right;
+}
+
 @media (max-width: 1040px) {
   .shell {
     grid-template-columns: 1fr;
@@ -523,5 +677,14 @@
 
   .planLegend {
     justify-content: flex-start;
+  }
+
+  .historicalHeader,
+  .historicalFooter {
+    display: grid;
+  }
+
+  .historicalMeta {
+    text-align: left;
   }
 }

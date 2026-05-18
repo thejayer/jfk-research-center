@@ -19,6 +19,7 @@ import type {
   CompareResponse,
   CorpusManifest,
   DealeyPlazaResponse,
+  DealeyPlazaWitness,
   DocumentResponse,
   EntityCard,
   EntityResponse,
@@ -49,11 +50,14 @@ type FetchOpts = {
   revalidate?: number;
   /** No-store for per-request responses. */
   noStore?: boolean;
+  /** Optional abort signal for bounded server-side fetches. */
+  signal?: AbortSignal;
 };
 
 async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
   const base = await getBaseUrl();
   const res = await fetch(`${base}${path}`, {
+    signal: opts.signal,
     ...(opts.noStore
       ? { cache: "no-store" as const }
       : { next: { revalidate: opts.revalidate ?? 60 } }),
@@ -227,4 +231,69 @@ export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> 
   });
   if (!data) throw new Error("Dealey Plaza payload missing");
   return data;
+}
+
+export type HistoricalWitnessStatus = "ready" | "error";
+
+export type HistoricalWitnessPayload = {
+  witnesses: DealeyPlazaWitness[];
+  status: HistoricalWitnessStatus;
+};
+
+export async function fetchHistoricalDealeyPlazaWitnesses(
+  timeoutMs = 4500,
+): Promise<HistoricalWitnessPayload> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const data = await get<unknown>("/api/dealey-plaza", {
+      revalidate: 3600,
+      signal: controller.signal,
+    });
+    if (!isDealeyPlazaResponse(data)) {
+      return { witnesses: [], status: "error" };
+    }
+
+    return {
+      witnesses: data.witnesses,
+      status: "ready",
+    };
+  } catch {
+    return { witnesses: [], status: "error" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function isDealeyPlazaResponse(data: unknown): data is DealeyPlazaResponse {
+  if (!data || typeof data !== "object") return false;
+  const candidate = data as Partial<DealeyPlazaResponse>;
+  return (
+    Array.isArray(candidate.witnesses) &&
+    candidate.witnesses.every(isDealeyPlazaWitness)
+  );
+}
+
+function isDealeyPlazaWitness(data: unknown): data is DealeyPlazaWitness {
+  if (!data || typeof data !== "object") return false;
+  const witness = data as Partial<DealeyPlazaWitness>;
+  return (
+    typeof witness.witnessId === "string" &&
+    typeof witness.name === "string" &&
+    typeof witness.positionLat === "number" &&
+    typeof witness.positionLng === "number" &&
+    typeof witness.positionDescription === "string" &&
+    typeof witness.statementSummary === "string" &&
+    (typeof witness.heardShots === "number" || witness.heardShots === null) &&
+    (typeof witness.shotOriginPerceived === "string" ||
+      witness.shotOriginPerceived === null) &&
+    (typeof witness.wcTestimonyVolume === "number" ||
+      witness.wcTestimonyVolume === null) &&
+    (typeof witness.wcTestimonyPage === "number" ||
+      witness.wcTestimonyPage === null) &&
+    Array.isArray(witness.sourceNaids) &&
+    witness.sourceNaids.every((sourceNaid) => typeof sourceNaid === "string") &&
+    (typeof witness.role === "string" || witness.role === null)
+  );
 }

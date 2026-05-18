@@ -3,7 +3,16 @@
 import type { ReactNode } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import type { DealeyPlazaWitness } from "@/lib/api-types";
 import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
+import type { HistoricalWitnessStatus } from "@/lib/api-client";
+import {
+  HISTORICAL_DEALEY_IMAGE,
+  HISTORICAL_MAP_CALIBRATION,
+  buildHistoricalTrajectoryFootprint,
+  projectTrajectoryPointToHistoricalImage,
+  projectWitnessToHistoricalImage,
+} from "@/lib/historical-map-overlay";
 import {
   TRAJECTORY_FRAME_MARKS,
   buildTrajectorySourceTrail,
@@ -68,7 +77,15 @@ const PLAN_LANDMARK_POINTS: TrajectoryPoint[] = [
   { x: 50, y: 0, z: 24 },
 ];
 
-export function TrajectorySandbox() {
+type TrajectorySandboxProps = {
+  historicalWitnesses: DealeyPlazaWitness[];
+  historicalWitnessStatus: HistoricalWitnessStatus;
+};
+
+export function TrajectorySandbox({
+  historicalWitnesses,
+  historicalWitnessStatus,
+}: TrajectorySandboxProps) {
   const frameSelectorLabelId = useId();
   const mountRef = useRef<HTMLDivElement | null>(null);
   const objectsRef = useRef<{
@@ -311,6 +328,14 @@ export function TrajectorySandbox() {
           frameComparisons={frameComparisons}
           bounds={planBounds}
         />
+        <HistoricalImageOverlay
+          origin={origin}
+          target={target}
+          activeFrameId={activeFrameId}
+          uncertaintyDegrees={uncertaintyDegrees}
+          witnesses={historicalWitnesses}
+          witnessStatus={historicalWitnessStatus}
+        />
       </section>
 
       <aside className={styles.side}>
@@ -466,6 +491,165 @@ export function TrajectorySandbox() {
         </Panel>
       </aside>
     </div>
+  );
+}
+
+function HistoricalImageOverlay({
+  origin,
+  target,
+  activeFrameId,
+  uncertaintyDegrees,
+  witnesses,
+  witnessStatus,
+}: {
+  origin: TrajectoryPoint;
+  target: TrajectoryPoint;
+  activeFrameId: string | null;
+  uncertaintyDegrees: number;
+  witnesses: DealeyPlazaWitness[];
+  witnessStatus: "loading" | "ready" | "error";
+}) {
+  const footprint = buildHistoricalTrajectoryFootprint({
+    origin,
+    target,
+    uncertaintyDegrees,
+  });
+  const originPoint = projectTrajectoryPointToHistoricalImage(origin);
+  const targetPoint = projectTrajectoryPointToHistoricalImage(target);
+  const framePoints = TRAJECTORY_FRAME_MARKS.map((frame) => ({
+    frame,
+    point: projectTrajectoryPointToHistoricalImage(frame.target),
+  }));
+  const witnessPoints = witnesses.map((witness) => ({
+    witness,
+    point: projectWitnessToHistoricalImage(
+      witness.positionLat,
+      witness.positionLng,
+    ),
+  }));
+  const witnessStatusLabel =
+    witnessStatus === "ready"
+      ? `${witnesses.length} witness positions`
+      : "Witness positions unavailable";
+
+  return (
+    <section
+      className={styles.historicalPanel}
+      aria-label="Historical Dealey Plaza image overlay"
+    >
+      <div className={styles.historicalHeader}>
+        <div>
+          <div className={styles.panelTitle}>Historical Image Overlay</div>
+          <p className={styles.panelNote}>
+            {HISTORICAL_DEALEY_IMAGE.title}.{" "}
+            {HISTORICAL_DEALEY_IMAGE.calibrationNote}
+          </p>
+        </div>
+        <a
+          className={styles.historicalSource}
+          href={HISTORICAL_DEALEY_IMAGE.sourceUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Image source
+        </a>
+      </div>
+      <svg
+        className={styles.historicalSvg}
+        viewBox={`0 0 ${HISTORICAL_DEALEY_IMAGE.width} ${HISTORICAL_DEALEY_IMAGE.height}`}
+        role="img"
+        aria-label="Historical Dealey Plaza image with active trajectory, uncertainty footprint, frame markers, and witness positions"
+      >
+        <image
+          href={HISTORICAL_DEALEY_IMAGE.imageUrl}
+          width={HISTORICAL_DEALEY_IMAGE.width}
+          height={HISTORICAL_DEALEY_IMAGE.height}
+          preserveAspectRatio="xMidYMid meet"
+        />
+        <rect
+          className={styles.historicalScrim}
+          width={HISTORICAL_DEALEY_IMAGE.width}
+          height={HISTORICAL_DEALEY_IMAGE.height}
+        />
+        <polygon
+          className={styles.historicalCone}
+          points={[
+            footprint.origin,
+            footprint.left,
+            footprint.right,
+          ]
+            .map((point) => `${point.x},${point.y}`)
+            .join(" ")}
+        />
+        <line
+          className={styles.historicalRay}
+          x1={originPoint.x}
+          y1={originPoint.y}
+          x2={targetPoint.x}
+          y2={targetPoint.y}
+        />
+        {witnessPoints.map(({ witness, point }) => (
+          <circle
+            key={witness.witnessId}
+            className={styles.historicalWitness}
+            data-origin={historicalWitnessTone(witness.shotOriginPerceived)}
+            cx={point.x}
+            cy={point.y}
+            r="3.7"
+          >
+            <title>{`${witness.name}: ${witness.positionDescription}`}</title>
+          </circle>
+        ))}
+        {framePoints.map(({ frame, point }) => (
+          <g key={frame.id}>
+            <circle
+              className={styles.historicalFrame}
+              data-active={activeFrameId === frame.id}
+              cx={point.x}
+              cy={point.y}
+              r={activeFrameId === frame.id ? 6 : 4.4}
+            />
+            <text
+              className={styles.historicalFrameLabel}
+              x={point.x + 7}
+              y={point.y - 7}
+            >
+              Z{frame.frame}
+            </text>
+          </g>
+        ))}
+        <circle
+          className={styles.historicalOrigin}
+          cx={originPoint.x}
+          cy={originPoint.y}
+          r="6"
+        />
+        <circle
+          className={styles.historicalTarget}
+          cx={targetPoint.x}
+          cy={targetPoint.y}
+          r="6"
+        />
+      </svg>
+      <div className={styles.historicalFooter}>
+        <div className={styles.historicalLegend} aria-hidden="true">
+          <span><i className={styles.legendOrigin} /> Origin</span>
+          <span><i className={styles.legendTarget} /> Target</span>
+          <span><i className={styles.legendCrossing} /> Frame</span>
+          <span><i className={styles.legendWitness} /> Witness</span>
+        </div>
+        <div
+          className={styles.historicalMeta}
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          {witnessStatusLabel} / fit residuals: ray{" "}
+          {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px,
+          witnesses{" "}
+          {HISTORICAL_MAP_CALIBRATION.witnessResidualPixels.toFixed(1)} px
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -847,5 +1031,18 @@ function disposeSceneObject(object: THREE.Object3D) {
   ) {
     object.geometry.dispose();
     disposeMaterial(object.material);
+  }
+}
+
+function historicalWitnessTone(origin: string | null): string {
+  switch (origin) {
+    case "Texas School Book Depository":
+      return "tsbd";
+    case "Grassy knoll / stockade fence":
+      return "knoll";
+    case "Triple underpass area":
+      return "underpass";
+    default:
+      return "unknown";
   }
 }
