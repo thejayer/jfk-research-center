@@ -15,9 +15,10 @@ import {
 } from "@/lib/historical-map-overlay";
 import {
   TRAJECTORY_FRAME_MARKS,
+  buildTrajectoryFrameSample,
   buildTrajectorySourceTrail,
-  getTrajectoryFrameMark,
   type TrajectoryFrameMark,
+  type TrajectoryFrameSample,
   type TrajectorySourceTrailItem,
 } from "@/lib/trajectory-evidence";
 import {
@@ -96,38 +97,60 @@ export function TrajectorySandbox({
   } | null>(null);
   const initialPreset = TRAJECTORY_PRESETS[0] ?? null;
   const initialFrame = TRAJECTORY_FRAME_MARKS[1] ?? TRAJECTORY_FRAME_MARKS[0] ?? null;
+  const initialFrameSample = initialFrame
+    ? buildTrajectoryFrameSample(initialFrame.frame)
+    : null;
   const [activePresetId, setActivePresetId] = useState(
     initialPreset?.id ?? "",
   );
-  const [activeFrameId, setActiveFrameId] = useState<string | null>(
-    initialFrame?.id ?? null,
+  const [activeFrameSample, setActiveFrameSample] =
+    useState<TrajectoryFrameSample | null>(
+      initialFrameSample,
+    );
+  const [frameScrubberValue, setFrameScrubberValue] = useState(
+    initialFrameSample?.frame ?? initialFrame?.frame ?? 0,
   );
   const [origin, setOrigin] = useState(
     initialPreset?.origin ?? FALLBACK_POINT,
   );
   const [target, setTarget] = useState(
-    initialFrame?.target ?? initialPreset?.target ?? FALLBACK_POINT,
+    initialFrameSample?.target ??
+      initialFrame?.target ??
+      initialPreset?.target ??
+      FALLBACK_POINT,
   );
   const [uncertaintyDegrees, setUncertaintyDegrees] = useState(
-    initialFrame?.uncertaintyDegrees ?? initialPreset?.uncertaintyDegrees ?? 1,
+    initialFrameSample?.uncertaintyDegrees ??
+      initialFrame?.uncertaintyDegrees ??
+      initialPreset?.uncertaintyDegrees ??
+      1,
   );
 
   const activePreset =
     TRAJECTORY_PRESETS.find((preset) => preset.id === activePresetId) ??
     initialPreset ??
     FALLBACK_PRESET;
-  const activeFrame = getTrajectoryFrameMark(activeFrameId);
+  const activeFrame = activeFrameSample?.exactMark ?? null;
+  const activeFrameId = activeFrame?.id ?? null;
   const solution = useMemo(() => solveTrajectory(origin, target), [origin, target]);
   const sourceTrail = useMemo(
     () =>
       buildTrajectorySourceTrail({
         preset: activePreset,
         frameMark: activeFrame,
+        frameSample: activeFrameSample,
         origin,
         target,
         uncertaintyDegrees,
       }),
-    [activeFrame, activePreset, origin, target, uncertaintyDegrees],
+    [
+      activeFrame,
+      activeFrameSample,
+      activePreset,
+      origin,
+      target,
+      uncertaintyDegrees,
+    ],
   );
   const frameComparisons = useMemo(
     () =>
@@ -301,13 +324,21 @@ export function TrajectorySandbox({
     setOrigin(preset.origin);
     setTarget(preset.target);
     setUncertaintyDegrees(preset.uncertaintyDegrees);
-    setActiveFrameId(null);
+    setActiveFrameSample(null);
   };
 
   const applyFrame = (frame: TrajectoryFrameMark) => {
-    setActiveFrameId(frame.id);
-    setTarget(frame.target);
-    setUncertaintyDegrees(frame.uncertaintyDegrees);
+    applyFrameNumber(frame.frame);
+  };
+
+  const applyFrameNumber = (frameNumber: number) => {
+    const sample = buildTrajectoryFrameSample(frameNumber);
+    if (!sample) return;
+
+    setFrameScrubberValue(sample.frame);
+    setActiveFrameSample(sample);
+    setTarget(sample.target);
+    setUncertaintyDegrees(sample.uncertaintyDegrees);
   };
 
   return (
@@ -325,6 +356,7 @@ export function TrajectorySandbox({
           origin={origin}
           target={target}
           activeFrameId={activeFrameId}
+          frameSample={activeFrameSample}
           frameComparisons={frameComparisons}
           bounds={planBounds}
         />
@@ -332,6 +364,7 @@ export function TrajectorySandbox({
           origin={origin}
           target={target}
           activeFrameId={activeFrameId}
+          frameSample={activeFrameSample}
           uncertaintyDegrees={uncertaintyDegrees}
           witnesses={historicalWitnesses}
           witnessStatus={historicalWitnessStatus}
@@ -357,12 +390,18 @@ export function TrajectorySandbox({
           <p className={styles.presetSummary}>{activePreset.summary}</p>
           <div className={styles.frameSelector}>
             <div id={frameSelectorLabelId} className="eyebrow">
-              Zapruder frame timeline selector
+              Zapruder frame scrubber
             </div>
+            <FrameScrubber
+              labelId={frameSelectorLabelId}
+              sample={activeFrameSample}
+              value={frameScrubberValue}
+              onChange={applyFrameNumber}
+            />
             <div
               className={styles.frameRail}
               role="group"
-              aria-labelledby={frameSelectorLabelId}
+              aria-label="Configured Zapruder frame markers"
             >
               {TRAJECTORY_FRAME_MARKS.map((frame) => (
                 <button
@@ -387,7 +426,7 @@ export function TrajectorySandbox({
             controls={ORIGIN_CONTROLS}
             onChange={(next) => {
               setOrigin(next);
-              setActiveFrameId(null);
+              setActiveFrameSample(null);
             }}
           />
           <ControlGroup
@@ -396,7 +435,7 @@ export function TrajectorySandbox({
             controls={TARGET_CONTROLS}
             onChange={(next) => {
               setTarget(next);
-              setActiveFrameId(null);
+              setActiveFrameSample(null);
             }}
           />
           <div className={styles.controlGroup}>
@@ -417,7 +456,7 @@ export function TrajectorySandbox({
                 value={uncertaintyDegrees}
                 onChange={(event) => {
                   setUncertaintyDegrees(Number(event.target.value));
-                  setActiveFrameId(null);
+                  setActiveFrameSample(null);
                 }}
               />
             </label>
@@ -498,6 +537,7 @@ function HistoricalImageOverlay({
   origin,
   target,
   activeFrameId,
+  frameSample,
   uncertaintyDegrees,
   witnesses,
   witnessStatus,
@@ -505,6 +545,7 @@ function HistoricalImageOverlay({
   origin: TrajectoryPoint;
   target: TrajectoryPoint;
   activeFrameId: string | null;
+  frameSample: TrajectoryFrameSample | null;
   uncertaintyDegrees: number;
   witnesses: DealeyPlazaWitness[];
   witnessStatus: "loading" | "ready" | "error";
@@ -618,6 +659,24 @@ function HistoricalImageOverlay({
             </text>
           </g>
         ))}
+        {HISTORICAL_MAP_CALIBRATION.trajectoryControlPoints.map((control) => (
+          <g key={control.id} className={styles.historicalCalibrationPoint}>
+            <line
+              x1={control.image.x - 5}
+              y1={control.image.y}
+              x2={control.image.x + 5}
+              y2={control.image.y}
+            />
+            <line
+              x1={control.image.x}
+              y1={control.image.y - 5}
+              x2={control.image.x}
+              y2={control.image.y + 5}
+            />
+            <circle cx={control.image.x} cy={control.image.y} r="2.6" />
+            <title>{control.label}</title>
+          </g>
+        ))}
         <circle
           className={styles.historicalOrigin}
           cx={originPoint.x}
@@ -630,6 +689,15 @@ function HistoricalImageOverlay({
           cy={targetPoint.y}
           r="6"
         />
+        {frameSample ? (
+          <text
+            className={styles.historicalActiveFrameLabel}
+            x={targetPoint.x + 8}
+            y={targetPoint.y + 16}
+          >
+            Z{frameSample.frame}
+          </text>
+        ) : null}
       </svg>
       <div className={styles.historicalFooter}>
         <div className={styles.historicalLegend} aria-hidden="true">
@@ -637,18 +705,54 @@ function HistoricalImageOverlay({
           <span><i className={styles.legendTarget} /> Target</span>
           <span><i className={styles.legendCrossing} /> Frame</span>
           <span><i className={styles.legendWitness} /> Witness</span>
+          <span><i className={styles.legendCalibration} /> Fit point</span>
         </div>
-        <div
-          className={styles.historicalMeta}
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {witnessStatusLabel} / fit residuals: ray{" "}
-          {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px,
-          witnesses{" "}
-          {HISTORICAL_MAP_CALIBRATION.witnessResidualPixels.toFixed(1)} px
+        <div className={styles.historicalMetaGroup}>
+          {frameSample ? (
+            <span className={styles.historicalFrameMeta} aria-hidden="true">
+              Z{frameSample.frame}
+            </span>
+          ) : null}
+          <div
+            className={styles.historicalMeta}
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            {witnessStatusLabel} / fit residuals: ray{" "}
+            {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px,
+            witnesses{" "}
+            {HISTORICAL_MAP_CALIBRATION.witnessResidualPixels.toFixed(1)} px
+          </div>
         </div>
       </div>
+      <details className={styles.calibrationDetails}>
+        <summary>Calibration diagnostics</summary>
+        <div className={styles.calibrationStats}>
+          <div>
+            <span>Ray fit residual</span>
+            <strong>
+              {HISTORICAL_MAP_CALIBRATION.trajectoryResidualPixels.toFixed(1)} px
+            </strong>
+          </div>
+          <div>
+            <span>Witness fit residual</span>
+            <strong>
+              {HISTORICAL_MAP_CALIBRATION.witnessResidualPixels.toFixed(1)} px
+            </strong>
+          </div>
+        </div>
+        <ul className={styles.calibrationList}>
+          {HISTORICAL_MAP_CALIBRATION.trajectoryControlPoints.map((control) => (
+            <li key={control.id}>
+              <span>{control.label}</span>
+              <code>
+                X {control.source.u.toFixed(1)} / Z {control.source.v.toFixed(1)} /
+                px {control.image.x.toFixed(0)}, {control.image.y.toFixed(0)}
+              </code>
+            </li>
+          ))}
+        </ul>
+      </details>
     </section>
   );
 }
@@ -680,16 +784,75 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
+function FrameScrubber({
+  labelId,
+  sample,
+  value,
+  onChange,
+}: {
+  labelId: string;
+  sample: TrajectoryFrameSample | null;
+  value: number;
+  onChange: (frameNumber: number) => void;
+}) {
+  const datalistId = useId();
+  const firstFrame = TRAJECTORY_FRAME_MARKS[0];
+  const lastFrame = TRAJECTORY_FRAME_MARKS[TRAJECTORY_FRAME_MARKS.length - 1];
+
+  if (!firstFrame || !lastFrame) return null;
+
+  const span = Math.max(lastFrame.frame - firstFrame.frame, 1);
+
+  return (
+    <div className={styles.frameScrubber}>
+      <input
+        className={styles.frameRange}
+        type="range"
+        min={firstFrame.frame}
+        max={lastFrame.frame}
+        step={1}
+        value={value}
+        list={datalistId}
+        aria-labelledby={labelId}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+      <datalist id={datalistId}>
+        {TRAJECTORY_FRAME_MARKS.map((frame) => (
+          <option key={frame.id} value={frame.frame} label={`Z${frame.frame}`} />
+        ))}
+      </datalist>
+      <div className={styles.frameTicks} aria-hidden="true">
+        {TRAJECTORY_FRAME_MARKS.map((frame) => (
+          <span
+            key={frame.id}
+            style={{
+              left: `${((frame.frame - firstFrame.frame) / span) * 100}%`,
+            }}
+          >
+            Z{frame.frame}
+          </span>
+        ))}
+      </div>
+      <div className={styles.frameScrubberMeta}>
+        <strong>{formatFrameSampleLabel(sample)}</strong>
+        <span>{formatFrameSampleDetail(sample)}</span>
+      </div>
+    </div>
+  );
+}
+
 function PlanView({
   origin,
   target,
   activeFrameId,
+  frameSample,
   frameComparisons,
   bounds,
 }: {
   origin: TrajectoryPoint;
   target: TrajectoryPoint;
   activeFrameId: string | null;
+  frameSample: TrajectoryFrameSample | null;
   frameComparisons: Array<{
     frame: TrajectoryFrameMark;
     comparison: TrajectoryPlanePointComparison;
@@ -798,6 +961,15 @@ function PlanView({
           cy={targetPoint.y}
           r="6"
         />
+        {frameSample ? (
+          <text
+            className={styles.planActiveFrameLabel}
+            x={targetPoint.x + 8}
+            y={targetPoint.y + 15}
+          >
+            Z{frameSample.frame}
+          </text>
+        ) : null}
       </svg>
     </section>
   );
@@ -1032,6 +1204,22 @@ function disposeSceneObject(object: THREE.Object3D) {
     object.geometry.dispose();
     disposeMaterial(object.material);
   }
+}
+
+function formatFrameSampleLabel(sample: TrajectoryFrameSample | null): string {
+  if (!sample) return "Manual target";
+  if (sample.exactMark) {
+    return `Z${sample.frame} - ${sample.exactMark.label}`;
+  }
+  return `Z${sample.frame} - interpolated`;
+}
+
+function formatFrameSampleDetail(sample: TrajectoryFrameSample | null): string {
+  if (!sample) return "Current coordinates are driven by the manual controls.";
+  if (sample.exactMark) {
+    return `+${sample.timeSeconds.toFixed(2)}s / configured marker`;
+  }
+  return `+${sample.timeSeconds.toFixed(2)}s / ${Math.round(sample.interpolation * 100)}% from Z${sample.lowerMark.frame} to Z${sample.upperMark.frame}`;
 }
 
 function historicalWitnessTone(origin: string | null): string {
