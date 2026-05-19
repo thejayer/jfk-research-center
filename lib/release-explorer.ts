@@ -97,17 +97,18 @@ export function releaseStatusDescription(status: ReleaseExplorerStatus): string 
 /**
  * Normalizes URL/user input into a canonical release status filter.
  *
- * Only "indexed", "pending", and "timeline_only" are accepted; every other
- * input returns null. The release-set matching precedence itself happens later:
- * exact manifest year match, then year contained in a manifest set, otherwise
- * the item is treated as "timeline_only".
+ * Only "indexed", "pending", and "timeline_only" are accepted after trimming;
+ * every other input returns null. The release-set matching precedence itself
+ * happens later: exact manifest year match, then year contained in a manifest
+ * set, otherwise the item is treated as "timeline_only".
  */
 export function normalizeReleaseStatusFilter(
   status: unknown,
 ): ReleaseExplorerStatus | null {
-  return typeof status === "string" &&
-    (releaseStatusKeys as string[]).includes(status)
-    ? (status as ReleaseExplorerStatus)
+  if (typeof status !== "string") return null;
+  const s = status.trim();
+  return (releaseStatusKeys as string[]).includes(s)
+    ? (s as ReleaseExplorerStatus)
     : null;
 }
 
@@ -157,11 +158,16 @@ function releaseStatus(
 function countStatuses(
   items: readonly ReleaseExplorerItem[],
 ): Record<ReleaseExplorerStatus, number> {
-  return items.reduce(
-    (counts, item) => {
-      counts[item.status] += 1;
+  const seed = releaseStatusKeys.reduce(
+    (counts, status) => {
+      counts[status] = 0;
       return counts;
     },
-    { indexed: 0, pending: 0, timeline_only: 0 },
+    {} as Record<ReleaseExplorerStatus, number>,
   );
+
+  return items.reduce((counts, item) => {
+    counts[item.status] += 1;
+    return counts;
+  }, seed);
 }

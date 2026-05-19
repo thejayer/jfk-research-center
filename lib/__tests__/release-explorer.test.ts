@@ -97,6 +97,7 @@ describe("release explorer helpers", () => {
 
   it("normalizes status filters and exposes labels", () => {
     expect(normalizeReleaseStatusFilter("indexed")).toBe("indexed");
+    expect(normalizeReleaseStatusFilter(" pending ")).toBe("pending");
     expect(normalizeReleaseStatusFilter("all")).toBeNull();
     expect(normalizeReleaseStatusFilter("unknown" as never)).toBeNull();
     expect(releaseStatusLabel("timeline_only")).toBe("Timeline only");
