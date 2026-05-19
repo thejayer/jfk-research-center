@@ -47,6 +47,7 @@ export function SiteFooter() {
 
         <FooterCol title="Analysis">
           <FooterLink href="/open-questions">Open Questions</FooterLink>
+          <FooterLink href="/tensions">Tension map</FooterLink>
           <FooterLink href="/established-facts">Established Facts</FooterLink>
           <FooterLink href="/releases">Release history</FooterLink>
           <FooterLink href="/bibliography">Bibliography</FooterLink>

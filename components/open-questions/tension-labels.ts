@@ -1,16 +1,11 @@
+import { tensionOrder } from "@/lib/constants";
+
 /**
  * Shared labels + display order for the six tension types that sql/27
  * assigns to each batch-level question.
  */
 
-export const TENSION_ORDER = [
-  "contradiction",
-  "timing",
-  "unexplained_reference",
-  "redaction",
-  "gap",
-  "pattern",
-] as const;
+export const TENSION_ORDER = tensionOrder;
 
 export function tensionLabel(t: string | null | undefined): string {
   switch (t) {

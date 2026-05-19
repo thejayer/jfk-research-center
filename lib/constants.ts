@@ -43,6 +43,17 @@ export const searchGroups = [
 
 export type SearchGroup = (typeof searchGroups)[number];
 
+export const tensionOrder = [
+  "contradiction",
+  "timing",
+  "unexplained_reference",
+  "redaction",
+  "gap",
+  "pattern",
+] as const;
+
+export type TensionType = (typeof tensionOrder)[number];
+
 export function isSearchGroup(value: unknown): value is SearchGroup {
   return (
     typeof value === "string" &&
