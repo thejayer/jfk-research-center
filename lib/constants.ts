@@ -54,6 +54,28 @@ export const tensionOrder = [
 
 export type TensionType = (typeof tensionOrder)[number];
 
+export const releaseStatusDefinitions = {
+  indexed: {
+    label: "Indexed",
+    description:
+      "The corpus manifest reports indexed records for this release set.",
+  },
+  pending: {
+    label: "Pending",
+    description:
+      "The corpus manifest knows this release set but does not yet index it.",
+  },
+  timeline_only: {
+    label: "Timeline only",
+    description:
+      "This release appears in the timeline, but no matching manifest set was found.",
+  },
+} as const;
+
+export const releaseStatusKeys = Object.keys(
+  releaseStatusDefinitions,
+) as Array<keyof typeof releaseStatusDefinitions>;
+
 export function isSearchGroup(value: unknown): value is SearchGroup {
   return (
     typeof value === "string" &&

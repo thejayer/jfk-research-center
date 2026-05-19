@@ -3,8 +3,9 @@ import type {
   CorpusManifest,
   TimelineDocumentLink,
 } from "./api-types";
+import { releaseStatusDefinitions, releaseStatusKeys } from "./constants";
 
-export type ReleaseExplorerStatus = "indexed" | "pending" | "timeline_only";
+export type ReleaseExplorerStatus = keyof typeof releaseStatusDefinitions;
 
 export type ReleaseExplorerItem = {
   id: string;
@@ -72,33 +73,41 @@ export function buildReleaseExplorer(
   };
 }
 
+/**
+ * Returns the display label for an accepted release status.
+ *
+ * Accepted statuses are "indexed", "pending", and "timeline_only"; labels are
+ * centralized in constants so filters, cards, and tests use the same wording.
+ */
 export function releaseStatusLabel(status: ReleaseExplorerStatus): string {
-  switch (status) {
-    case "indexed":
-      return "Indexed";
-    case "pending":
-      return "Pending";
-    case "timeline_only":
-      return "Timeline only";
-  }
+  return releaseStatusDefinitions[status].label;
 }
 
+/**
+ * Returns the explanatory copy for an accepted release status.
+ *
+ * "indexed" means manifest-backed records are present, "pending" means the
+ * manifest knows the release set but it is not indexed, and "timeline_only"
+ * means the release event has no matching manifest set.
+ */
 export function releaseStatusDescription(status: ReleaseExplorerStatus): string {
-  switch (status) {
-    case "indexed":
-      return "The corpus manifest reports indexed records for this release set.";
-    case "pending":
-      return "The corpus manifest knows this release set but does not yet index it.";
-    case "timeline_only":
-      return "This release appears in the timeline, but no matching manifest set was found.";
-  }
+  return releaseStatusDefinitions[status].description;
 }
 
+/**
+ * Normalizes URL/user input into a canonical release status filter.
+ *
+ * Only "indexed", "pending", and "timeline_only" are accepted; every other
+ * input returns null. The release-set matching precedence itself happens later:
+ * exact manifest year match, then year contained in a manifest set, otherwise
+ * the item is treated as "timeline_only".
+ */
 export function normalizeReleaseStatusFilter(
   status: unknown,
 ): ReleaseExplorerStatus | null {
-  return status === "indexed" || status === "pending" || status === "timeline_only"
-    ? status
+  return typeof status === "string" &&
+    (releaseStatusKeys as string[]).includes(status)
+    ? (status as ReleaseExplorerStatus)
     : null;
 }
 
