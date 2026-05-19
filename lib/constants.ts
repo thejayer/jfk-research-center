@@ -33,6 +33,12 @@ export const historyStorageKey = "jfkrc-research-history";
 export const historyChangeEvent = "jfkrc:research-history-changed";
 export const historyMaxItems = 24;
 
+export const maxRelationshipPaths = 8;
+export const directDocumentRelationshipLimit = 3;
+export const timelineRelationshipLimit = 2;
+export const topicRelationshipLimit = 2;
+export const relatedEntityRelationshipLimit = 2;
+
 export const searchGroups = [
   "results",
   "entities",
