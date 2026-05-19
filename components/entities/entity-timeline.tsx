@@ -16,9 +16,11 @@ export function EntityTimeline({ events }: { events: TimelineEvent[] }) {
       {events.map((e) => (
         <li
           key={e.id}
+          id={e.id}
           style={{
             position: "relative",
             paddingBottom: 28,
+            scrollMarginTop: 24,
           }}
         >
           <span

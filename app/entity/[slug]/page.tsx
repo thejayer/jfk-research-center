@@ -6,6 +6,7 @@ import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { EntityEvidenceTrail } from "@/components/entities/entity-evidence-trail";
 import { EntityHero } from "@/components/entities/entity-hero";
 import { EntityQuickFacts } from "@/components/entities/entity-quick-facts";
+import { EntityRelationshipPaths } from "@/components/entities/entity-relationship-paths";
 import { EntitySources } from "@/components/entities/entity-sources";
 import { EntityTimeline } from "@/components/entities/entity-timeline";
 import { RelatedEntities } from "@/components/entities/related-entities";
@@ -16,6 +17,7 @@ import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import { ResearchContextPanel } from "@/components/research/research-context-panel";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { buildEntityRelationshipPaths } from "@/lib/entity-relationship-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,7 @@ export default async function EntityPage({
   const searchHref = `/search?q=${encodeURIComponent(data.entity.name)}&mode=mention`;
   const documentsHref = `/search?entity=${encodeURIComponent(data.entity.slug)}`;
   const hasDocuments = (data.entity.documentCount ?? 0) > 0;
+  const relationshipPaths = buildEntityRelationshipPaths(data);
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -93,6 +96,11 @@ export default async function EntityPage({
         documents={data.topDocuments}
         documentsHref={hasDocuments ? documentsHref : undefined}
         entityName={data.entity.name}
+      />
+
+      <EntityRelationshipPaths
+        entityName={data.entity.name}
+        paths={relationshipPaths}
       />
 
       <ResearchContextPanel
