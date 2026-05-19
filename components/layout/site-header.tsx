@@ -99,7 +99,8 @@ const EXPLORE_GROUPS: NavGroup[] = [
       {
         label: "Tension map",
         href: "/tensions",
-        description: "Contradictions, gaps, and timing issues grouped by source trail.",
+        description:
+          "Threads grouped by tension types: contradiction, timing, redaction, gap, pattern, related.",
       },
     ],
   },

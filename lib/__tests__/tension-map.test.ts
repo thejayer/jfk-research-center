@@ -60,8 +60,12 @@ const topics: OpenQuestionsTopicResponse[] = [
 describe("tension map helpers", () => {
   it("normalizes empty tension labels to other", () => {
     expect(normalizeTensionType(null)).toBe("other");
+    expect(normalizeTensionType("")).toBe("other");
     expect(normalizeTensionType("   ")).toBe("other");
     expect(normalizeTensionType("timing")).toBe("timing");
+    expect(normalizeTensionType("TiMiNg")).toBe("timing");
+    expect(normalizeTensionType("TIMING")).toBe("timing");
+    expect(normalizeTensionType("foobar")).toBe("other");
   });
 
   it("groups threads by tension type with source and status counts", () => {

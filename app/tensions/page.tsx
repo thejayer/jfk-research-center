@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL = {
+const statusLabel = {
   open: "Open",
   partially_resolved: "Partial",
   resolved: "Resolved",
@@ -418,7 +418,7 @@ function StatusBadge({ status }: { status: TensionMapThread["status"] }) {
     status === "open" ? "low" : status === "partially_resolved" ? "medium" : "high";
   return (
     <Badge tone={tone} size="sm">
-      {STATUS_LABEL[status]}
+      {statusLabel[status]}
     </Badge>
   );
 }

@@ -58,8 +58,9 @@ export function buildTensionMap(
 }
 
 export function normalizeTensionType(type: string | null | undefined): string {
-  const trimmed = type?.trim();
-  return trimmed || "other";
+  const normalized = type?.trim().toLowerCase();
+  if (!normalized) return "other";
+  return knownTensionRank.has(normalized) ? normalized : "other";
 }
 
 function mapThread(
