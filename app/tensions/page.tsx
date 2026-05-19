@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchOpenQuestionsIndex, fetchOpenQuestionsTopic } from "@/lib/api-client";
+import type { OpenQuestionsTopicResponse } from "@/lib/api-types";
 import { buildTensionMap } from "@/lib/tension-map";
 import type { TensionMapGroup, TensionMapThread } from "@/lib/tension-map";
 import { formatNumber } from "@/lib/format";
@@ -30,10 +31,15 @@ const statusLabel = {
 
 export default async function TensionMapPage() {
   const index = await fetchOpenQuestionsIndex();
-  const topicResponses = await Promise.all(
+  const topicResults = await Promise.allSettled(
     index.topics.map((topic) => fetchOpenQuestionsTopic(topic.slug)),
   );
-  const topics = topicResponses.filter((topic) => topic !== null);
+  const topics: OpenQuestionsTopicResponse[] = [];
+  for (const result of topicResults) {
+    if (result.status === "fulfilled" && result.value !== null) {
+      topics.push(result.value);
+    }
+  }
   const groups = buildTensionMap(topics);
   const totalThreads = groups.reduce((sum, group) => sum + group.threadCount, 0);
   const totalDocuments = new Set(
@@ -423,6 +429,14 @@ function StatusBadge({ status }: { status: TensionMapThread["status"] }) {
   );
 }
 
+/**
+ * Builds stable in-page fragment ids for tension groups.
+ *
+ * Lowercases the tension type, replaces runs of non-alphanumeric characters
+ * with a single hyphen, trims leading/trailing hyphens, and falls back to
+ * "other" when the resulting slug is empty. Keep this compatible with existing
+ * hash links so saved URLs and in-page navigation continue to resolve.
+ */
 function tensionMapAnchor(tensionType: string): string {
   return `tension-map-${tensionType
     .toLowerCase()
