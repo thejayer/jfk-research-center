@@ -5,6 +5,13 @@ import type {
   TimelineEvent,
   TopicCard,
 } from "./api-types";
+import {
+  directDocumentRelationshipLimit,
+  maxRelationshipPaths,
+  relatedEntityRelationshipLimit,
+  timelineRelationshipLimit,
+  topicRelationshipLimit,
+} from "./constants";
 
 export type EntityRelationshipNodeType =
   | "entity"
@@ -36,12 +43,6 @@ export type EntityRelationshipPath = {
   hops: EntityRelationshipHop[];
 };
 
-const maxRelationshipPaths = 8;
-const directDocumentLimit = 3;
-const timelineLimit = 2;
-const topicLimit = 2;
-const relatedEntityLimit = 2;
-
 /**
  * Builds compact, source-linked entity paths from already indexed entity data.
  *
@@ -51,16 +52,16 @@ const relatedEntityLimit = 2;
 export function buildEntityRelationshipPaths(data: EntityResponse): EntityRelationshipPath[] {
   const origin = entityNode(data.entity);
   const documentPaths = data.topDocuments
-    .slice(0, directDocumentLimit)
+    .slice(0, directDocumentRelationshipLimit)
     .map((document) => documentPath(origin, document));
   const timelinePaths = data.timeline
-    .slice(0, timelineLimit)
+    .slice(0, timelineRelationshipLimit)
     .map((event) => timelinePath(origin, event, data.topDocuments));
   const topicPaths = data.relatedTopics
-    .slice(0, topicLimit)
+    .slice(0, topicRelationshipLimit)
     .map((topic) => topicPath(origin, topic));
   const entityPaths = data.relatedEntities
-    .slice(0, relatedEntityLimit)
+    .slice(0, relatedEntityRelationshipLimit)
     .map((entity) => relatedEntityPath(origin, entity));
 
   return [
