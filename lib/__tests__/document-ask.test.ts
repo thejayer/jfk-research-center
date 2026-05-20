@@ -1,0 +1,182 @@
+import { describe, expect, it } from "vitest";
+import type { DocumentDetail, MentionExcerpt } from "../api-types";
+import { documentAskPassageLimit } from "../constants";
+import {
+  answerDocumentQuestion,
+  buildDocumentAskPromptInput,
+} from "../document-ask";
+
+describe("document ask helpers", () => {
+  it("builds prompt input from the current document only", () => {
+    const input = buildDocumentAskPromptInput({
+      doc: document(),
+      mentions: [
+        mention({
+          id: "m1",
+          chunkOrder: 4,
+          excerpt:
+            "Nosenko stated the KGB file on Oswald contained routine surveillance traffic and no operational tasking.",
+        }),
+        mention({
+          id: "m2",
+          chunkOrder: 8,
+          excerpt: "A secondary passage about Mexico City cable timing.",
+          matchedTerms: ["Mexico City"],
+        }),
+      ],
+      question: "Did Nosenko describe KGB operational tasking?",
+    });
+
+    expect(input.documentId).toBe("nosenko-kgb-oswald-file");
+    expect(input.retrievedDocumentIds).toEqual(["nosenko-kgb-oswald-file"]);
+    expect(input.passages[0]).toMatchObject({
+      id: "nosenko-kgb-oswald-file",
+      href: "#chunk-4",
+      label: "Chunk 4",
+    });
+    expect(input.passages).toHaveLength(1);
+  });
+
+  it("returns a document-scoped cited answer when the current record supports it", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          excerpt:
+            "Nosenko stated the KGB file on Oswald contained routine surveillance traffic and no operational tasking.",
+        }),
+      ],
+      question: "Did Nosenko describe KGB operational tasking?",
+    });
+
+    expect(answer.status).toBe("answer");
+    expect(answer.answer).toContain("[doc:nosenko-kgb-oswald-file]");
+    expect(answer.answer).toContain("not a corpus-wide conclusion");
+    expect(answer.citations).toHaveLength(1);
+    expect(answer.validationIssues).toEqual([]);
+  });
+
+  it("refuses without citations when the current record does not contain enough evidence", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          excerpt:
+            "Nosenko stated the KGB file on Oswald contained routine surveillance traffic.",
+        }),
+      ],
+      question: "What does this prove about Ruby?",
+    });
+
+    expect(answer.status).toBe("refusal");
+    expect(answer.answer).not.toContain("[doc:");
+    expect(answer.citations).toEqual([]);
+    expect(answer.validationIssues).toEqual([]);
+  });
+
+  it("does not treat generic grammar words as evidence", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          excerpt:
+            "Nosenko stated the KGB file on Oswald contained routine surveillance traffic.",
+        }),
+      ],
+      question: "What was the weather in Chicago yesterday?",
+    });
+
+    expect(answer.status).toBe("refusal");
+    expect(answer.answer).not.toContain("[doc:");
+  });
+
+  it("does not treat substring-only token matches as evidence", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          excerpt:
+            "The transcription says cheruby artifact in a damaged scan.",
+          matchedTerms: ["cheruby"],
+        }),
+      ],
+      question: "What does this say about Ruby?",
+    });
+
+    expect(answer.status).toBe("refusal");
+    expect(answer.answer).not.toContain("[doc:");
+  });
+
+  it("supports generic passage questions with loaded OCR context", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          excerpt:
+            "Nosenko stated the KGB file on Oswald contained routine surveillance traffic.",
+        }),
+      ],
+      question: "Which loaded passage is most relevant?",
+    });
+
+    expect(answer.status).toBe("answer");
+    expect(answer.citations[0]).toMatchObject({
+      href: "#chunk-1",
+      label: "Chunk 1",
+    });
+    expect(answer.validationIssues).toEqual([]);
+  });
+
+  it("caps passage context before building answers", () => {
+    const input = buildDocumentAskPromptInput({
+      doc: document(),
+      mentions: Array.from({ length: documentAskPassageLimit + 2 }, (_, index) =>
+        mention({
+          id: `m-${index + 1}`,
+          chunkOrder: index + 1,
+          excerpt: `Oswald passage ${index + 1} mentioning KGB records.`,
+        }),
+      ),
+      question: "What does this document say about KGB records?",
+    });
+
+    expect(input.passages).toHaveLength(documentAskPassageLimit);
+    expect(input.passages.map((passage) => passage.href)).toEqual(
+      Array.from(
+        { length: documentAskPassageLimit },
+        (_, index) => `#chunk-${index + 1}`,
+      ),
+    );
+  });
+});
+
+function document(): DocumentDetail {
+  return {
+    id: "nosenko-kgb-oswald-file",
+    naid: "12345",
+    title: "Nosenko KGB Oswald file",
+    description: "Document about Nosenko's description of the Oswald file.",
+    href: "/document/nosenko-kgb-oswald-file",
+    tags: [],
+    agency: "CIA",
+    recordGroup: "Record Group 263",
+    collectionName: "JFK Assassination Records Collection",
+    hasOcr: true,
+    chunkCount: 4,
+  };
+}
+
+function mention(overrides: Partial<MentionExcerpt>): MentionExcerpt {
+  return {
+    id: overrides.id ?? "m1",
+    documentId: "nosenko-kgb-oswald-file",
+    documentTitle: "Nosenko KGB Oswald file",
+    documentHref: "/document/nosenko-kgb-oswald-file",
+    excerpt: overrides.excerpt ?? "Nosenko stated the KGB file had no tasking.",
+    matchedTerms: overrides.matchedTerms ?? ["Nosenko", "KGB", "Oswald"],
+    confidence: "high",
+    source: "ocr",
+    pageLabel: overrides.pageLabel ?? "p. 1",
+    chunkOrder: overrides.chunkOrder ?? 1,
+  };
+}
