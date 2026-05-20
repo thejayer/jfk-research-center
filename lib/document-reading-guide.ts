@@ -8,6 +8,7 @@ import type {
 import {
   documentReadingContextLimit,
   documentReadingPassageLimit,
+  documentReadingSectionPreviewLimit,
 } from "./constants";
 import { timelineEventHref } from "./timeline-source-bridge";
 
@@ -56,10 +57,10 @@ export function buildDocumentReadingGuide({
   return {
     passageJumps: buildPassageJumps(mentions),
     contextLinks: [
-      ...topics.slice(0, 2).map(topicLink),
-      ...entities.slice(0, 2).map(entityLink),
-      ...timelineEvents.slice(0, 2).map(timelineLink),
-      ...relatedDocuments.slice(0, 2).map(recordLink),
+      ...topics.slice(0, documentReadingSectionPreviewLimit).map(topicLink),
+      ...entities.slice(0, documentReadingSectionPreviewLimit).map(entityLink),
+      ...timelineEvents.slice(0, documentReadingSectionPreviewLimit).map(timelineLink),
+      ...relatedDocuments.slice(0, documentReadingSectionPreviewLimit).map(recordLink),
     ].slice(0, documentReadingContextLimit),
   };
 }

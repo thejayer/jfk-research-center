@@ -43,6 +43,8 @@ export const relatedEntityRelationshipLimit = 2;
 export const documentReadingPassageLimit = 6;
 /** Maximum contextual links shown in the document reading guide. */
 export const documentReadingContextLimit = 6;
+/** Maximum items previewed from each context section before the overall cap. */
+export const documentReadingSectionPreviewLimit = 2;
 
 export const searchGroups = [
   "results",

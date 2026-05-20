@@ -67,7 +67,7 @@ export default async function DocumentPage({
   const hasRelatedEntities = data.relatedEntities.length > 0;
   const hasRelatedDocuments = data.relatedDocuments.length > 0;
   const hasTimelineEvents = timelineEvents.length > 0;
-  const sourceHref = data.document.digitalObjectUrl ?? data.document.sourceUrl;
+  const sourceHref = data.document.digitalObjectUrl || data.document.sourceUrl;
   const researchItem: SavedResearchInput = {
     type: "document",
     sourceId: data.document.id,

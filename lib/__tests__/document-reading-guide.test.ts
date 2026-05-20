@@ -6,6 +6,10 @@ import type {
   MentionExcerpt,
   TopicCard,
 } from "../api-types";
+import {
+  documentReadingContextLimit,
+  documentReadingPassageLimit,
+} from "../constants";
 import { buildDocumentReadingGuide } from "../document-reading-guide";
 
 describe("document reading guide", () => {
@@ -62,6 +66,57 @@ describe("document reading guide", () => {
       meta: "1963-09-27",
     });
   });
+
+  it("truncates passage jumps after deduplication", () => {
+    const duplicateChunk = mention({ id: "duplicate", chunkOrder: 1 });
+    const mentions = [
+      duplicateChunk,
+      mention({ id: "duplicate-ignored", chunkOrder: 1 }),
+      ...Array.from({ length: documentReadingPassageLimit + 3 }, (_, index) =>
+        mention({ id: `m-${index + 2}`, chunkOrder: index + 2 }),
+      ),
+    ];
+
+    const guide = buildDocumentReadingGuide({
+      mentions,
+      topics: [],
+      entities: [],
+      timelineEvents: [],
+      relatedDocuments: [],
+    });
+
+    expect(guide.passageJumps).toHaveLength(documentReadingPassageLimit);
+    expect(guide.passageJumps.map((item) => item.href)).toEqual(
+      Array.from(
+        { length: documentReadingPassageLimit },
+        (_, index) => `#chunk-${index + 1}`,
+      ),
+    );
+  });
+
+  it("truncates context links with stable type ordering", () => {
+    const guide = buildDocumentReadingGuide({
+      mentions: [],
+      topics: Array.from({ length: 4 }, (_, index) => topic(`topic-${index + 1}`)),
+      entities: Array.from({ length: 4 }, (_, index) => entity(`entity-${index + 1}`)),
+      timelineEvents: Array.from({ length: 4 }, (_, index) =>
+        timelineEvent(`timeline-${index + 1}`),
+      ),
+      relatedDocuments: Array.from({ length: 4 }, (_, index) =>
+        document(`document-${index + 1}`),
+      ),
+    });
+
+    expect(guide.contextLinks).toHaveLength(documentReadingContextLimit);
+    expect(guide.contextLinks.map((item) => item.id)).toEqual([
+      "topic:topic-1",
+      "topic:topic-2",
+      "entity:entity-1",
+      "entity:entity-2",
+      "timeline:timeline-1",
+      "timeline:timeline-2",
+    ]);
+  });
 });
 
 function mention(overrides: Partial<MentionExcerpt>): MentionExcerpt {
@@ -82,7 +137,12 @@ function mention(overrides: Partial<MentionExcerpt>): MentionExcerpt {
 function topic(slug: string): TopicCard {
   return {
     slug,
-    title: slug === "cia" ? "CIA" : "Mexico City",
+    title:
+      slug === "cia"
+        ? "CIA"
+        : slug === "mexico-city"
+          ? "Mexico City"
+          : `Topic ${slug}`,
     summary: "Topic summary",
     documentCount: slug === "cia" ? 12 : 24,
     href: `/topics/${slug}`,
@@ -92,7 +152,12 @@ function topic(slug: string): TopicCard {
 function entity(slug: string): EntityCard {
   return {
     slug,
-    name: slug === "cia" ? "Central Intelligence Agency" : "Lee Harvey Oswald",
+    name:
+      slug === "cia"
+        ? "Central Intelligence Agency"
+        : slug === "oswald"
+          ? "Lee Harvey Oswald"
+          : `Entity ${slug}`,
     type: slug === "cia" ? "org" : "person",
     summary: "Entity summary",
     href: `/entity/${slug}`,
