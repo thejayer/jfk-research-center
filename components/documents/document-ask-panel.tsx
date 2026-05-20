@@ -1,10 +1,18 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  Fragment,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { DocumentDetail, MentionExcerpt } from "@/lib/api-types";
 import {
   answerDocumentQuestion,
   type DocumentAskAnswer,
+  type DocumentAskCitation,
 } from "@/lib/document-ask";
 
 export function DocumentAskPanel({
@@ -104,17 +112,9 @@ export function DocumentAskPanel({
           <div className="eyebrow" style={{ marginBottom: 8 }}>
             {result.status === "answer" ? "Scoped answer" : "Scoped refusal"}
           </div>
-          <p style={answerTextStyle}>{result.answer}</p>
-          {result.citations.length > 0 && (
-            <div style={citationListStyle}>
-              {result.citations.map((citation) => (
-                <a key={citation.id} href={citation.href} style={citationStyle}>
-                  <span style={{ fontWeight: 700 }}>{citation.label}</span>
-                  <span className="muted">{citation.excerpt}</span>
-                </a>
-              ))}
-            </div>
-          )}
+          <p style={answerTextStyle}>
+            {renderAnswerWithCitations(result.answer, result.citations)}
+          </p>
           {result.validationIssues.length > 0 && (
             <p className="muted" style={validationStyle}>
               Guardrail check flagged: {result.validationIssues.join(", ")}
@@ -124,6 +124,63 @@ export function DocumentAskPanel({
       )}
     </section>
   );
+}
+
+/**
+ * Mirrors the topic/open-question article citation treatment: [doc:id] tokens
+ * become numbered superscript links, but href/title text come from the scoped
+ * citation entries so document-ask links target the exact passage or metadata.
+ */
+function renderAnswerWithCitations(
+  answer: string,
+  citations: readonly DocumentAskCitation[],
+): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const citationById = new Map<string, DocumentAskCitation>();
+  for (const citation of citations) {
+    if (!citationById.has(citation.id)) citationById.set(citation.id, citation);
+    const lowerId = citation.id.toLowerCase();
+    if (!citationById.has(lowerId)) citationById.set(lowerId, citation);
+  }
+  const citationNumbers = new Map<string, number>();
+  const tokenRe = /\[doc:([^\]]+)\]/g;
+  let lastIdx = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = tokenRe.exec(answer)) !== null) {
+    const before = answer.slice(lastIdx, match.index);
+    if (before) nodes.push(before);
+    const rawId = match[1]!.trim();
+    const citation = citationById.get(rawId) ?? citationById.get(rawId.toLowerCase());
+    if (!citation) {
+      nodes.push(match[0]);
+    } else {
+      let number = citationNumbers.get(rawId);
+      if (!number) {
+        number = citationNumbers.size + 1;
+        citationNumbers.set(rawId, number);
+      }
+      nodes.push(
+        <Fragment key={`c-${key++}`}>
+          <sup style={{ fontSize: "0.7em", lineHeight: 0 }}>
+            <a
+              href={citation.href}
+              title={`${citation.label}: ${citation.excerpt}`}
+              style={superscriptLinkStyle}
+            >
+              [{number}]
+            </a>
+          </sup>
+        </Fragment>,
+      );
+    }
+    lastIdx = match.index + match[0].length;
+  }
+
+  const tail = answer.slice(lastIdx);
+  if (tail) nodes.push(tail);
+  return nodes;
 }
 
 function buildSuggestions(
@@ -250,22 +307,11 @@ const answerTextStyle: CSSProperties = {
   letterSpacing: 0,
 };
 
-const citationListStyle: CSSProperties = {
-  display: "grid",
-  gap: 8,
-  marginTop: 12,
-};
-
-const citationStyle: CSSProperties = {
-  display: "grid",
-  gap: 4,
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text)",
+const superscriptLinkStyle: CSSProperties = {
+  padding: "0 3px",
+  color: "var(--link, var(--text))",
   textDecoration: "none",
-  padding: "9px 10px",
-  fontSize: "0.82rem",
-  lineHeight: 1.4,
+  borderBottom: "1px dotted currentColor",
 };
 
 const validationStyle: CSSProperties = {

@@ -30,7 +30,7 @@ describe("document ask helpers", () => {
     expect(input.documentId).toBe("nosenko-kgb-oswald-file");
     expect(input.retrievedDocumentIds).toEqual(["nosenko-kgb-oswald-file"]);
     expect(input.passages[0]).toMatchObject({
-      id: "m1",
+      id: "nosenko-kgb-oswald-file",
       href: "#chunk-4",
       label: "Chunk 4",
     });
@@ -84,6 +84,23 @@ describe("document ask helpers", () => {
         }),
       ],
       question: "What was the weather in Chicago yesterday?",
+    });
+
+    expect(answer.status).toBe("refusal");
+    expect(answer.answer).not.toContain("[doc:");
+  });
+
+  it("does not treat substring-only token matches as evidence", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          excerpt:
+            "The transcription says cheruby artifact in a damaged scan.",
+          matchedTerms: ["cheruby"],
+        }),
+      ],
+      question: "What does this say about Ruby?",
     });
 
     expect(answer.status).toBe("refusal");

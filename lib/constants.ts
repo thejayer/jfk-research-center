@@ -49,6 +49,51 @@ export const documentReadingSectionPreviewLimit = 2;
 export const documentAskPassageLimit = 3;
 /** Maximum characters shown from an OCR passage in document-scoped ask context. */
 export const documentAskExcerptLimit = 320;
+export const stopWords = new Set([
+  "about",
+  "after",
+  "also",
+  "are",
+  "can",
+  "could",
+  "had",
+  "from",
+  "have",
+  "has",
+  "how",
+  "into",
+  "most",
+  "should",
+  "this",
+  "that",
+  "the",
+  "was",
+  "were",
+  "what",
+  "when",
+  "where",
+  "which",
+  "why",
+  "will",
+  "would",
+  "with",
+  "does",
+  "did",
+  "say",
+  "show",
+  "record",
+  "document",
+]);
+export const documentCitationRequirement: AskCitationRequirement = {
+  minInlineCitations: 1,
+  allowOnlyRetrievedDocuments: true,
+  requireUncertaintyLanguage: false,
+};
+export const refusalCitationRequirement: AskCitationRequirement = {
+  minInlineCitations: 0,
+  allowOnlyRetrievedDocuments: true,
+  requireUncertaintyLanguage: false,
+};
 
 export const searchGroups = [
   "results",

@@ -1,7 +1,10 @@
 import type { DocumentDetail, MentionExcerpt } from "./api-types";
 import {
+  documentCitationRequirement,
   documentAskExcerptLimit,
   documentAskPassageLimit,
+  refusalCitationRequirement,
+  stopWords,
 } from "./constants";
 import { validateAskDraft, type AskDraftValidationIssue } from "./ask-guardrails";
 
@@ -34,54 +37,6 @@ type DocumentAskSource = {
   question: string;
 };
 
-const stopWords = new Set([
-  "about",
-  "after",
-  "also",
-  "are",
-  "can",
-  "could",
-  "had",
-  "from",
-  "have",
-  "has",
-  "how",
-  "into",
-  "most",
-  "should",
-  "this",
-  "that",
-  "the",
-  "was",
-  "were",
-  "what",
-  "when",
-  "where",
-  "which",
-  "why",
-  "will",
-  "would",
-  "with",
-  "does",
-  "did",
-  "say",
-  "show",
-  "record",
-  "document",
-]);
-
-const documentCitationRequirement = {
-  minInlineCitations: 1,
-  allowOnlyRetrievedDocuments: true,
-  requireUncertaintyLanguage: false,
-};
-
-const refusalCitationRequirement = {
-  minInlineCitations: 0,
-  allowOnlyRetrievedDocuments: true,
-  requireUncertaintyLanguage: false,
-};
-
 /**
  * Builds the deterministic, document-only context used by the local ask panel.
  *
@@ -109,7 +64,7 @@ export function buildDocumentAskPromptInput({
     )
     .sort((a, b) => b.score - a.score || mentionOrder(a.mention) - mentionOrder(b.mention))
     .slice(0, documentAskPassageLimit)
-    .map(({ mention }) => mentionCitation(mention));
+    .map(({ mention }) => mentionCitation(mention, doc.id));
 
   return {
     question: normalizedQuestion,
@@ -218,9 +173,12 @@ function metadataSupportsQuestion(
   return metadata.some((value) => scoreText(value, tokens) > 0);
 }
 
-function mentionCitation(mention: MentionExcerpt): DocumentAskCitation {
+function mentionCitation(
+  mention: MentionExcerpt,
+  documentId: string,
+): DocumentAskCitation {
   return {
-    id: mention.id,
+    id: documentId,
     label:
       mention.chunkOrder != null
         ? `Chunk ${mention.chunkOrder}`
@@ -246,9 +204,9 @@ function scoreMention(mention: MentionExcerpt, tokens: readonly string[]): numbe
 }
 
 function scoreText(value: string, tokens: readonly string[]): number {
-  const normalized = value.toLowerCase();
+  const words = new Set(value.toLowerCase().match(/[a-z0-9]+/g) ?? []);
   return tokens.reduce(
-    (score, token) => score + (normalized.includes(token) ? 1 : 0),
+    (score, token) => score + (words.has(token) ? 1 : 0),
     0,
   );
 }
