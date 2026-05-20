@@ -45,6 +45,10 @@ export const documentReadingPassageLimit = 6;
 export const documentReadingContextLimit = 6;
 /** Maximum items previewed from each context section before the overall cap. */
 export const documentReadingSectionPreviewLimit = 2;
+/** Maximum OCR passages considered for a single document-scoped ask answer. */
+export const documentAskPassageLimit = 3;
+/** Maximum characters shown from an OCR passage in document-scoped ask context. */
+export const documentAskExcerptLimit = 320;
 
 export const searchGroups = [
   "results",

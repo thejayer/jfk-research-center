@@ -9,6 +9,7 @@ import { OcrPanel } from "@/components/documents/ocr-panel";
 import { SourceLinks } from "@/components/documents/source-links";
 import { ReleaseHistory } from "@/components/documents/release-history";
 import { DocumentReadingGuide } from "@/components/documents/document-reading-guide";
+import { DocumentAskPanel } from "@/components/documents/document-ask-panel";
 import { DocumentResearchContext } from "@/components/documents/document-research-context";
 import { DocumentTimelineBridge } from "@/components/documents/document-timeline-bridge";
 import { RelatedEntities } from "@/components/entities/related-entities";
@@ -141,6 +142,8 @@ export default async function DocumentPage({
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+          <DocumentAskPanel doc={data.document} mentions={data.mentions} />
+
           <OcrPanel doc={data.document} mentions={data.mentions} />
 
           {hasRelatedEntities && (
@@ -236,6 +239,7 @@ function DocumentJumpNav({
     hasReleaseHistory ? { href: "#release-history", label: "Release history" } : null,
     hasResearchContext ? { href: "#research-context", label: "Research context" } : null,
     hasTimelineEvents ? { href: "#timeline-moments", label: "Timeline moments" } : null,
+    { href: "#ask-this-document", label: "Ask this document" },
     { href: "#ocr-text", label: "OCR text" },
     hasRelatedEntities ? { href: "#related-entities", label: "Entities" } : null,
     hasRelatedDocuments ? { href: "#related-records", label: "Related records" } : null,
