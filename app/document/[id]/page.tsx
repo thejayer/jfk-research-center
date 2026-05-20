@@ -1,19 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { CSSProperties } from "react";
 import { fetchCaseTimeline, fetchDocument } from "@/lib/api-client";
 import { DocumentHeader } from "@/components/documents/document-header";
 import { MetadataPanel } from "@/components/documents/metadata-panel";
 import { OcrPanel } from "@/components/documents/ocr-panel";
 import { SourceLinks } from "@/components/documents/source-links";
 import { ReleaseHistory } from "@/components/documents/release-history";
+import { DocumentReadingGuide } from "@/components/documents/document-reading-guide";
 import { DocumentResearchContext } from "@/components/documents/document-research-context";
 import { DocumentTimelineBridge } from "@/components/documents/document-timeline-bridge";
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { SaveResearchButton } from "@/components/research/save-research-button";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { buildDocumentReadingGuide } from "@/lib/document-reading-guide";
+import type { SavedResearchInput } from "@/lib/saved-research";
 import { findTimelineEventsForDocument } from "@/lib/timeline-source-bridge";
 
 export const dynamic = "force-dynamic";
@@ -62,17 +67,26 @@ export default async function DocumentPage({
   const hasRelatedEntities = data.relatedEntities.length > 0;
   const hasRelatedDocuments = data.relatedDocuments.length > 0;
   const hasTimelineEvents = timelineEvents.length > 0;
+  const sourceHref = data.document.digitalObjectUrl ?? data.document.sourceUrl;
+  const researchItem: SavedResearchInput = {
+    type: "document",
+    sourceId: data.document.id,
+    title: data.document.title,
+    href: data.document.href,
+    context: `NAID ${data.document.naid}`,
+  };
+  const readingGuide = buildDocumentReadingGuide({
+    mentions: data.mentions,
+    topics: data.relatedTopics,
+    entities: data.relatedEntities,
+    timelineEvents,
+    relatedDocuments: data.relatedDocuments,
+  });
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
       <ResearchHistoryTracker
-        item={{
-          type: "document",
-          sourceId: data.document.id,
-          title: data.document.title,
-          href: data.document.href,
-          context: `NAID ${data.document.naid}`,
-        }}
+        item={researchItem}
       />
       <nav
         aria-label="Breadcrumb"
@@ -167,13 +181,16 @@ export default async function DocumentPage({
             hasRelatedDocuments={hasRelatedDocuments}
           />
           <DocumentReaderActions
+            saveItem={researchItem}
             naid={data.document.naid}
             title={data.document.title}
             pageCount={data.document.pageCount}
             chunkCount={data.document.chunkCount}
             hasOcr={data.document.hasOcr}
             citation={data.document.citation}
+            sourceHref={sourceHref}
           />
+          <DocumentReadingGuide guide={readingGuide} />
           <div id="metadata">
             <MetadataPanel doc={data.document} />
           </div>
@@ -291,37 +308,52 @@ function DocumentJumpNav({
 }
 
 function DocumentReaderActions({
+  saveItem,
   naid,
   title,
   pageCount,
   chunkCount,
   hasOcr,
   citation,
+  sourceHref,
 }: {
+  saveItem: SavedResearchInput;
   naid: string;
   title: string;
   pageCount?: number | null;
   chunkCount?: number | null;
   hasOcr?: boolean;
   citation?: string | null;
+  sourceHref?: string | null;
 }) {
   const encodedTitle = encodeURIComponent(title);
   const actions = [
+    sourceHref
+      ? {
+          href: sourceHref,
+          label: "Open source",
+          detail: "Archive scan or catalog",
+          external: true,
+        }
+      : null,
     {
       href: `/search?q=${encodedTitle}&mode=document`,
       label: "Search title",
       detail: "Find matching records",
+      external: false,
     },
     {
       href: `/search?q=${encodeURIComponent(naid)}&mode=document`,
       label: "Search NAID",
       detail: naid,
+      external: false,
     },
     hasOcr
       ? {
           href: "#ocr-text",
           label: "Read OCR",
           detail: formatDocumentMeasure(pageCount, chunkCount),
+          external: false,
         }
       : null,
     citation
@@ -329,9 +361,15 @@ function DocumentReaderActions({
           href: "#source",
           label: "Copy citation",
           detail: "Available in source tools",
+          external: false,
         }
       : null,
-  ].filter(Boolean) as Array<{ href: string; label: string; detail: string }>;
+  ].filter(Boolean) as Array<{
+    href: string;
+    label: string;
+    detail: string;
+    external: boolean;
+  }>;
 
   return (
     <section
@@ -346,38 +384,65 @@ function DocumentReaderActions({
       <div className="eyebrow" style={{ marginBottom: 10 }}>
         Reader actions
       </div>
+      <div style={{ marginBottom: 10 }}>
+        <SaveResearchButton item={saveItem} compact />
+      </div>
       <div style={{ display: "grid", gap: 8 }}>
-        {actions.map((action) => (
-          <Link
-            key={action.label}
-            href={action.href}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              padding: "10px 11px",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              color: "var(--text)",
-              textDecoration: "none",
-            }}
-          >
-            <span style={{ minWidth: 0 }}>
-              <span style={{ display: "block", fontSize: "0.88rem", fontWeight: 600 }}>
-                {action.label}
-              </span>
-              <span className="muted" style={{ display: "block", fontSize: "0.76rem" }}>
-                {action.detail}
-              </span>
-            </span>
-            <ArrowRightIcon />
-          </Link>
-        ))}
+        {actions.map((action) =>
+          action.external ? (
+            <a
+              key={action.label}
+              href={action.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={readerActionStyle}
+            >
+              <ReaderActionContent label={action.label} detail={action.detail} />
+            </a>
+          ) : (
+            <Link key={action.label} href={action.href} style={readerActionStyle}>
+              <ReaderActionContent label={action.label} detail={action.detail} />
+            </Link>
+          ),
+        )}
       </div>
     </section>
   );
 }
+
+function ReaderActionContent({
+  label,
+  detail,
+}: {
+  label: string;
+  detail: string;
+}) {
+  return (
+    <>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: "0.88rem", fontWeight: 600 }}>
+          {label}
+        </span>
+        <span className="muted" style={{ display: "block", fontSize: "0.76rem" }}>
+          {detail}
+        </span>
+      </span>
+      <ArrowRightIcon />
+    </>
+  );
+}
+
+const readerActionStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: "10px 11px",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  color: "var(--text)",
+  textDecoration: "none",
+};
 
 function formatDocumentMeasure(
   pageCount?: number | null,

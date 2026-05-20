@@ -39,6 +39,11 @@ export const timelineRelationshipLimit = 2;
 export const topicRelationshipLimit = 2;
 export const relatedEntityRelationshipLimit = 2;
 
+/** Maximum OCR passage anchors shown in the document reading guide. */
+export const documentReadingPassageLimit = 6;
+/** Maximum contextual links shown in the document reading guide. */
+export const documentReadingContextLimit = 6;
+
 export const searchGroups = [
   "results",
   "entities",
