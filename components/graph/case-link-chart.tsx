@@ -69,6 +69,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     panX: number;
     panY: number;
   } | null>(null);
+  const latestRequestIdRef = useRef(0);
 
   const chart = useMemo(() => buildCaseLinkChart(graph), [graph]);
   const { min, max } = initial.yearBounds;
@@ -77,6 +78,10 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
   const layout = useMemo(
     () => buildLayout(chart.nodes, chart.links, visibleTypeSet),
     [chart.nodes, chart.links, visibleTypeSet],
+  );
+  const visibleNodeIds = useMemo(
+    () => new Set(layout.nodes.map((node) => node.id)),
+    [layout.nodes],
   );
 
   useEffect(() => {
@@ -95,10 +100,12 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     return chart.links
       .filter(
         (link) =>
-          link.source === selectedNode.id || link.target === selectedNode.id,
+          visibleNodeIds.has(link.source) &&
+          visibleNodeIds.has(link.target) &&
+          (link.source === selectedNode.id || link.target === selectedNode.id),
       )
       .slice(0, 6);
-  }, [chart.links, selectedNode]);
+  }, [chart.links, selectedNode, visibleNodeIds]);
 
   const focusedNodeId = hoveredNodeId ?? selectedNodeId;
   const connectedNodeIds = useMemo(() => {
@@ -115,6 +122,8 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     async (nextFrom: number, nextTo: number) => {
       const lo = Math.min(nextFrom, nextTo);
       const hi = Math.max(nextFrom, nextTo);
+      const requestId = latestRequestIdRef.current + 1;
+      latestRequestIdRef.current = requestId;
       setLoading(true);
       try {
         const res = await fetch(`/api/graph?yearFrom=${lo}&yearTo=${hi}`, {
@@ -124,11 +133,15 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           throw new Error(`Graph refetch failed: ${res.status}`);
         }
         const data = (await res.json()) as CooccurrenceGraph;
-        setGraph(data);
+        if (latestRequestIdRef.current === requestId) {
+          setGraph(data);
+        }
       } catch (err) {
         console.error("Graph refetch failed:", err);
       } finally {
-        setLoading(false);
+        if (latestRequestIdRef.current === requestId) {
+          setLoading(false);
+        }
       }
     },
     [],

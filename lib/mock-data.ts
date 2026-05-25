@@ -1619,7 +1619,7 @@ export function buildEntityCooccurrence({
 
   for (const doc of DOCUMENT_SEEDS) {
     const year = doc.date ? Number.parseInt(doc.date.slice(0, 4), 10) : null;
-    if (year != null && (Number.isNaN(year) || year < lo || year > hi)) {
+    if (year === null || Number.isNaN(year) || year < lo || year > hi) {
       continue;
     }
 
