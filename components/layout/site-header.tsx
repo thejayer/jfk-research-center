@@ -77,9 +77,9 @@ const EXPLORE_GROUPS: NavGroup[] = [
     title: "Analysis",
     items: [
       {
-        label: "Network graph",
+        label: "Case link chart",
         href: "/graph",
-        description: "Explore entity co-occurrence and relationships.",
+        description: "Investigative board of entity co-occurrence trails.",
       },
       {
         label: "Compare",

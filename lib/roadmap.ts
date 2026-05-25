@@ -111,11 +111,11 @@ export const ROADMAP: RoadmapItem[] = [
   },
   {
     surface: "/graph",
-    label: "Entity co-occurrence network",
+    label: "Case link chart",
     status: "shipped",
     phase: "Phase 5-C",
     description:
-      "Force-directed network of entity-pair co-occurrence with year-range slider.",
+      "Investigation-style board of entity-pair co-occurrence with labeled links, filters, and year-range controls.",
   },
   {
     surface: "/api/v1/*",

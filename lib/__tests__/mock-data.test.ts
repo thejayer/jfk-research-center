@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCompareResponse,
   buildDocumentResponse,
+  buildEntityCooccurrence,
   buildSearchResponse,
 } from "../mock-data";
 
@@ -52,6 +53,44 @@ describe("buildDocumentResponse", () => {
     expect(byNaid?.document.id).toBe("wc-report-1964");
     expect(byNaid?.document.href).toBe("/document/wc-report-1964");
     expect(byNaid?.mentions).toEqual(byId?.mentions);
+  });
+});
+
+describe("buildEntityCooccurrence", () => {
+  it("normalizes reversed year inputs and clamps the applied range", () => {
+    const response = buildEntityCooccurrence({
+      yearFrom: 1979,
+      yearTo: 1963,
+    });
+
+    expect(response.yearBounds).toEqual({ min: 1950, max: 2005 });
+    expect(response.appliedRange).toEqual({ yearFrom: 1963, yearTo: 1979 });
+    expect(response.links.length).toBeGreaterThan(0);
+  });
+
+  it("filters links below the requested minimum co-occurrence count", () => {
+    const loose = buildEntityCooccurrence({ minCount: 2 });
+    const strict = buildEntityCooccurrence({ minCount: 6 });
+
+    expect(strict.links.length).toBeLessThan(loose.links.length);
+    expect(strict.links.every((link) => link.count >= 6)).toBe(true);
+    expect(strict.nodes.every((node) => node.degree > 0)).toBe(true);
+  });
+
+  it("sets node degree from the number of linked peers", () => {
+    const response = buildEntityCooccurrence({ minCount: 2 });
+    const peersById = new Map<string, Set<string>>();
+
+    for (const link of response.links) {
+      if (!peersById.has(link.source)) peersById.set(link.source, new Set());
+      if (!peersById.has(link.target)) peersById.set(link.target, new Set());
+      peersById.get(link.source)?.add(link.target);
+      peersById.get(link.target)?.add(link.source);
+    }
+
+    for (const node of response.nodes) {
+      expect(node.degree).toBe(peersById.get(node.id)?.size ?? 0);
+    }
   });
 });
 
