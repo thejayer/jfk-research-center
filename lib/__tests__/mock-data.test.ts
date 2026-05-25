@@ -75,6 +75,9 @@ describe("buildEntityCooccurrence", () => {
     expect(strict.links.length).toBeLessThan(loose.links.length);
     expect(strict.links.every((link) => link.count >= 6)).toBe(true);
     expect(strict.nodes.every((node) => node.degree > 0)).toBe(true);
+    expect(strict.links.every((link) => (link.documents?.length ?? 0) > 0)).toBe(
+      true,
+    );
   });
 
   it("sets node degree from the number of linked peers", () => {

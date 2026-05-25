@@ -10,7 +10,20 @@ const graph: CooccurrenceGraph = {
     { id: "mexico-city", name: "Mexico City trip", type: "concept", degree: 3 },
   ],
   links: [
-    { source: "oswald", target: "cia", count: 12 },
+    {
+      source: "oswald",
+      target: "cia",
+      count: 12,
+      documents: [
+        {
+          id: "wc-report-1964",
+          naid: "193887",
+          title: "Warren Commission Report",
+          href: "/document/wc-report-1964",
+          tags: ["Warren Commission"],
+        },
+      ],
+    },
     { source: "oswald", target: "dealey-plaza", count: 9 },
     { source: "cia", target: "mexico-city", count: 5 },
     { source: "dealey-plaza", target: "mexico-city", count: 2 },
@@ -36,6 +49,12 @@ describe("case link chart", () => {
       label: "12 shared records",
       sourceName: "Lee Harvey Oswald",
       targetName: "Central Intelligence Agency",
+      documents: [
+        expect.objectContaining({
+          id: "wc-report-1964",
+          title: "Warren Commission Report",
+        }),
+      ],
     });
   });
 
