@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { fetchEntityCooccurrence } from "@/lib/api-client";
-import { CooccurrenceGraphViz } from "@/components/graph/cooccurrence-graph";
+import { CaseLinkChart } from "@/components/graph/case-link-chart";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Network",
+  title: "Case link chart",
   description:
-    "Force-directed graph of entity co-occurrences across the collection — who appears in records with whom, filterable by event-date range.",
+    "Investigation-style link chart of people, agencies, places, and concepts that co-occur across JFK records.",
 };
 
 export default async function GraphPage() {
@@ -20,7 +20,7 @@ export default async function GraphPage() {
     >
       <header style={{ maxWidth: "68ch", marginBottom: 32 }}>
         <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-          Network
+          Case link chart
         </div>
         <h1
           style={{
@@ -31,7 +31,7 @@ export default async function GraphPage() {
             marginBottom: 18,
           }}
         >
-          Entity co-occurrence
+          Map the case by people, agencies, places, and concepts
         </h1>
         <p
           style={{
@@ -40,17 +40,16 @@ export default async function GraphPage() {
             color: "var(--text)",
           }}
         >
-          Every pair of people and organizations that appears together in a
-          record, aggregated over a user-selected date range. The goal is
-          not to prove a connection — a shared mention only means the two
-          names landed in the same document — but to surface who the
-          collection treats as adjacent to whom. Use the range slider below
-          to isolate specific eras: the 1963 investigation, the
-          1976–79 HSCA period, the 1990s ARRB release era.
+          A digital case board for seeing which entities appear together in
+          the archive. Cards are grouped by entity type, lines are labeled by
+          shared records, and the date range lets you isolate the 1963
+          investigation, the HSCA period, or later declassification eras. A
+          shared mention is not proof of a relationship; it is a trailhead for
+          reading the underlying records.
         </p>
       </header>
 
-      <CooccurrenceGraphViz initial={graph} />
+      <CaseLinkChart initial={graph} />
     </div>
   );
 }

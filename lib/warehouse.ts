@@ -77,6 +77,7 @@ import type {
 import { formatDate } from "./format";
 import {
   buildDocumentResponse,
+  buildEntityCooccurrence,
   buildBibliographyIndex,
   buildCaseTimelineIndex,
   buildCompareResponse,
@@ -1728,6 +1729,10 @@ export async function fetchEntityCooccurrence({
   yearTo?: number;
   minCount?: number;
 } = {}): Promise<CooccurrenceGraph> {
+  if (useMockData()) {
+    return buildEntityCooccurrence({ yearFrom, yearTo, minCount });
+  }
+
   const lo = Math.max(COOC_YEAR_MIN, Math.min(yearFrom, yearTo));
   const hi = Math.min(COOC_YEAR_MAX, Math.max(yearFrom, yearTo));
 

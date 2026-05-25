@@ -31,6 +31,9 @@ import type {
   CaseTimelineCategory,
   CaseTimelineEvent,
   CaseTimelineIndex,
+  CooccurrenceGraph,
+  CooccurrenceLink,
+  CooccurrenceNode,
   CompareResponse,
   CitationEntry,
   CitationType,
@@ -1598,6 +1601,84 @@ export function buildHomeResponse(): HomeResponse {
       recordsWith2025Ocr: 2162,
       coverageNote: "",
     },
+  };
+}
+
+export function buildEntityCooccurrence({
+  yearFrom = 1950,
+  yearTo = 2005,
+  minCount = 2,
+}: {
+  yearFrom?: number;
+  yearTo?: number;
+  minCount?: number;
+} = {}): CooccurrenceGraph {
+  const lo = Math.max(1950, Math.min(yearFrom, yearTo));
+  const hi = Math.min(2005, Math.max(yearFrom, yearTo));
+  const pairCounts = new Map<string, { source: string; target: string; count: number }>();
+
+  for (const doc of DOCUMENT_SEEDS) {
+    const year = doc.date ? Number.parseInt(doc.date.slice(0, 4), 10) : null;
+    if (year != null && (Number.isNaN(year) || year < lo || year > hi)) {
+      continue;
+    }
+
+    const entityIds = [...new Set(doc.entities)]
+      .filter((entityId) => Boolean(ENTITY_TABLE[entityId]))
+      .sort();
+
+    for (let i = 0; i < entityIds.length; i += 1) {
+      for (let j = i + 1; j < entityIds.length; j += 1) {
+        const source = entityIds[i];
+        const target = entityIds[j];
+        if (!source || !target) continue;
+        const key = `${source}--${target}`;
+        const current = pairCounts.get(key);
+        if (current) {
+          current.count += 1;
+        } else {
+          pairCounts.set(key, { source, target, count: 1 });
+        }
+      }
+    }
+  }
+
+  const links: CooccurrenceLink[] = [...pairCounts.values()]
+    .filter((pair) => pair.count >= minCount)
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.source.localeCompare(b.source) ||
+        a.target.localeCompare(b.target),
+    );
+
+  const peersById = new Map<string, Set<string>>();
+  for (const link of links) {
+    if (!peersById.has(link.source)) peersById.set(link.source, new Set());
+    if (!peersById.has(link.target)) peersById.set(link.target, new Set());
+    peersById.get(link.source)!.add(link.target);
+    peersById.get(link.target)!.add(link.source);
+  }
+
+  const nodes: CooccurrenceNode[] = [...peersById.entries()]
+    .map(([entityId, peers]) => {
+      const entity = ENTITY_TABLE[entityId];
+      if (!entity) return null;
+      return {
+        id: entity.slug,
+        name: entity.name,
+        type: entity.type,
+        degree: peers.size,
+      };
+    })
+    .filter((node): node is CooccurrenceNode => node !== null)
+    .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name));
+
+  return {
+    nodes,
+    links,
+    yearBounds: { min: 1950, max: 2005 },
+    appliedRange: { yearFrom: lo, yearTo: hi },
   };
 }
 
