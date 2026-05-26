@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { TopicDetail } from "@/lib/api-types";
-import { fetchTopic } from "@/lib/api-client";
+import { fetchMediaIndex, fetchTopic } from "@/lib/api-client";
 import { TopicHero } from "@/components/topics/topic-hero";
 import { TopicEvidenceTrail } from "@/components/topics/topic-evidence-trail";
 import { TopicBody } from "@/components/topics/topic-body";
@@ -17,6 +17,8 @@ import { RelatedDocumentsRail } from "@/components/research/related-documents-ra
 import { ResearchContextPanel } from "@/components/research/research-context-panel";
 import layout from "@/components/ui/two-column.module.css";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { RelatedMediaPanel } from "@/components/media/related-media-panel";
+import { findRelatedMediaAssets } from "@/lib/media-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +55,21 @@ export default async function TopicPage({
   const { slug } = await params;
   if (slug === "physical-evidence") redirect("/evidence");
 
-  const data = await fetchTopic(slug);
+  const [data, media] = await Promise.all([
+    fetchTopic(slug),
+    fetchMediaIndex().catch(() => null),
+  ]);
   if (!data) notFound();
 
   const topicSearchHref = `/search?topic=${encodeURIComponent(data.topic.slug)}`;
   const archiveSearchHref = `/search?q=${encodeURIComponent(data.topic.title)}&mode=document`;
+  const relatedMedia = media
+    ? findRelatedMediaAssets(media.assets, {
+        topics: [data.topic.slug],
+        entities: data.relatedEntities.map((entity) => entity.slug),
+        limit: 4,
+      })
+    : [];
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -105,6 +117,12 @@ export default async function TopicPage({
         documents={data.topDocuments}
         mentions={data.mentionExcerpts}
         documentsHref="#documents"
+      />
+
+      <RelatedMediaPanel
+        assets={relatedMedia}
+        title={`Official media for ${data.topic.title}`}
+        description="JFK Library media records connected by this topic or its strongest related entities."
       />
 
       <ResearchContextPanel

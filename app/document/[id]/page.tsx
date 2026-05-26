@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
-import { fetchCaseTimeline, fetchDocument } from "@/lib/api-client";
+import { fetchCaseTimeline, fetchDocument, fetchMediaIndex } from "@/lib/api-client";
 import { DocumentHeader } from "@/components/documents/document-header";
 import { MetadataPanel } from "@/components/documents/metadata-panel";
 import { OcrPanel } from "@/components/documents/ocr-panel";
@@ -18,9 +18,11 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { SaveResearchButton } from "@/components/research/save-research-button";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { RelatedMediaPanel } from "@/components/media/related-media-panel";
 import { buildDocumentReadingGuide } from "@/lib/document-reading-guide";
 import type { SavedResearchInput } from "@/lib/saved-research";
 import { findTimelineEventsForDocument } from "@/lib/timeline-source-bridge";
+import { findRelatedMediaAssets } from "@/lib/media-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -47,12 +49,14 @@ export default async function DocumentPage({
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
-  const [documentResult, timelineResult] = await Promise.allSettled([
+  const [documentResult, timelineResult, mediaResult] = await Promise.allSettled([
     fetchDocument(id),
     fetchCaseTimeline(),
+    fetchMediaIndex(),
   ]);
   const data = documentResult.status === "fulfilled" ? documentResult.value : null;
   const timeline = timelineResult.status === "fulfilled" ? timelineResult.value : null;
+  const media = mediaResult.status === "fulfilled" ? mediaResult.value : null;
   if (!data) notFound();
   const timelineEvents = timeline
     ? findTimelineEventsForDocument(timeline.events, data.document)
@@ -83,6 +87,13 @@ export default async function DocumentPage({
     timelineEvents,
     relatedDocuments: data.relatedDocuments,
   });
+  const relatedMedia = media
+    ? findRelatedMediaAssets(media.assets, {
+        entities: data.relatedEntities.map((entity) => entity.slug),
+        topics: data.relatedTopics.map((topic) => topic.slug),
+        limit: 4,
+      })
+    : [];
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -131,6 +142,12 @@ export default async function DocumentPage({
       />
 
       <DocumentTimelineBridge doc={data.document} events={timelineEvents} />
+
+      <RelatedMediaPanel
+        assets={relatedMedia}
+        title="Official media tied to this record"
+        description="JFK Library media records connected through the same topic or entity relationships as this document."
+      />
 
       <div
         className="document-grid"

@@ -35,6 +35,7 @@ describe("research history storage", () => {
       topic: "Topic",
       timeline: "Timeline",
       question: "Open question",
+      media: "Media",
       search: "Search",
       path: "Research path",
     };
