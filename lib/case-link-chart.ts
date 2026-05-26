@@ -2,6 +2,7 @@ import type {
   CooccurrenceGraph,
   CooccurrenceLink,
   CooccurrenceNode,
+  DocumentCard,
 } from "./api-types";
 
 const defaultMaxNodes = 42;
@@ -14,12 +15,13 @@ export type CaseLinkChartNode = CooccurrenceNode & {
   rank: number;
 };
 
-export type CaseLinkChartLink = CooccurrenceLink & {
+export type CaseLinkChartLink = Omit<CooccurrenceLink, "documents"> & {
   id: string;
   href: string;
   label: string;
   sourceName: string;
   targetName: string;
+  documents: DocumentCard[];
 };
 
 export type CaseLinkChart = {
@@ -90,6 +92,7 @@ export function buildCaseLinkChart(
       }`,
       sourceName,
       targetName,
+      documents: link.documents ?? [],
     };
   });
 

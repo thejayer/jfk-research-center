@@ -1615,7 +1615,15 @@ export function buildEntityCooccurrence({
 } = {}): CooccurrenceGraph {
   const lo = Math.max(1950, Math.min(yearFrom, yearTo));
   const hi = Math.min(2005, Math.max(yearFrom, yearTo));
-  const pairCounts = new Map<string, { source: string; target: string; count: number }>();
+  const pairCounts = new Map<
+    string,
+    {
+      source: string;
+      target: string;
+      count: number;
+      documentIds: Set<string>;
+    }
+  >();
 
   for (const doc of DOCUMENT_SEEDS) {
     const year = doc.date ? Number.parseInt(doc.date.slice(0, 4), 10) : null;
@@ -1636,8 +1644,14 @@ export function buildEntityCooccurrence({
         const current = pairCounts.get(key);
         if (current) {
           current.count += 1;
+          current.documentIds.add(doc.id);
         } else {
-          pairCounts.set(key, { source, target, count: 1 });
+          pairCounts.set(key, {
+            source,
+            target,
+            count: 1,
+            documentIds: new Set([doc.id]),
+          });
         }
       }
     }
@@ -1645,6 +1659,23 @@ export function buildEntityCooccurrence({
 
   const links: CooccurrenceLink[] = [...pairCounts.values()]
     .filter((pair) => pair.count >= minCount)
+    .map((pair) => ({
+      source: pair.source,
+      target: pair.target,
+      count: pair.count,
+      documents: [...pair.documentIds]
+        .map((documentId) => DOCUMENT_SEEDS.find((doc) => doc.id === documentId))
+        .filter((doc): doc is DocumentSeed => Boolean(doc))
+        .sort(
+          (a, b) =>
+            (b.startDate ?? b.date ?? "").localeCompare(
+              a.startDate ?? a.date ?? "",
+            ) ||
+            a.title.localeCompare(b.title),
+        )
+        .slice(0, 4)
+        .map(documentToCard),
+    }))
     .sort(
       (a, b) =>
         b.count - a.count ||

@@ -1720,6 +1720,12 @@ type CooccurrenceRow = {
   n: number;
 };
 
+type CooccurrenceDocumentRow = RecordRow & {
+  entity_a: string;
+  entity_b: string;
+  rn: number;
+};
+
 export async function fetchEntityCooccurrence({
   yearFrom = COOC_YEAR_MIN,
   yearTo = COOC_YEAR_MAX,
@@ -1736,7 +1742,7 @@ export async function fetchEntityCooccurrence({
   const lo = Math.max(COOC_YEAR_MIN, Math.min(yearFrom, yearTo));
   const hi = Math.min(COOC_YEAR_MAX, Math.max(yearFrom, yearTo));
 
-  const [pairRows, entities] = await Promise.all([
+  const [pairRows, documentRows, entities] = await Promise.all([
     query<CooccurrenceRow>(
       `SELECT entity_a, entity_b, SUM(cooccurrence_count) AS n
          FROM \`${PROJECT}.${DATASET_CURATED}.entity_cooccurrence\`
@@ -1746,8 +1752,71 @@ export async function fetchEntityCooccurrence({
         ORDER BY n DESC`,
       { lo, hi, minCount },
     ),
+    query<CooccurrenceDocumentRow>(
+      `WITH eligible_pairs AS (
+         SELECT entity_a, entity_b, SUM(cooccurrence_count) AS n
+           FROM \`${PROJECT}.${DATASET_CURATED}.entity_cooccurrence\`
+          WHERE year BETWEEN @lo AND @hi
+          GROUP BY entity_a, entity_b
+         HAVING n >= @minCount
+       ),
+       pair_docs AS (
+         SELECT
+           ep.entity_a,
+           ep.entity_b,
+           r.document_id,
+           CAST(r.naid AS STRING) AS naid,
+           r.title,
+           r.description,
+           r.record_group,
+           r.agency,
+           r.collection_name,
+           r.start_date,
+           r.end_date,
+           r.release_date,
+           r.release_set,
+           r.source_url,
+           r.thumbnail_url,
+           r.digital_object_url,
+           r.document_type,
+           r.has_ocr,
+           r.has_digital_object,
+           r.num_pages,
+           r.pages_released,
+           r.withholding_status,
+           ROW_NUMBER() OVER (
+             PARTITION BY ep.entity_a, ep.entity_b
+             ORDER BY r.start_date DESC NULLS LAST, r.document_id
+           ) AS rn
+         FROM eligible_pairs ep
+         JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\` a
+           ON a.entity_id = ep.entity_a
+          AND a.confidence IN ('high', 'medium')
+         JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\` b
+           ON b.document_id = a.document_id
+          AND b.entity_id = ep.entity_b
+          AND b.confidence IN ('high', 'medium')
+         JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+           ON r.document_id = a.document_id
+        WHERE r.start_date IS NOT NULL
+          AND EXTRACT(YEAR FROM r.start_date) BETWEEN @lo AND @hi
+       )
+       SELECT *
+         FROM pair_docs
+        WHERE rn <= 4
+        ORDER BY entity_a, entity_b, rn`,
+      { lo, hi, minCount },
+    ),
     loadEntities(),
   ]);
+
+  const documentsByPair = new Map<string, DocumentCard[]>();
+  for (const row of documentRows) {
+    const key = cooccurrencePairKey(row.entity_a, row.entity_b);
+    const list = documentsByPair.get(key) ?? [];
+    list.push(rowToCard(row));
+    documentsByPair.set(key, list);
+  }
 
   const connectedIds = new Set<string>();
   const degreeById = new Map<string, number>();
@@ -1756,7 +1825,12 @@ export async function fetchEntityCooccurrence({
     connectedIds.add(r.entity_b);
     degreeById.set(r.entity_a, (degreeById.get(r.entity_a) ?? 0) + 1);
     degreeById.set(r.entity_b, (degreeById.get(r.entity_b) ?? 0) + 1);
-    return { source: r.entity_a, target: r.entity_b, count: r.n };
+    return {
+      source: r.entity_a,
+      target: r.entity_b,
+      count: r.n,
+      documents: documentsByPair.get(cooccurrencePairKey(r.entity_a, r.entity_b)) ?? [],
+    };
   });
 
   const nodes: CooccurrenceNode[] = entities
@@ -1775,6 +1849,10 @@ export async function fetchEntityCooccurrence({
     yearBounds: { min: COOC_YEAR_MIN, max: COOC_YEAR_MAX },
     appliedRange: { yearFrom: lo, yearTo: hi },
   };
+}
+
+function cooccurrencePairKey(source: string, target: string): string {
+  return `${source}--${target}`;
 }
 
 async function loadSearchFacets() {

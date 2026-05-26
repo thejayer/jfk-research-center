@@ -60,6 +60,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
     initial.nodes[0]?.id ?? null,
   );
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(defaultZoom);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{
@@ -83,16 +84,40 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     () => new Set(layout.nodes.map((node) => node.id)),
     [layout.nodes],
   );
+  const visibleLinkIds = useMemo(
+    () => new Set(layout.links.map((link) => link.id)),
+    [layout.links],
+  );
+
+  const selectedLink = useMemo(
+    () =>
+      selectedLinkId && visibleLinkIds.has(selectedLinkId)
+        ? (chart.links.find((link) => link.id === selectedLinkId) ?? null)
+        : null,
+    [chart.links, selectedLinkId, visibleLinkIds],
+  );
 
   useEffect(() => {
-    if (!layout.nodes.some((node) => node.id === selectedNodeId)) {
+    if (selectedLinkId && !visibleLinkIds.has(selectedLinkId)) {
+      setSelectedLinkId(null);
+    }
+  }, [selectedLinkId, visibleLinkIds]);
+
+  useEffect(() => {
+    if (
+      !selectedLinkId &&
+      !layout.nodes.some((node) => node.id === selectedNodeId)
+    ) {
       setSelectedNodeId(layout.nodes[0]?.id ?? null);
     }
-  }, [layout.nodes, selectedNodeId]);
+  }, [layout.nodes, selectedLinkId, selectedNodeId]);
 
   const selectedNode = useMemo(
-    () => chart.nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [chart.nodes, selectedNodeId],
+    () =>
+      selectedLink
+        ? null
+        : (chart.nodes.find((node) => node.id === selectedNodeId) ?? null),
+    [chart.nodes, selectedLink, selectedNodeId],
   );
 
   const selectedConnections = useMemo(() => {
@@ -109,6 +134,9 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
 
   const focusedNodeId = hoveredNodeId ?? selectedNodeId;
   const connectedNodeIds = useMemo(() => {
+    if (selectedLink) {
+      return new Set<string>([selectedLink.source, selectedLink.target]);
+    }
     if (!focusedNodeId) return null;
     const ids = new Set<string>([focusedNodeId]);
     for (const link of chart.links) {
@@ -116,7 +144,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
       if (link.target === focusedNodeId) ids.add(link.source);
     }
     return ids;
-  }, [chart.links, focusedNodeId]);
+  }, [chart.links, focusedNodeId, selectedLink]);
 
   const commit = useCallback(
     async (nextFrom: number, nextTo: number) => {
@@ -156,6 +184,17 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
       }
       return [...current, type];
     });
+  };
+
+  const selectLink = (linkId: string) => {
+    setSelectedLinkId(linkId);
+    setSelectedNodeId(null);
+    setHoveredNodeId(null);
+  };
+
+  const selectNode = (nodeId: string) => {
+    setSelectedNodeId(nodeId);
+    setSelectedLinkId(null);
   };
 
   const resetView = () => {
@@ -318,46 +357,81 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                 const source = resolveNode(link.source);
                 const target = resolveNode(link.target);
                 if (!source || !target) return null;
+                const selected = selectedLinkId === link.id;
                 const highlighted =
                   !connectedNodeIds ||
+                  selected ||
                   (connectedNodeIds.has(source.id) &&
                     connectedNodeIds.has(target.id));
                 const sourceX = source.x ?? 0;
                 const sourceY = source.y ?? 0;
                 const targetX = target.x ?? 0;
                 const targetY = target.y ?? 0;
-                const midX = sourceX / 2 + targetX / 2;
-                const midY = sourceY / 2 + targetY / 2;
 
                 return (
-                  <g key={link.id} opacity={highlighted ? 1 : 0.18}>
+                  <g
+                    key={link.id}
+                    opacity={highlighted ? 1 : 0.18}
+                  >
                     <line
+                      className="case-link-edge-visible"
                       x1={sourceX}
                       y1={sourceY}
                       x2={targetX}
                       y2={targetY}
                       stroke={
-                        highlighted ? "var(--border-strong)" : "var(--border)"
+                        selected
+                          ? "var(--accent)"
+                          : highlighted
+                            ? "var(--border-strong)"
+                            : "var(--border)"
                       }
                       strokeWidth={Math.max(
                         1.2,
                         Math.min(4.4, 1 + Math.log(link.count)),
                       )}
                     />
-                    {link.count >= 2 ? (
-                      <text
-                        x={midX}
-                        y={midY - 8}
-                        textAnchor="middle"
-                        className="case-link-line-label"
-                      >
-                        {link.label}
-                      </text>
-                    ) : null}
                   </g>
                 );
               })}
             </svg>
+
+            {layout.links.map((link) => {
+              const source = resolveNode(link.source);
+              const target = resolveNode(link.target);
+              if (!source || !target) return null;
+              const selected = selectedLinkId === link.id;
+              const sourceX = source.x ?? 0;
+              const sourceY = source.y ?? 0;
+              const targetX = target.x ?? 0;
+              const targetY = target.y ?? 0;
+              const midX = sourceX / 2 + targetX / 2;
+              const midY = sourceY / 2 + targetY / 2;
+              const highlighted =
+                !connectedNodeIds ||
+                selected ||
+                (connectedNodeIds.has(source.id) &&
+                  connectedNodeIds.has(target.id));
+
+              return (
+                <button
+                  key={link.id}
+                  type="button"
+                  className="case-link-edge-button"
+                  data-chart-interactive="true"
+                  data-selected={selected}
+                  style={{
+                    left: midX,
+                    top: midY - 8,
+                    opacity: highlighted ? 1 : 0.22,
+                  }}
+                  aria-label={`Inspect ${link.sourceName} and ${link.targetName}: ${link.label}`}
+                  onClick={() => selectLink(link.id)}
+                >
+                  {link.label}
+                </button>
+              );
+            })}
 
             {layout.nodes.map((node) => {
               const selected = selectedNodeId === node.id;
@@ -376,7 +450,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                     top: node.y ?? 0,
                     opacity: connected ? 1 : 0.34,
                   }}
-                  onClick={() => setSelectedNodeId(node.id)}
+                  onClick={() => selectNode(node.id)}
                   onMouseEnter={() => setHoveredNodeId(node.id)}
                   onMouseLeave={() => setHoveredNodeId(null)}
                   onFocus={() => setHoveredNodeId(node.id)}
@@ -400,7 +474,59 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         </div>
 
         <aside className="case-link-detail" aria-label="Selected chart item">
-          {selectedNode ? (
+          {selectedLink ? (
+            <>
+              <div className="eyebrow">Selected relationship</div>
+              <h2>
+                {selectedLink.sourceName} and {selectedLink.targetName}
+              </h2>
+              <p>
+                The selected range includes {selectedLink.label} that{" "}
+                {selectedLink.count === 1 ? "mentions" : "mention"} both
+                endpoints. Review the sample records below, or open the full
+                paired search for the complete trail.
+              </p>
+              <div className="case-link-actions">
+                <Link href={selectedLink.href}>Search both entities</Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedNodeId(selectedLink.source);
+                    setSelectedLinkId(null);
+                  }}
+                >
+                  Inspect {selectedLink.sourceName}
+                </button>
+              </div>
+              <div className="case-link-record-list">
+                <div className="eyebrow">Supporting records</div>
+                {selectedLink.documents.length > 0 ? (
+                  selectedLink.documents.map((document) => (
+                    <Link key={document.id} href={document.href}>
+                      <span className="case-link-record-title">
+                        {document.title}
+                      </span>
+                      <span className="case-link-record-meta">
+                        {[document.agency, document.dateLabel ?? document.date]
+                          .filter(Boolean)
+                          .join(" / ") || "Record"}
+                      </span>
+                      {document.snippet ? (
+                        <span className="case-link-record-snippet">
+                          {document.snippet}
+                        </span>
+                      ) : null}
+                    </Link>
+                  ))
+                ) : (
+                  <p className="muted">
+                    This edge does not include sampled records yet. Use paired
+                    search to inspect the full document trail.
+                  </p>
+                )}
+              </div>
+            </>
+          ) : selectedNode ? (
             <>
               <div className="eyebrow">Selected card</div>
               <h2>{selectedNode.name}</h2>
@@ -422,10 +548,14 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                         ? link.targetName
                         : link.sourceName;
                     return (
-                      <Link key={link.id} href={link.href}>
+                      <button
+                        key={link.id}
+                        type="button"
+                        onClick={() => selectLink(link.id)}
+                      >
                         <span>{peerName}</span>
                         <strong>{link.count.toLocaleString()}</strong>
-                      </Link>
+                      </button>
                     );
                   })
                 ) : (
@@ -534,7 +664,8 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         }
         .case-link-type,
         .case-link-zoom-controls button,
-        .case-link-actions a {
+        .case-link-actions a,
+        .case-link-actions button {
           min-height: 36px;
           border: 1px solid var(--border);
           border-radius: 8px;
@@ -620,17 +751,48 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           height: 100%;
           pointer-events: none;
         }
-        .case-link-line-label {
+        .case-link-edge-visible {
+          transition: stroke var(--motion), stroke-width var(--motion);
+        }
+        .case-link-edge-button {
+          position: absolute;
+          z-index: 1;
+          max-width: 116px;
+          transform: translate(-50%, -50%);
+          overflow: hidden;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--surface) 88%, var(--bg));
+          color: var(--text-muted);
+          box-shadow: var(--shadow-sm);
           font-family: var(--font-mono);
-          font-size: 11px;
-          fill: var(--text-muted);
-          paint-order: stroke;
-          stroke: var(--surface);
-          stroke-width: 5px;
-          stroke-linejoin: round;
+          font-size: 0.68rem;
+          line-height: 1;
+          padding: 6px 8px;
+          cursor: pointer;
+          transition:
+            opacity var(--motion),
+            border-color var(--motion),
+            background var(--motion),
+            color var(--motion),
+            box-shadow var(--motion),
+            transform var(--motion);
+        }
+        .case-link-edge-button:hover,
+        .case-link-edge-button:focus-visible,
+        .case-link-edge-button[data-selected="true"] {
+          border-color: var(--accent);
+          background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+          color: var(--text);
+          box-shadow: var(--shadow-md);
+          outline: none;
+          transform: translate(-50%, -50%) translateY(-1px);
         }
         .case-link-node {
           position: absolute;
+          z-index: 2;
           width: ${cardWidth}px;
           min-height: ${cardHeight}px;
           transform: translate(-50%, -50%);
@@ -727,7 +889,8 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           gap: 8px;
           margin: 16px 0 22px;
         }
-        .case-link-actions a {
+        .case-link-actions a,
+        .case-link-actions button {
           display: flex;
           align-items: center;
           justify-content: center;
@@ -738,14 +901,20 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           display: grid;
           gap: 8px;
         }
-        .case-link-connection-list a {
+        .case-link-connection-list button {
           display: grid;
           grid-template-columns: minmax(0, 1fr) auto;
           gap: 10px;
           align-items: center;
+          width: 100%;
           padding: 10px 0;
+          border: 0;
           border-top: 1px solid var(--border);
+          background: transparent;
           color: var(--text);
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
           text-decoration: none;
         }
         .case-link-connection-list span {
@@ -758,6 +927,36 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           color: var(--text-muted);
           font-family: var(--font-mono);
           font-size: 0.8rem;
+        }
+        .case-link-record-list {
+          display: grid;
+          gap: 10px;
+          margin-top: 20px;
+        }
+        .case-link-record-list a {
+          display: grid;
+          gap: 5px;
+          padding: 12px 0;
+          border-top: 1px solid var(--border);
+          color: var(--text);
+          text-decoration: none;
+        }
+        .case-link-record-title {
+          font-family: var(--font-serif);
+          font-size: 1rem;
+          line-height: 1.18;
+        }
+        .case-link-record-meta,
+        .case-link-record-snippet {
+          color: var(--text-muted);
+          font-size: 0.78rem;
+          line-height: 1.35;
+        }
+        .case-link-record-snippet {
+          display: -webkit-box;
+          overflow: hidden;
+          -webkit-line-clamp: 3;
+          -webkit-box-orient: vertical;
         }
         .case-link-note {
           max-width: 76ch;
