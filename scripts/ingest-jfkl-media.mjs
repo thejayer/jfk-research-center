@@ -108,7 +108,7 @@ export function normalizeSeed(seed) {
     throw new Error("Seed must be an object");
   }
 
-  const sourceUrl = normalizeUrl(seed.sourceUrl);
+  const sourceUrl = normalizeSourceUrl(seed.sourceUrl);
   const rightsStatus = normalizeEnum(
     seed.rightsStatus,
     rightsStatuses,
@@ -300,7 +300,7 @@ export async function run(argv = process.argv.slice(2), fetchImpl = fetch) {
     }
 
     let asset = buildAssetFromSeed(normalizedSeed, metadata);
-    if (options.downloadCleared) {
+    if (options.downloadCleared && !options.dryRun) {
       asset = await maybeDownloadAsset(asset, options, fetchImpl, warnings);
     }
     assets.push(asset);
@@ -347,6 +347,7 @@ Options:
 }
 
 async function maybeDownloadAsset(asset, options, fetchImpl, warnings) {
+  if (options.dryRun) return asset;
   if (!canDownloadAsset(asset)) return asset;
   const imageUrl = asset.imageUrl ?? asset.thumbnailUrl;
   if (!imageUrl) {
@@ -530,6 +531,14 @@ function normalizeUrl(value) {
     throw new Error(`Unsupported URL protocol for ${normalized}`);
   }
   return url.toString();
+}
+
+function normalizeSourceUrl(value) {
+  const sourceUrl = normalizeUrl(value);
+  if (!isTrustedJfkLibraryUrl(sourceUrl)) {
+    throw new Error(`Untrusted JFK Library source host for ${sourceUrl}`);
+  }
+  return sourceUrl;
 }
 
 function normalizeNullableUrl(value, baseUrl) {
