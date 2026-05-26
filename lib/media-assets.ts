@@ -172,6 +172,14 @@ export type MediaAssetFilters = {
   topic?: string;
 };
 
+/**
+ * Options object for rights-aware media search matching.
+ *
+ * @property q Optional free-text query matched against normalized media metadata.
+ * @property entities Optional entity ids/names that matching assets must include when provided.
+ * @property topics Optional topic ids/names that matching assets must include when provided.
+ * @property limit Optional maximum number of returned assets; omitted means no explicit cap.
+ */
 export type MediaSearchOptions = {
   q?: string;
   entities?: readonly string[];
