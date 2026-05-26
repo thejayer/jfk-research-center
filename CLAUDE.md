@@ -11,7 +11,7 @@ Production-quality Next.js App Router MVP for researching the JFK
 assassination records. Metadata comes from NARA; OCR text from ABBYY's
 JFK-OCR repo. Deployed to Cloud Run, backed by BigQuery.
 
-Live: **https://jfk-research-center-690906762945.us-central1.run.app**
+Live: **https://researchjfk.ai**
 
 ---
 

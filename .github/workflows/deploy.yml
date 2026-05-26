@@ -82,7 +82,7 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright-core install-deps chromium
       - name: Run axe-core audit against deployed site
-        run: node scripts/axe-audit.mjs "https://jfk-research-center-690906762945.us-central1.run.app"
+        run: node scripts/axe-audit.mjs "https://researchjfk.ai"
       - name: Upload axe report
         if: always()
         uses: actions/upload-artifact@v4

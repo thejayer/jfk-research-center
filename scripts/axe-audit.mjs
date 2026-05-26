@@ -14,7 +14,7 @@ const AxeBuilder = axeModule.default ?? axeModule.AxeBuilder ?? axeModule;
 
 const BASE =
   process.argv[2] ||
-  "https://jfk-research-center-690906762945.us-central1.run.app";
+  "https://researchjfk.ai";
 
 // Target the primary user-visible surfaces. Query strings force the BQ
 // path to exercise (empty vs non-empty search) so loading states + result
