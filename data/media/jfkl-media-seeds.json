@@ -1,0 +1,52 @@
+[
+  {
+    "sourceUrl": "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-1963-11-23-a",
+    "rightsStatus": "public_domain_likely",
+    "storageStatus": "eligible_for_cache",
+    "rightsNote": "Metadata points to the JFK Library's White House Photographs collection. Confirm item-level restrictions before caching binaries.",
+    "storageNote": "Eligible for a later cache/download job after item-level rights review confirms the public-domain path.",
+    "tags": ["state funeral", "white house", "death"],
+    "relatedEntities": ["kennedy-family"],
+    "relatedTopics": ["warren-commission"]
+  },
+  {
+    "sourceUrl": "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-kn-c30665",
+    "rightsStatus": "public_domain_likely",
+    "storageStatus": "eligible_for_cache",
+    "rightsNote": "Metadata points to the JFK Library's White House Photographs collection. Confirm item-level restrictions before caching binaries.",
+    "storageNote": "Eligible for a later cache/download job after item-level rights review confirms the public-domain path.",
+    "tags": ["state funeral", "procession", "white house"],
+    "relatedEntities": ["kennedy-family"],
+    "relatedTopics": ["warren-commission"]
+  },
+  {
+    "sourceUrl": "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-1962-08-24-d",
+    "rightsStatus": "public_domain_likely",
+    "storageStatus": "eligible_for_cache",
+    "rightsNote": "Metadata points to the JFK Library's White House Photographs collection. Confirm item-level restrictions before caching binaries.",
+    "storageNote": "Eligible for a later cache/download job after item-level rights review confirms the public-domain path.",
+    "tags": ["white house", "presidency", "treaty room"],
+    "relatedEntities": ["oswald"],
+    "relatedTopics": ["warren-commission"]
+  },
+  {
+    "sourceUrl": "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-kn-23498",
+    "rightsStatus": "public_domain_likely",
+    "storageStatus": "eligible_for_cache",
+    "rightsNote": "Metadata points to the JFK Library's White House Photographs collection. Confirm item-level restrictions before caching binaries.",
+    "storageNote": "Eligible for a later cache/download job after item-level rights review confirms the public-domain path.",
+    "tags": ["white house", "context"],
+    "relatedEntities": ["oswald"],
+    "relatedTopics": ["fbi"]
+  },
+  {
+    "sourceUrl": "https://www.jfklibrary.org/asset-viewer/archives/kfc-004-018-p0003",
+    "rightsStatus": "permission_required",
+    "storageStatus": "metadata_only",
+    "rightsNote": "The JFK Library Foundation states that photographs in the Kennedy Family Collection generally require written permission and a license fee before use.",
+    "storageNote": "Indexed as metadata and an official source link only. Do not cache image binaries until rights review marks the item cleared.",
+    "tags": ["kennedy family collection", "licensing required"],
+    "relatedEntities": ["kennedy-family"],
+    "relatedTopics": ["warren-commission"]
+  }
+]
