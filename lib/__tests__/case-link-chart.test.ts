@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { CooccurrenceGraph } from "../api-types";
-import { buildCaseLinkChart } from "../case-link-chart";
+import {
+  buildCaseLinkChart,
+  findShortestCaseLinkPath,
+} from "../case-link-chart";
 
 const graph: CooccurrenceGraph = {
   nodes: [
@@ -76,5 +79,29 @@ describe("case link chart", () => {
     expect(chart.links[0].target).toBe("cia");
     expect(chart.summary.hiddenNodeCount).toBe(1);
     expect(chart.summary.hiddenLinkCount).toBe(1);
+  });
+
+  it("finds the shortest visible path and preserves the strongest tie-break", () => {
+    const chart = buildCaseLinkChart(graph);
+    const path = findShortestCaseLinkPath(chart, "oswald", "mexico-city");
+
+    expect(path?.nodes.map((node) => node.id)).toEqual([
+      "oswald",
+      "cia",
+      "mexico-city",
+    ]);
+    expect(path?.steps.map((step) => step.link.id)).toEqual([
+      "oswald--cia",
+      "cia--mexico-city",
+    ]);
+  });
+
+  it("returns null when filters hide every available path", () => {
+    const chart = buildCaseLinkChart(graph);
+    const path = findShortestCaseLinkPath(chart, "oswald", "mexico-city", {
+      visibleNodeIds: new Set(["oswald", "mexico-city"]),
+    });
+
+    expect(path).toBeNull();
   });
 });
