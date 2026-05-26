@@ -77,6 +77,7 @@ import type {
 } from "./api-types";
 import { formatDate } from "./format";
 import { buildMediaIndexResponse } from "./media-assets";
+import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
 import {
   buildDocumentResponse,
   buildEntityCooccurrence,
@@ -1849,12 +1850,24 @@ export async function fetchEntityCooccurrence({
     }))
     .sort((a, b) => b.degree - a.degree);
 
-  return {
-    nodes,
-    links,
-    yearBounds: { min: COOC_YEAR_MIN, max: COOC_YEAR_MAX },
-    appliedRange: { yearFrom: lo, yearTo: hi },
-  };
+  return addMediaAssetsToCooccurrenceGraph(
+    {
+      nodes,
+      links,
+      yearBounds: { min: COOC_YEAR_MIN, max: COOC_YEAR_MAX },
+      appliedRange: { yearFrom: lo, yearTo: hi },
+    },
+    {
+      entityNodes: entities.map((entity) => ({
+        id: entity.entity_id,
+        name: entity.entity_name,
+        type: entity.entity_type,
+      })),
+      topicLabels: Object.fromEntries(
+        Object.entries(TOPIC_CATALOG).map(([slug, topic]) => [slug, topic.title]),
+      ),
+    },
+  );
 }
 
 function cooccurrencePairKey(source: string, target: string): string {

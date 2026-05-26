@@ -9,14 +9,14 @@ describe("case link chart URL state", () => {
   it("parses valid shareable graph state and drops invalid values", () => {
     const state = parseCaseLinkChartUrlState(
       new URLSearchParams(
-        "yearFrom=1963&yearTo=1979&type=person&type=org&type=bad&node=oswald&edge=cia--oswald&from= oswald &to=fbi",
+        "yearFrom=1963&yearTo=1979&type=person&type=org&type=media&type=bad&node=oswald&edge=cia--oswald&from= oswald &to=fbi",
       ),
     );
 
     expect(state).toEqual({
       yearFrom: 1963,
       yearTo: 1979,
-      types: ["person", "org"],
+      types: ["person", "org", "media"],
       node: "oswald",
       edge: "cia--oswald",
       from: "oswald",
@@ -42,18 +42,19 @@ describe("case link chart URL state", () => {
       serializeCaseLinkChartUrlState({
         yearFrom: 1950,
         yearTo: 2005,
-        types: ["person", "org"],
+        types: ["person", "org", "media"],
         edge: "cia--oswald",
         from: "oswald",
         to: "fbi",
       }),
     ).toBe(
-      "yearFrom=1950&yearTo=2005&type=person&type=org&edge=cia--oswald&from=oswald&to=fbi",
+      "yearFrom=1950&yearTo=2005&type=person&type=org&type=media&edge=cia--oswald&from=oswald&to=fbi",
     );
   });
 
   it("guards graph type values", () => {
     expect(isGraphType("person")).toBe(true);
+    expect(isGraphType("media")).toBe(true);
     expect(isGraphType("bad")).toBe(false);
     expect(isGraphType(123)).toBe(false);
     expect(isGraphType(undefined)).toBe(false);

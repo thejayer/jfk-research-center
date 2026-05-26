@@ -50,6 +50,7 @@ import type {
   PhysicalEvidenceDetail,
   PhysicalEvidenceIndex,
 } from "./api-types";
+import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
 
 // ----------------------------------------------------------------------------
 // Entities
@@ -1692,7 +1693,10 @@ export function buildEntityCooccurrence({
   }
 
   const nodes: CooccurrenceNode[] = [...peersById.entries()]
-    .map(([entityId, peers]) => {
+    .map(([
+      entityId,
+      peers,
+    ]): CooccurrenceNode | null => {
       const entity = ENTITY_TABLE[entityId];
       if (!entity) return null;
       return {
@@ -1705,12 +1709,24 @@ export function buildEntityCooccurrence({
     .filter((node): node is CooccurrenceNode => node !== null)
     .sort((a, b) => b.degree - a.degree || a.name.localeCompare(b.name));
 
-  return {
-    nodes,
-    links,
-    yearBounds: { min: 1950, max: 2005 },
-    appliedRange: { yearFrom: lo, yearTo: hi },
-  };
+  return addMediaAssetsToCooccurrenceGraph(
+    {
+      nodes,
+      links,
+      yearBounds: { min: 1950, max: 2005 },
+      appliedRange: { yearFrom: lo, yearTo: hi },
+    },
+    {
+      entityNodes: Object.values(ENTITY_TABLE).map((entity) => ({
+        id: entity.slug,
+        name: entity.name,
+        type: entity.type,
+      })),
+      topicLabels: Object.fromEntries(
+        Object.entries(TOPIC_TABLE).map(([slug, topic]) => [slug, topic.title]),
+      ),
+    },
+  );
 }
 
 export function buildEntityResponse(slug: string): EntityResponse | null {

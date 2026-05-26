@@ -71,12 +71,52 @@ describe("buildEntityCooccurrence", () => {
   it("filters links below the requested minimum co-occurrence count", () => {
     const loose = buildEntityCooccurrence({ minCount: 2 });
     const strict = buildEntityCooccurrence({ minCount: 6 });
+    const looseCooccurrenceLinks = loose.links.filter(
+      (link) => (link.kind ?? "cooccurrence") === "cooccurrence",
+    );
+    const strictCooccurrenceLinks = strict.links.filter(
+      (link) => (link.kind ?? "cooccurrence") === "cooccurrence",
+    );
 
-    expect(strict.links.length).toBeLessThan(loose.links.length);
-    expect(strict.links.every((link) => link.count >= 6)).toBe(true);
+    expect(strictCooccurrenceLinks.length).toBeLessThan(looseCooccurrenceLinks.length);
+    expect(strictCooccurrenceLinks.every((link) => link.count >= 6)).toBe(true);
     expect(strict.nodes.every((node) => node.degree > 0)).toBe(true);
-    expect(loose.links.every((link) => link.documents.length > 0)).toBe(true);
-    expect(strict.links.every((link) => link.documents.length > 0)).toBe(true);
+    expect(
+      looseCooccurrenceLinks.every((link) => link.documents.length > 0),
+    ).toBe(true);
+    expect(
+      strictCooccurrenceLinks.every((link) => link.documents.length > 0),
+    ).toBe(true);
+  });
+
+  it("adds rights-aware media and topic nodes from media metadata", () => {
+    const response = buildEntityCooccurrence({ minCount: 2 });
+    const mediaNodes = response.nodes.filter((node) => node.type === "media");
+    const mediaLinks = response.links.filter((link) =>
+      link.kind?.startsWith("media_"),
+    );
+
+    expect(mediaNodes.length).toBeGreaterThan(0);
+    expect(
+      response.nodes.some(
+        (node) => node.id.startsWith("topic:") && node.typeLabel === "Topic",
+      ),
+    ).toBe(true);
+    expect(mediaLinks.length).toBeGreaterThan(0);
+    expect(mediaLinks.every((link) => link.documents.length === 0)).toBe(true);
+    expect(
+      mediaNodes.every((node) => node.href?.startsWith("/media/")),
+    ).toBe(true);
+    expect(
+      mediaNodes.every(
+        (node) => Boolean(node.rightsLabel) && Boolean(node.storageLabel),
+      ),
+    ).toBe(true);
+    expect(
+      mediaLinks.every(
+        (link) => Boolean(link.rightsLabel) && Boolean(link.storageLabel),
+      ),
+    ).toBe(true);
   });
 
   it("sets node degree from the number of linked peers", () => {

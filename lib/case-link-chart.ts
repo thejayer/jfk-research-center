@@ -4,13 +4,14 @@ import type {
   CooccurrenceNode,
   DocumentCard,
 } from "./api-types";
+import { graphTypeParamValues } from "./constants";
 
 const defaultMaxNodes = 42;
 const defaultMaxLinks = 90;
 
 export type CaseLinkChartNode = CooccurrenceNode & {
   href: string;
-  searchHref: string;
+  searchHref: string | null;
   typeLabel: string;
   rank: number;
 };
@@ -78,20 +79,18 @@ export function buildCaseLinkChart(
     );
   const keptLinks = sortedLinks.slice(0, Math.max(0, maxLinks));
 
-  const typeCounts = {
-    person: 0,
-    org: 0,
-    place: 0,
-    concept: 0,
-  } satisfies Record<CooccurrenceNode["type"], number>;
+  const typeCounts = Object.fromEntries(
+    graphTypeParamValues.map((type) => [type, 0]),
+  ) as Record<CooccurrenceNode["type"], number>;
 
   const nodes = keptNodes.map((node, index): CaseLinkChartNode => {
     typeCounts[node.type] += 1;
     return {
       ...node,
-      href: `/entity/${encodeURIComponent(node.id)}`,
-      searchHref: entitySearchHref(node.id),
-      typeLabel: entityTypeLabel(node.type),
+      href: node.href ?? `/entity/${encodeURIComponent(node.id)}`,
+      searchHref:
+        node.searchHref === undefined ? entitySearchHref(node.id) : node.searchHref,
+      typeLabel: node.typeLabel ?? entityTypeLabel(node.type),
       rank: index + 1,
     };
   });
@@ -102,10 +101,12 @@ export function buildCaseLinkChart(
     return {
       ...link,
       id: `${link.source}--${link.target}`,
-      href: pairSearchHref(link),
-      label: `${link.count.toLocaleString()} shared record${
-        link.count === 1 ? "" : "s"
-      }`,
+      href: link.href ?? pairSearchHref(link),
+      label:
+        link.label ??
+        `${link.count.toLocaleString()} shared record${
+          link.count === 1 ? "" : "s"
+        }`,
       sourceName,
       targetName,
       documents: link.documents,
@@ -237,6 +238,8 @@ function entityTypeLabel(type: CooccurrenceNode["type"]): string {
       return "Place";
     case "concept":
       return "Concept";
+    case "media":
+      return "Media";
   }
 }
 

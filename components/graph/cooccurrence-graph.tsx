@@ -12,19 +12,21 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
-import type { CooccurrenceGraph } from "@/lib/api-types";
+import type { CooccurrenceGraph, CooccurrenceNode } from "@/lib/api-types";
 
 type SimNode = SimulationNodeDatum & {
   id: string;
   name: string;
-  type: "person" | "org" | "place" | "concept";
+  type: CooccurrenceNode["type"];
   degree: number;
+  href?: string;
 };
 
 type SimLink = SimulationLinkDatum<SimNode> & {
   source: string | SimNode;
   target: string | SimNode;
   count: number;
+  href?: string;
 };
 
 const VIEW_W = 960;
@@ -50,11 +52,13 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
       name: n.name,
       type: n.type,
       degree: n.degree,
+      href: n.href,
     }));
     const links: SimLink[] = graph.links.map((l) => ({
       source: l.source,
       target: l.target,
       count: l.count,
+      href: l.href,
     }));
 
     nodesRef.current = nodes;
@@ -263,8 +267,11 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
             return (
               <a
                 key={i}
-                href={`/search?entity=${encodeURIComponent(sourceId)}&entity=${encodeURIComponent(targetId)}`}
-                aria-label={`Search records mentioning both ${s.name} and ${t.name}`}
+                href={
+                  l.href ??
+                  `/search?entity=${encodeURIComponent(sourceId)}&entity=${encodeURIComponent(targetId)}`
+                }
+                aria-label={`Open relationship details between ${s.name} and ${t.name}`}
               >
                 <line
                   x1={s.x}
@@ -296,7 +303,7 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
                 onBlur={() => setHovered(null)}
                 style={{ cursor: "pointer" }}
               >
-                <a href={`/entity/${encodeURIComponent(n.id)}`}>
+                <a href={n.href ?? `/entity/${encodeURIComponent(n.id)}`}>
                   <circle
                     r={r}
                     fill={nodeColor(n.type)}
@@ -417,5 +424,7 @@ function nodeColor(type: SimNode["type"]): string {
       return "var(--text-muted)";
     case "concept":
       return "var(--border-strong)";
+    case "media":
+      return "var(--cat-operational)";
   }
 }
