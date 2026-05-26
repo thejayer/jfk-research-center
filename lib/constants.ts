@@ -101,6 +101,7 @@ export const searchGroups = [
   "results",
   "entities",
   "topics",
+  "media",
   "timeline",
   "questions",
 ] as const;

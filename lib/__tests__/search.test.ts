@@ -28,6 +28,7 @@ describe("parseSearchParams", () => {
   it("reads supported search groups and defaults unsupported values", () => {
     expect(parseSearchParams({ group: "entities" }).group).toBe("entities");
     expect(parseSearchParams({ group: "topics" }).group).toBe("topics");
+    expect(parseSearchParams({ group: "media" }).group).toBe("media");
     expect(parseSearchParams({ group: "timeline" }).group).toBe("timeline");
     expect(parseSearchParams({ group: "questions" }).group).toBe("questions");
     expect(parseSearchParams({ group: "garbage" }).group).toBe("results");
@@ -136,6 +137,9 @@ describe("buildSearchUrl", () => {
   it("serializes non-default result groups", () => {
     expect(buildSearchUrl("x", "document", emptyFilters, 1, "entities")).toContain(
       "group=entities",
+    );
+    expect(buildSearchUrl("x", "document", emptyFilters, 1, "media")).toContain(
+      "group=media",
     );
     expect(buildSearchUrl("x", "document", emptyFilters, 1, "results")).not.toContain(
       "group=",
