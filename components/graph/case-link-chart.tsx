@@ -51,6 +51,7 @@ const typeOptions: Array<{ type: CooccurrenceNode["type"]; label: string }> = [
   { type: "org", label: "Organizations" },
   { type: "place", label: "Places" },
   { type: "concept", label: "Concepts" },
+  { type: "media", label: "Media" },
 ];
 const allTypeValues = typeOptions.map((option) => option.type);
 
@@ -84,6 +85,7 @@ export function CaseLinkChart({
   const [pathEndId, setPathEndId] = useState(initialUrlState.to ?? "");
   const [zoom, setZoom] = useState(defaultZoom);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [chartReady, setChartReady] = useState(false);
   const dragStateRef = useRef<{
     pointerId: number;
     startX: number;
@@ -99,8 +101,11 @@ export function CaseLinkChart({
 
   const visibleTypeSet = useMemo(() => new Set(activeTypes), [activeTypes]);
   const layout = useMemo(
-    () => buildLayout(chart.nodes, chart.links, visibleTypeSet),
-    [chart.nodes, chart.links, visibleTypeSet],
+    () =>
+      chartReady
+        ? buildLayout(chart.nodes, chart.links, visibleTypeSet)
+        : { nodes: [] as PositionedNode[], links: [] as PositionedLink[] },
+    [chart.nodes, chart.links, chartReady, visibleTypeSet],
   );
   const visibleNodeIds = useMemo(
     () => new Set(layout.nodes.map((node) => node.id)),
@@ -143,6 +148,10 @@ export function CaseLinkChart({
     pathStartId && pathEndId && pathStartId === pathEndId,
   );
 
+  useEffect(() => {
+    setChartReady(true);
+  }, []);
+
   const selectedLink = useMemo(
     () =>
       selectedLinkId && visibleLinkIds.has(selectedLinkId)
@@ -152,10 +161,11 @@ export function CaseLinkChart({
   );
 
   useEffect(() => {
+    if (!chartReady) return;
     if (selectedLinkId && !visibleLinkIds.has(selectedLinkId)) {
       setSelectedLinkId(null);
     }
-  }, [selectedLinkId, visibleLinkIds]);
+  }, [chartReady, selectedLinkId, visibleLinkIds]);
 
   useEffect(() => {
     if (
@@ -167,22 +177,24 @@ export function CaseLinkChart({
   }, [chart.nodes, defaultSelectedNodeId, selectedNodeId]);
 
   useEffect(() => {
+    if (!chartReady) return;
     setPathStartId((current) =>
       current && !visibleNodeIds.has(current) ? "" : current,
     );
     setPathEndId((current) =>
       current && !visibleNodeIds.has(current) ? "" : current,
     );
-  }, [visibleNodeIds]);
+  }, [chartReady, visibleNodeIds]);
 
   useEffect(() => {
+    if (!chartReady) return;
     if (
       !selectedLinkId &&
       !layout.nodes.some((node) => node.id === selectedNodeId)
     ) {
       setSelectedNodeId(layout.nodes[0]?.id ?? null);
     }
-  }, [layout.nodes, selectedLinkId, selectedNodeId]);
+  }, [chartReady, layout.nodes, selectedLinkId, selectedNodeId]);
 
   /**
    * URL sync invariant: this useEffect builds the canonical share state object,
@@ -554,6 +566,9 @@ export function CaseLinkChart({
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
             }}
           >
+            {!chartReady ? (
+              <div className="case-link-loading">Preparing graph...</div>
+            ) : null}
             <svg
               className="case-link-lines"
               viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
@@ -760,14 +775,26 @@ export function CaseLinkChart({
               <h2>
                 {selectedLink.sourceName} and {selectedLink.targetName}
               </h2>
-              <p>
-                The selected range includes {selectedLink.label} that{" "}
-                {selectedLink.count === 1 ? "mentions" : "mention"} both
-                endpoints. Review the sample records below, or open the full
-                paired search for the complete trail.
-              </p>
+              {isMediaLink(selectedLink) ? (
+                <p>
+                  This edge comes from official media metadata. Open the media
+                  record to review the JFK Library source, rights posture, and
+                  related entity or topic tags.
+                </p>
+              ) : (
+                <p>
+                  The selected range includes {selectedLink.label} that{" "}
+                  {selectedLink.count === 1 ? "mentions" : "mention"} both
+                  endpoints. Review the sample records below, or open the full
+                  paired search for the complete trail.
+                </p>
+              )}
               <div className="case-link-actions">
-                <Link href={selectedLink.href}>Search both entities</Link>
+                <Link href={selectedLink.href}>
+                  {isMediaLink(selectedLink)
+                    ? "Open media record"
+                    : "Search both entities"}
+                </Link>
                 <button
                   type="button"
                   onClick={() => {
@@ -779,7 +806,11 @@ export function CaseLinkChart({
                 </button>
               </div>
               <div className="case-link-record-list">
-                <div className="eyebrow">Supporting records</div>
+                <div className="eyebrow">
+                  {isMediaLink(selectedLink)
+                    ? "Media source"
+                    : "Supporting records"}
+                </div>
                 {selectedLink.documents.length > 0 ? (
                   selectedLink.documents.map((document) => (
                     <Link key={document.id} href={document.href}>
@@ -800,8 +831,9 @@ export function CaseLinkChart({
                   ))
                 ) : (
                   <p className="muted">
-                    This edge does not include sampled records yet. Use paired
-                    search to inspect the full document trail.
+                    {isMediaLink(selectedLink)
+                      ? "This metadata edge is backed by the linked media record rather than sampled OCR records."
+                      : "This edge does not include sampled records yet. Use paired search to inspect the full document trail."}
                   </p>
                 )}
               </div>
@@ -810,14 +842,51 @@ export function CaseLinkChart({
             <>
               <div className="eyebrow">Selected card</div>
               <h2>{selectedNode.name}</h2>
-              <p>
-                {selectedNode.typeLabel} with {selectedNode.degree} co-occurring
-                peer{selectedNode.degree === 1 ? "" : "s"} in the selected date
-                range.
-              </p>
+              {selectedNode.type === "media" ? (
+                <>
+                  <p>
+                    {selectedNode.description ??
+                      "Official media record connected by curated entity and topic metadata."}
+                  </p>
+                  {selectedNode.meta ? (
+                    <p className="case-link-node-context">{selectedNode.meta}</p>
+                  ) : null}
+                  <div className="case-link-node-badges">
+                    {selectedNode.rightsLabel ? (
+                      <span>{selectedNode.rightsLabel}</span>
+                    ) : null}
+                    {selectedNode.storageLabel ? (
+                      <span>{selectedNode.storageLabel}</span>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <p>
+                  {selectedNode.typeLabel} with {selectedNode.degree} connected
+                  peer{selectedNode.degree === 1 ? "" : "s"} in the selected
+                  date range.
+                </p>
+              )}
               <div className="case-link-actions">
-                <Link href={selectedNode.href}>Open entity</Link>
-                <Link href={selectedNode.searchHref}>Search mentions</Link>
+                <Link href={selectedNode.href}>
+                  {selectedNode.type === "media"
+                    ? "Open media page"
+                    : selectedNode.typeLabel === "Topic"
+                      ? "Open topic"
+                      : "Open entity"}
+                </Link>
+                {selectedNode.searchHref ? (
+                  <Link href={selectedNode.searchHref}>Search mentions</Link>
+                ) : null}
+                {selectedNode.sourceUrl ? (
+                  <a
+                    href={selectedNode.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Official record
+                  </a>
+                ) : null}
               </div>
               <div className="case-link-connection-list">
                 <div className="eyebrow">Strongest links</div>
@@ -834,7 +903,7 @@ export function CaseLinkChart({
                         onClick={() => selectLink(link.id)}
                       >
                         <span>{peerName}</span>
-                        <strong>{link.count.toLocaleString()}</strong>
+                        <strong>{link.label}</strong>
                       </button>
                     );
                   })
@@ -850,9 +919,10 @@ export function CaseLinkChart({
       </div>
 
       <p className="case-link-note">
-        Cards represent entities in the corpus. Lines show shared records, not
-        proven relationships. Use the date range and type filters to isolate
-        investigative eras, then open the entity or search the paired mentions.
+        Cards represent entities, topics, and rights-aware official media in the
+        corpus. Lines show shared records or curated media metadata, not proven
+        relationships. Use the date range and type filters to isolate
+        investigative eras, then open the underlying source trail.
       </p>
 
       <noscript>
@@ -1094,6 +1164,14 @@ export function CaseLinkChart({
           height: 100%;
           pointer-events: none;
         }
+        .case-link-loading {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          color: var(--text-muted);
+          font-size: 0.86rem;
+        }
         .case-link-edge-visible {
           transition: stroke var(--motion), stroke-width var(--motion);
         }
@@ -1178,6 +1256,9 @@ export function CaseLinkChart({
         .case-link-node[data-type="concept"] {
           border-top-color: var(--cat-release);
         }
+        .case-link-node[data-type="media"] {
+          border-top-color: var(--cat-operational);
+        }
         .case-link-node-topline,
         .case-link-node-meta {
           display: flex;
@@ -1227,6 +1308,28 @@ export function CaseLinkChart({
           color: var(--text-muted);
           font-size: 0.9rem;
           line-height: 1.5;
+        }
+        .case-link-node-context {
+          margin-top: 10px;
+          font-family: var(--font-mono);
+          font-size: 0.78rem;
+        }
+        .case-link-node-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-top: 12px;
+        }
+        .case-link-node-badges span {
+          display: inline-flex;
+          align-items: center;
+          min-height: 28px;
+          padding: 0 9px;
+          border: 1px solid var(--border);
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--surface) 82%, var(--accent-soft));
+          color: var(--text-muted);
+          font-size: 0.74rem;
         }
         .case-link-actions {
           display: grid;
@@ -1492,7 +1595,13 @@ function nodeTypeColor(type: CooccurrenceNode["type"]): string {
       return "var(--cat-investigation)";
     case "concept":
       return "var(--cat-release)";
+    case "media":
+      return "var(--cat-operational)";
   }
+}
+
+function isMediaLink(link: CaseLinkChartLink): boolean {
+  return link.kind === "media_entity" || link.kind === "media_topic";
 }
 
 function clamp(value: number, min: number, max: number): number {

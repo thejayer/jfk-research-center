@@ -164,16 +164,28 @@ export type SearchFilterInput = {
 // ---------------------------------------------------------------------------
 
 export type CooccurrenceNode = {
-  id: string; // entity_id / slug
+  id: string; // entity_id / slug, or a prefixed graph-only id for media/topic cards
   name: string;
-  type: "person" | "org" | "place" | "concept";
+  type: "person" | "org" | "place" | "concept" | "media";
   degree: number; // count of distinct peers this node connects to in range
+  href?: string;
+  searchHref?: string | null;
+  typeLabel?: string;
+  description?: string | null;
+  meta?: string | null;
+  collection?: string | null;
+  sourceUrl?: string | null;
+  rightsLabel?: string | null;
+  storageLabel?: string | null;
 };
 
 export type CooccurrenceLink = {
   source: string;
   target: string;
   count: number; // total co-occurring documents within year range
+  kind?: "cooccurrence" | "media_entity" | "media_topic";
+  label?: string;
+  href?: string;
   /** Small sample of records that mention both endpoints, newest first. */
   documents: DocumentCard[];
 };

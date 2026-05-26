@@ -113,6 +113,7 @@ export const graphTypeParamValues = [
   "org",
   "place",
   "concept",
+  "media",
 ] as const satisfies readonly CooccurrenceNode["type"][];
 
 export const tensionOrder = [

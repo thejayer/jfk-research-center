@@ -12,12 +12,12 @@ import {
   type SimulationLinkDatum,
   type SimulationNodeDatum,
 } from "d3-force";
-import type { CooccurrenceGraph } from "@/lib/api-types";
+import type { CooccurrenceGraph, CooccurrenceNode } from "@/lib/api-types";
 
 type SimNode = SimulationNodeDatum & {
   id: string;
   name: string;
-  type: "person" | "org" | "place" | "concept";
+  type: CooccurrenceNode["type"];
   degree: number;
 };
 
@@ -417,5 +417,7 @@ function nodeColor(type: SimNode["type"]): string {
       return "var(--text-muted)";
     case "concept":
       return "var(--border-strong)";
+    case "media":
+      return "var(--cat-operational)";
   }
 }

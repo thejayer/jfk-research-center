@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Case link chart",
   description:
-    "Investigation-style link chart of people, agencies, places, and concepts that co-occur across JFK records.",
+    "Investigation-style link chart of people, agencies, places, concepts, and official media connected across JFK records.",
 };
 
 export default async function GraphPage({
@@ -40,7 +40,7 @@ export default async function GraphPage({
             marginBottom: 18,
           }}
         >
-          Map the case by people, agencies, places, and concepts
+          Map the case by people, agencies, places, concepts, and media
         </h1>
         <p
           style={{
@@ -50,8 +50,9 @@ export default async function GraphPage({
           }}
         >
           A digital case board for seeing which entities appear together in
-          the archive. Cards are grouped by entity type, lines are labeled by
-          shared records, and the date range lets you isolate the 1963
+          the archive, plus official media records connected by curated
+          metadata. Cards are grouped by type, lines are labeled by shared
+          records or media links, and the date range lets you isolate the 1963
           investigation, the HSCA period, or later declassification eras. A
           shared mention is not proof of a relationship; it is a trailhead for
           reading the underlying records.
