@@ -3,6 +3,14 @@ import type { MediaAsset } from "@/lib/api-types";
 import { MediaAssetCard } from "@/components/media/media-asset-card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
+/**
+ * Renders related official JFK Library media near a research page.
+ *
+ * @param props.assets Media assets to show; returns null when the list is empty.
+ * @param props.title Optional panel title, defaulting to "Official media nearby".
+ * @param props.description Optional panel description, defaulting to metadata-relationship copy.
+ * @returns Related media section or null.
+ */
 export function RelatedMediaPanel({
   assets,
   title = "Official media nearby",

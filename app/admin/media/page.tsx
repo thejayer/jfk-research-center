@@ -9,6 +9,9 @@ export const dynamic = "force-dynamic";
 
 export default async function AdminMediaReviewPage() {
   const data = await fetchMediaIndex();
+  // reviewQueue captures records that still need human media-rights review:
+  // external references need source verification, cache-eligible assets need
+  // inspection before local delivery changes, and non-PD rights need approval.
   const reviewQueue = data.assets.filter(
     (asset) =>
       asset.storageStatus === "external_reference" ||
@@ -60,7 +63,9 @@ export default async function AdminMediaReviewPage() {
                 <th style={thStyle}>Storage</th>
                 <th style={thStyle}>Collection</th>
                 <th style={thStyle}>Decision note</th>
-                <th style={thStyle}></th>
+                <th scope="col" style={thStyle}>
+                  Official record
+                </th>
               </tr>
             </thead>
             <tbody>

@@ -85,6 +85,18 @@ describe("media assets", () => {
     expect(
       related.some((asset) => asset.relatedTopics.includes("dealey-plaza")),
     ).toBe(true);
+    expect(
+      findRelatedMediaAssets(assets, {
+        topics: ["dealey-plaza"],
+        limit: -1,
+      }),
+    ).toEqual([]);
+    expect(
+      findRelatedMediaAssets(assets, {
+        topics: ["dealey-plaza"],
+        limit: 1.8,
+      }),
+    ).toHaveLength(1);
     expect(facets.tags.some((tag) => tag.value === "state funeral")).toBe(true);
   });
 });

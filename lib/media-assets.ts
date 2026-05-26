@@ -154,6 +154,7 @@ const MEDIA_ASSETS: readonly MediaAsset[] = [
 
 const manifestPath = path.join(process.cwd(), "data/media/jfkl-media-manifest.json");
 const seedPath = path.join(process.cwd(), "data/media/jfkl-media-seeds.json");
+let cachedMediaAssets: MediaAsset[] | null = null;
 const storageStatuses = [
   "metadata_only",
   "external_reference",
@@ -217,25 +218,60 @@ export function canCacheMediaAsset(asset: MediaAsset): boolean {
   );
 }
 
+function mediaAssetsSnapshot(): MediaAsset[] {
+  if (!cachedMediaAssets) {
+    cachedMediaAssets = sortMediaAssets(
+      readManifestAssets() ?? readSeedAssets() ?? [...MEDIA_ASSETS],
+    );
+  }
+  return cachedMediaAssets;
+}
+
+/**
+ * Clears the memoized media manifest snapshot after an ingest or admin update.
+ *
+ * @returns Nothing; the next list/get call will re-read the manifest or seeds.
+ */
+export function invalidateMediaAssetsCache(): void {
+  cachedMediaAssets = null;
+}
+
 /**
  * Lists the rights-aware media candidates in display order.
  *
  * @returns Manifest assets when generated, curated seed assets when present, otherwise static fallback assets; sorted newest first by date and then title.
  */
 export function listMediaAssets(): MediaAsset[] {
-  return sortMediaAssets(
-    readManifestAssets() ?? readSeedAssets() ?? [...MEDIA_ASSETS],
-  );
+  return [...mediaAssetsSnapshot()];
 }
 
+/**
+ * Builds the canonical public URL for a media asset detail page.
+ *
+ * @param id Media asset id to encode into the route segment.
+ * @returns Site-relative media detail URL.
+ */
 export function mediaAssetHref(id: string): string {
   return `/media/${encodeURIComponent(id)}`;
 }
 
+/**
+ * Finds one media asset by id from the memoized manifest snapshot.
+ *
+ * @param id Canonical media asset id.
+ * @returns Matching MediaAsset, or null when the id is absent.
+ */
 export function getMediaAsset(id: string): MediaAsset | null {
-  return listMediaAssets().find((asset) => asset.id === id) ?? null;
+  return mediaAssetsSnapshot().find((asset) => asset.id === id) ?? null;
 }
 
+/**
+ * Applies the public media explorer filters to a media asset list.
+ *
+ * @param assets Candidate assets to filter.
+ * @param filters Optional query, collection, rights, storage, tag, entity, and topic filters.
+ * @returns Assets matching every supplied filter; q is trimmed and lowercased before matching.
+ */
 export function filterMediaAssets(
   assets: readonly MediaAsset[],
   filters: MediaAssetFilters,
@@ -253,6 +289,12 @@ export function filterMediaAssets(
   });
 }
 
+/**
+ * Builds relationship facets for the media explorer filter controls.
+ *
+ * @param assets Assets to summarize.
+ * @returns Counted collection, tag, entity, and topic facet arrays sorted by count then label.
+ */
 export function buildMediaFacets(assets: readonly MediaAsset[]): MediaFacets {
   return {
     collections: countFacet(assets.map((asset) => asset.collection)),
@@ -262,6 +304,13 @@ export function buildMediaFacets(assets: readonly MediaAsset[]): MediaFacets {
   };
 }
 
+/**
+ * Finds media assets related to a page by entity/topic overlap.
+ *
+ * @param assets Candidate media assets.
+ * @param options Related entity/topic slugs plus optional result limit, defaulting to 4.
+ * @returns Highest-scoring related assets; entity matches score higher than topic matches and invalid limits return no items.
+ */
 export function findRelatedMediaAssets(
   assets: readonly MediaAsset[],
   {
@@ -274,9 +323,10 @@ export function findRelatedMediaAssets(
     limit?: number;
   },
 ): MediaAsset[] {
+  const safeLimit = Math.max(0, Number.isFinite(limit) ? Math.floor(limit) : 0);
   const entitySet = new Set(entities.filter(Boolean));
   const topicSet = new Set(topics.filter(Boolean));
-  if (entitySet.size === 0 && topicSet.size === 0) return [];
+  if (safeLimit === 0 || (entitySet.size === 0 && topicSet.size === 0)) return [];
 
   return assets
     .map((asset) => ({
@@ -292,7 +342,7 @@ export function findRelatedMediaAssets(
         (b.asset.date ?? "").localeCompare(a.asset.date ?? "") ||
         a.asset.title.localeCompare(b.asset.title),
     )
-    .slice(0, limit)
+    .slice(0, safeLimit)
     .map((item) => item.asset);
 }
 

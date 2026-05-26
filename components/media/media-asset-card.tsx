@@ -10,6 +10,7 @@ import {
   mediaRightsLabel,
 } from "@/lib/media-assets";
 
+/** Maps canonical media rights statuses to badge tones for media status UI. */
 export const rightsTone: Record<MediaRightsStatus, BadgeTone> = {
   public_domain_likely: "high",
   permission_required: "medium",
@@ -17,6 +18,7 @@ export const rightsTone: Record<MediaRightsStatus, BadgeTone> = {
   metadata_only: "muted",
 };
 
+/** Maps media storage statuses to compact human labels for badges and summaries. */
 export const storageLabel: Record<MediaAsset["storageStatus"], string> = {
   metadata_only: "Metadata only",
   external_reference: "External reference",
@@ -24,6 +26,13 @@ export const storageLabel: Record<MediaAsset["storageStatus"], string> = {
   cached: "Cached locally",
 };
 
+/**
+ * Renders a media asset card with status badges, metadata, and source links.
+ *
+ * @param props.asset Media asset to display.
+ * @param props.compact When true, uses a shorter preview and omits description copy.
+ * @returns A linked card suitable for media grids and related-media panels.
+ */
 export function MediaAssetCard({
   asset,
   compact = false,
@@ -108,6 +117,12 @@ export function MediaAssetCard({
   );
 }
 
+/**
+ * Renders rights and storage badges for a media asset.
+ *
+ * @param props.asset Media asset whose rightsStatus and storageStatus drive labels.
+ * @returns Inline badge group.
+ */
 export function MediaStatusBadges({ asset }: { asset: MediaAsset }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -121,6 +136,12 @@ export function MediaStatusBadges({ asset }: { asset: MediaAsset }) {
   );
 }
 
+/**
+ * Renders explanatory rights/storage copy for a media asset.
+ *
+ * @param props.asset Media asset whose rights status and storage note are shown.
+ * @returns Compact policy note block.
+ */
 export function MediaRightsNote({ asset }: { asset: MediaAsset }) {
   return (
     <div style={rightsNoteStyle}>
@@ -137,6 +158,12 @@ export function MediaRightsNote({ asset }: { asset: MediaAsset }) {
   );
 }
 
+/**
+ * Converts a media asset into a saved-research payload.
+ *
+ * @param asset Media asset to save.
+ * @returns Saved item with media type, media href, and context from rights/storage labels.
+ */
 export function mediaSaveItem(asset: MediaAsset) {
   return {
     type: "media" as const,
@@ -147,6 +174,12 @@ export function mediaSaveItem(asset: MediaAsset) {
   };
 }
 
+/**
+ * Renders the saved-research action for a media asset.
+ *
+ * @param props.asset Media asset to save or unsave.
+ * @returns Compact SaveResearchButton wired to mediaSaveItem.
+ */
 export function MediaSaveButton({ asset }: { asset: MediaAsset }) {
   return <SaveResearchButton item={mediaSaveItem(asset)} compact />;
 }

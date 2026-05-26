@@ -50,6 +50,9 @@ export default async function MediaAssetPage({
     topics: asset.relatedTopics,
     limit: 4,
   }).filter((related) => related.id !== asset.id);
+  const primaryImageAlt = asset.title
+    ? `Media asset: ${asset.title}`
+    : `Media asset: ${asset.id}`;
 
   return (
     <div className="container" style={{ paddingTop: 24, paddingBottom: 96 }}>
@@ -83,7 +86,7 @@ export default async function MediaAssetPage({
           {asset.localImagePath ? (
             <img
               src={asset.localImagePath}
-              alt=""
+              alt={primaryImageAlt}
               style={{
                 width: "100%",
                 height: "100%",

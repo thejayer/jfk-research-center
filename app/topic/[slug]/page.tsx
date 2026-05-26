@@ -55,10 +55,13 @@ export default async function TopicPage({
   const { slug } = await params;
   if (slug === "physical-evidence") redirect("/evidence");
 
-  const [data, media] = await Promise.all([
+  const [topicResult, mediaResult] = await Promise.allSettled([
     fetchTopic(slug),
-    fetchMediaIndex().catch(() => null),
+    fetchMediaIndex(),
   ]);
+  if (topicResult.status === "rejected") throw topicResult.reason;
+  const data = topicResult.value;
+  const media = mediaResult.status === "fulfilled" ? mediaResult.value : null;
   if (!data) notFound();
 
   const topicSearchHref = `/search?topic=${encodeURIComponent(data.topic.slug)}`;

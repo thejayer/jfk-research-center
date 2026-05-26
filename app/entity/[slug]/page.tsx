@@ -43,10 +43,13 @@ export default async function EntityPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [data, media] = await Promise.all([
+  const [entityResult, mediaResult] = await Promise.allSettled([
     fetchEntity(slug),
-    fetchMediaIndex().catch(() => null),
+    fetchMediaIndex(),
   ]);
+  if (entityResult.status === "rejected") throw entityResult.reason;
+  const data = entityResult.value;
+  const media = mediaResult.status === "fulfilled" ? mediaResult.value : null;
   if (!data) notFound();
 
   const searchHref = `/search?q=${encodeURIComponent(data.entity.name)}&mode=mention`;
