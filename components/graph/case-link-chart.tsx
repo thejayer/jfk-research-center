@@ -22,6 +22,7 @@ import {
 import type { CooccurrenceGraph, CooccurrenceNode } from "@/lib/api-types";
 import {
   buildCaseLinkChart,
+  findShortestCaseLinkPath,
   type CaseLinkChartLink,
   type CaseLinkChartNode,
 } from "@/lib/case-link-chart";
@@ -61,6 +62,8 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     initial.nodes[0]?.id ?? null,
   );
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+  const [pathStartId, setPathStartId] = useState("");
+  const [pathEndId, setPathEndId] = useState("");
   const [zoom, setZoom] = useState(defaultZoom);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{
@@ -88,6 +91,38 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     () => new Set(layout.links.map((link) => link.id)),
     [layout.links],
   );
+  const pathNodeOptions = useMemo(
+    () => [...layout.nodes].sort((a, b) => a.name.localeCompare(b.name)),
+    [layout.nodes],
+  );
+  const pathResult = useMemo(
+    () =>
+      findShortestCaseLinkPath(chart, pathStartId, pathEndId, {
+        visibleNodeIds,
+        visibleLinkIds,
+      }),
+    [chart, pathEndId, pathStartId, visibleLinkIds, visibleNodeIds],
+  );
+  const pathNodeIds = useMemo(
+    () =>
+      pathResult ? new Set(pathResult.nodes.map((node) => node.id)) : null,
+    [pathResult],
+  );
+  const pathLinkIds = useMemo(
+    () =>
+      pathResult ? new Set(pathResult.links.map((link) => link.id)) : null,
+    [pathResult],
+  );
+  const pathStartNode = pathStartId
+    ? (chart.nodes.find((node) => node.id === pathStartId) ?? null)
+    : null;
+  const pathEndNode = pathEndId
+    ? (chart.nodes.find((node) => node.id === pathEndId) ?? null)
+    : null;
+  const hasPathQuery = Boolean(pathStartId && pathEndId);
+  const hasSamePathEndpoint = Boolean(
+    pathStartId && pathEndId && pathStartId === pathEndId,
+  );
 
   const selectedLink = useMemo(
     () =>
@@ -104,6 +139,15 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
   }, [selectedLinkId, visibleLinkIds]);
 
   useEffect(() => {
+    setPathStartId((current) =>
+      current && !visibleNodeIds.has(current) ? "" : current,
+    );
+    setPathEndId((current) =>
+      current && !visibleNodeIds.has(current) ? "" : current,
+    );
+  }, [visibleNodeIds]);
+
+  useEffect(() => {
     if (
       !selectedLinkId &&
       !layout.nodes.some((node) => node.id === selectedNodeId)
@@ -114,10 +158,10 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
 
   const selectedNode = useMemo(
     () =>
-      selectedLink
+      selectedLink || pathResult
         ? null
         : (chart.nodes.find((node) => node.id === selectedNodeId) ?? null),
-    [chart.nodes, selectedLink, selectedNodeId],
+    [chart.nodes, pathResult, selectedLink, selectedNodeId],
   );
 
   const selectedConnections = useMemo(() => {
@@ -134,6 +178,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
 
   const focusedNodeId = hoveredNodeId ?? selectedNodeId;
   const connectedNodeIds = useMemo(() => {
+    if (pathNodeIds) return pathNodeIds;
     if (selectedLink) {
       return new Set<string>([selectedLink.source, selectedLink.target]);
     }
@@ -144,7 +189,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
       if (link.target === focusedNodeId) ids.add(link.source);
     }
     return ids;
-  }, [chart.links, focusedNodeId, selectedLink]);
+  }, [chart.links, focusedNodeId, pathNodeIds, selectedLink]);
 
   const commit = useCallback(
     async (nextFrom: number, nextTo: number) => {
@@ -190,11 +235,32 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
     setSelectedLinkId(linkId);
     setSelectedNodeId(null);
     setHoveredNodeId(null);
+    setPathStartId("");
+    setPathEndId("");
   };
 
   const selectNode = (nodeId: string) => {
     setSelectedNodeId(nodeId);
     setSelectedLinkId(null);
+    setPathStartId("");
+    setPathEndId("");
+  };
+
+  const setPathStart = (nodeId: string) => {
+    setPathStartId(nodeId);
+    setSelectedLinkId(null);
+    setSelectedNodeId(nodeId || pathEndId || null);
+  };
+
+  const setPathEnd = (nodeId: string) => {
+    setPathEndId(nodeId);
+    setSelectedLinkId(null);
+    setSelectedNodeId(nodeId || pathStartId || null);
+  };
+
+  const clearPath = () => {
+    setPathStartId("");
+    setPathEndId("");
   };
 
   const resetView = () => {
@@ -307,6 +373,71 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           <span>{layout.links.length} labeled links</span>
           {loading ? <span>Refreshing...</span> : null}
         </div>
+
+        <section
+          className="case-link-path-finder"
+          aria-labelledby="case-link-path-heading"
+        >
+          <div className="case-link-path-copy">
+            <div className="eyebrow" id="case-link-path-heading">
+              Path finder
+            </div>
+            <p>
+              Pick two visible cards to highlight the shortest relationship
+              path and inspect each evidence step.
+            </p>
+          </div>
+          <label className="case-link-path-field" htmlFor="case-link-path-from">
+            <span>From</span>
+            <select
+              id="case-link-path-from"
+              value={pathStartId}
+              onChange={(event) => setPathStart(event.target.value)}
+            >
+              <option value="">Choose start</option>
+              {pathNodeOptions.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="case-link-path-field" htmlFor="case-link-path-to">
+            <span>To</span>
+            <select
+              id="case-link-path-to"
+              value={pathEndId}
+              onChange={(event) => setPathEnd(event.target.value)}
+            >
+              <option value="">Choose target</option>
+              {pathNodeOptions.map((node) => (
+                <option key={node.id} value={node.id}>
+                  {node.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="case-link-path-tools">
+            <button
+              type="button"
+              onClick={clearPath}
+              disabled={!pathStartId && !pathEndId}
+            >
+              Clear path
+            </button>
+            <span aria-live="polite">
+              {hasSamePathEndpoint
+                ? "Choose two different cards"
+                : pathResult
+                  ? `${pathResult.steps.length} step${
+                      pathResult.steps.length === 1 ? "" : "s"
+                    } found`
+                  : hasPathQuery
+                    ? "No visible path"
+                    : "No path selected"}
+            </span>
+          </div>
+        </section>
       </div>
 
       <div className="case-link-workspace">
@@ -358,7 +489,9 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                 const target = resolveNode(link.target);
                 if (!source || !target) return null;
                 const selected = selectedLinkId === link.id;
+                const pathEdge = pathLinkIds?.has(link.id) ?? false;
                 const highlighted =
+                  pathEdge ||
                   !connectedNodeIds ||
                   selected ||
                   (connectedNodeIds.has(source.id) &&
@@ -382,13 +515,18 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                       stroke={
                         selected
                           ? "var(--accent)"
+                          : pathEdge
+                            ? "var(--cat-release)"
                           : highlighted
                             ? "var(--border-strong)"
                             : "var(--border)"
                       }
                       strokeWidth={Math.max(
-                        1.2,
-                        Math.min(4.4, 1 + Math.log(link.count)),
+                        pathEdge ? 2.4 : 1.2,
+                        Math.min(
+                          pathEdge ? 5.8 : 4.4,
+                          1 + Math.log(link.count),
+                        ),
                       )}
                     />
                   </g>
@@ -401,6 +539,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
               const target = resolveNode(link.target);
               if (!source || !target) return null;
               const selected = selectedLinkId === link.id;
+              const pathEdge = pathLinkIds?.has(link.id) ?? false;
               const sourceX = source.x ?? 0;
               const sourceY = source.y ?? 0;
               const targetX = target.x ?? 0;
@@ -408,6 +547,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
               const midX = sourceX / 2 + targetX / 2;
               const midY = sourceY / 2 + targetY / 2;
               const highlighted =
+                pathEdge ||
                 !connectedNodeIds ||
                 selected ||
                 (connectedNodeIds.has(source.id) &&
@@ -419,6 +559,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                   type="button"
                   className="case-link-edge-button"
                   data-chart-interactive="true"
+                  data-path={pathEdge}
                   data-selected={selected}
                   style={{
                     left: midX,
@@ -435,6 +576,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
 
             {layout.nodes.map((node) => {
               const selected = selectedNodeId === node.id;
+              const pathNode = pathNodeIds?.has(node.id) ?? false;
               const connected =
                 !connectedNodeIds || connectedNodeIds.has(node.id);
               return (
@@ -443,6 +585,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
                   type="button"
                   className="case-link-node"
                   data-chart-interactive="true"
+                  data-path={pathNode}
                   data-type={node.type}
                   data-selected={selected}
                   style={{
@@ -474,7 +617,69 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         </div>
 
         <aside className="case-link-detail" aria-label="Selected chart item">
-          {selectedLink ? (
+          {pathResult ? (
+            <>
+              <div className="eyebrow">Path finder</div>
+              <h2>
+                {pathResult.source.name} to {pathResult.target.name}
+              </h2>
+              <p>
+                Shortest visible path: {pathResult.steps.length} relationship
+                step{pathResult.steps.length === 1 ? "" : "s"}. Each step links
+                to the paired mention search and shows sampled supporting
+                records when available.
+              </p>
+              <div className="case-link-path-list">
+                {pathResult.steps.map((step, index) => (
+                  <div key={step.link.id} className="case-link-path-step">
+                    <div className="case-link-path-step-header">
+                      <span>{index + 1}</span>
+                      <Link href={step.link.href}>
+                        {step.from.name} to {step.to.name}
+                      </Link>
+                      <strong>{step.link.label}</strong>
+                    </div>
+                    {step.link.documents.length > 0 ? (
+                      <div className="case-link-path-records">
+                        {step.link.documents.slice(0, 2).map((document) => (
+                          <Link key={document.id} href={document.href}>
+                            <span>{document.title}</span>
+                            <small>
+                              {[
+                                document.agency,
+                                document.dateLabel ?? document.date,
+                              ]
+                                .filter(Boolean)
+                                .join(" / ") || "Record"}
+                            </small>
+                          </Link>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="muted">
+                        No sampled records on this edge. Open paired search for
+                        the full trail.
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : hasPathQuery ? (
+            <>
+              <div className="eyebrow">Path finder</div>
+              <h2>No visible path</h2>
+              <p>
+                {hasSamePathEndpoint
+                  ? "Choose two different cards to calculate a relationship path."
+                  : `No visible route connects ${
+                      pathStartNode?.name ?? "the selected start"
+                    } and ${
+                      pathEndNode?.name ?? "the selected target"
+                    } with the current date range and node-type filters.`}
+              </p>
+            </>
+          ) : selectedLink ? (
             <>
               <div className="eyebrow">Selected relationship</div>
               <h2>
@@ -664,6 +869,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         }
         .case-link-type,
         .case-link-zoom-controls button,
+        .case-link-path-tools button,
         .case-link-actions a,
         .case-link-actions button {
           min-height: 36px;
@@ -713,6 +919,68 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           color: var(--text);
           font-size: 1.2rem;
           line-height: 1;
+        }
+        .case-link-path-finder {
+          grid-column: 1 / -1;
+          display: grid;
+          grid-template-columns:
+            minmax(220px, 1fr)
+            minmax(180px, 0.8fr)
+            minmax(180px, 0.8fr)
+            minmax(130px, auto);
+          gap: 14px;
+          align-items: end;
+          padding-top: 14px;
+          border-top: 1px solid var(--border);
+        }
+        .case-link-path-copy {
+          display: grid;
+          gap: 4px;
+        }
+        .case-link-path-copy p {
+          max-width: 46ch;
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 0.82rem;
+          line-height: 1.4;
+        }
+        .case-link-path-field {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+          color: var(--text-muted);
+          font-size: 0.78rem;
+        }
+        .case-link-path-field select {
+          width: 100%;
+          min-height: 38px;
+          min-width: 0;
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          background: var(--surface);
+          color: var(--text);
+          font: inherit;
+          font-size: 0.86rem;
+          padding: 0 10px;
+        }
+        .case-link-path-tools {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+        .case-link-path-tools button {
+          padding: 0 12px;
+        }
+        .case-link-path-tools button:disabled {
+          cursor: not-allowed;
+          opacity: 0.52;
+        }
+        .case-link-path-tools span {
+          min-height: 1rem;
+          color: var(--text-muted);
+          font-size: 0.76rem;
+          line-height: 1.2;
+          text-align: center;
         }
         .case-link-workspace {
           display: grid;
@@ -782,6 +1050,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         }
         .case-link-edge-button:hover,
         .case-link-edge-button:focus-visible,
+        .case-link-edge-button[data-path="true"],
         .case-link-edge-button[data-selected="true"] {
           border-color: var(--accent);
           background: color-mix(in srgb, var(--accent) 12%, var(--surface));
@@ -815,6 +1084,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         }
         .case-link-node:hover,
         .case-link-node:focus-visible,
+        .case-link-node[data-path="true"],
         .case-link-node[data-selected="true"] {
           border-color: var(--accent);
           box-shadow: var(--shadow-md);
@@ -958,6 +1228,73 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           -webkit-line-clamp: 3;
           -webkit-box-orient: vertical;
         }
+        .case-link-path-list {
+          display: grid;
+          gap: 12px;
+          margin-top: 20px;
+        }
+        .case-link-path-step {
+          display: grid;
+          gap: 10px;
+          padding-top: 12px;
+          border-top: 1px solid var(--border);
+        }
+        .case-link-path-step-header {
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+          gap: 6px 10px;
+          align-items: center;
+        }
+        .case-link-path-step-header > span {
+          grid-row: span 2;
+          display: inline-grid;
+          place-items: center;
+          width: 26px;
+          height: 26px;
+          border-radius: 999px;
+          background: var(--accent-soft);
+          color: var(--text);
+          font-family: var(--font-mono);
+          font-size: 0.76rem;
+        }
+        .case-link-path-step-header a {
+          min-width: 0;
+          color: var(--text);
+          font-family: var(--font-serif);
+          font-size: 1rem;
+          line-height: 1.18;
+          text-decoration: none;
+        }
+        .case-link-path-step-header strong {
+          color: var(--text-muted);
+          font-family: var(--font-mono);
+          font-size: 0.76rem;
+          font-weight: 500;
+        }
+        .case-link-path-records {
+          display: grid;
+          gap: 8px;
+          padding-left: 36px;
+        }
+        .case-link-path-records a {
+          display: grid;
+          gap: 3px;
+          color: var(--text);
+          text-decoration: none;
+        }
+        .case-link-path-records span {
+          display: -webkit-box;
+          overflow: hidden;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          font-size: 0.85rem;
+          line-height: 1.22;
+        }
+        .case-link-path-records small {
+          color: var(--text-muted);
+          font-size: 0.72rem;
+          line-height: 1.25;
+        }
         .case-link-note {
           max-width: 76ch;
           margin: 0;
@@ -967,6 +1304,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
         }
         @media (max-width: 980px) {
           .case-link-toolbar,
+          .case-link-path-finder,
           .case-link-workspace {
             grid-template-columns: 1fr;
           }
@@ -985,6 +1323,9 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
           .case-link-type-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
+          }
+          .case-link-path-finder {
+            gap: 10px;
           }
           .case-link-canvas {
             min-height: 520px;
