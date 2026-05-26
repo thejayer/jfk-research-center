@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { fetchEntityCooccurrence } from "@/lib/api-client";
 import { CaseLinkChart } from "@/components/graph/case-link-chart";
+import { parseCaseLinkChartUrlState } from "@/lib/case-link-chart-url";
 
 export const dynamic = "force-dynamic";
 
@@ -10,8 +11,16 @@ export const metadata: Metadata = {
     "Investigation-style link chart of people, agencies, places, and concepts that co-occur across JFK records.",
 };
 
-export default async function GraphPage() {
-  const graph = await fetchEntityCooccurrence();
+export default async function GraphPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const initialUrlState = parseCaseLinkChartUrlState(await searchParams);
+  const graph = await fetchEntityCooccurrence({
+    yearFrom: initialUrlState.yearFrom,
+    yearTo: initialUrlState.yearTo,
+  });
 
   return (
     <div
@@ -49,7 +58,7 @@ export default async function GraphPage() {
         </p>
       </header>
 
-      <CaseLinkChart initial={graph} />
+      <CaseLinkChart initial={graph} initialUrlState={initialUrlState} />
     </div>
   );
 }

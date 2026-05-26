@@ -3,6 +3,7 @@ import type {
   AskGoldQuestion,
   AskRetrievalInput,
 } from "./ask-guardrails";
+import type { CooccurrenceNode } from "./api-types";
 import type { PublicApiRateWindow } from "./public-api-access";
 
 export const SITE_NAME = "JFK Research Center";
@@ -104,6 +105,13 @@ export const searchGroups = [
 ] as const;
 
 export type SearchGroup = (typeof searchGroups)[number];
+
+export const graphTypeParamValues = [
+  "person",
+  "org",
+  "place",
+  "concept",
+] as const satisfies readonly CooccurrenceNode["type"][];
 
 export const tensionOrder = [
   "contradiction",

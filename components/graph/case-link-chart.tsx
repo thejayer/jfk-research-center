@@ -26,6 +26,10 @@ import {
   type CaseLinkChartLink,
   type CaseLinkChartNode,
 } from "@/lib/case-link-chart";
+import {
+  serializeCaseLinkChartUrlState,
+  type CaseLinkChartUrlState,
+} from "@/lib/case-link-chart-url";
 
 type PositionedNode = CaseLinkChartNode & SimulationNodeDatum;
 type PositionedLink = Omit<CaseLinkChartLink, "source" | "target"> &
@@ -48,22 +52,36 @@ const typeOptions: Array<{ type: CooccurrenceNode["type"]; label: string }> = [
   { type: "place", label: "Places" },
   { type: "concept", label: "Concepts" },
 ];
+const allTypeValues = typeOptions.map((option) => option.type);
 
-export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
+export function CaseLinkChart({
+  initial,
+  initialUrlState = {},
+}: {
+  initial: CooccurrenceGraph;
+  initialUrlState?: CaseLinkChartUrlState;
+}) {
   const [graph, setGraph] = useState(initial);
   const [yearFrom, setYearFrom] = useState(initial.appliedRange.yearFrom);
   const [yearTo, setYearTo] = useState(initial.appliedRange.yearTo);
   const [loading, setLoading] = useState(false);
   const [activeTypes, setActiveTypes] = useState<CooccurrenceNode["type"][]>(
-    () => typeOptions.map((option) => option.type),
+    () =>
+      initialUrlState.types?.filter((type) => allTypeValues.includes(type)) ??
+      allTypeValues,
   );
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
-    initial.nodes[0]?.id ?? null,
+    initialUrlState.node ??
+      (initialUrlState.edge || initialUrlState.from || initialUrlState.to
+        ? null
+        : (initial.nodes[0]?.id ?? null)),
   );
-  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
-  const [pathStartId, setPathStartId] = useState("");
-  const [pathEndId, setPathEndId] = useState("");
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(
+    initialUrlState.edge ?? null,
+  );
+  const [pathStartId, setPathStartId] = useState(initialUrlState.from ?? "");
+  const [pathEndId, setPathEndId] = useState(initialUrlState.to ?? "");
   const [zoom, setZoom] = useState(defaultZoom);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{
@@ -77,6 +95,7 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
 
   const chart = useMemo(() => buildCaseLinkChart(graph), [graph]);
   const { min, max } = initial.yearBounds;
+  const defaultSelectedNodeId = initial.nodes[0]?.id ?? null;
 
   const visibleTypeSet = useMemo(() => new Set(activeTypes), [activeTypes]);
   const layout = useMemo(
@@ -139,6 +158,15 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
   }, [selectedLinkId, visibleLinkIds]);
 
   useEffect(() => {
+    if (
+      selectedNodeId &&
+      !chart.nodes.some((node) => node.id === selectedNodeId)
+    ) {
+      setSelectedNodeId(defaultSelectedNodeId);
+    }
+  }, [chart.nodes, defaultSelectedNodeId, selectedNodeId]);
+
+  useEffect(() => {
     setPathStartId((current) =>
       current && !visibleNodeIds.has(current) ? "" : current,
     );
@@ -155,6 +183,53 @@ export function CaseLinkChart({ initial }: { initial: CooccurrenceGraph }) {
       setSelectedNodeId(layout.nodes[0]?.id ?? null);
     }
   }, [layout.nodes, selectedLinkId, selectedNodeId]);
+
+  /**
+   * URL sync invariant: this useEffect builds the canonical share state object,
+   * elides default yearFrom/yearTo values from initial.yearBounds, lets
+   * pathStartId/pathEndId take precedence over selectedNodeId/selectedLinkId,
+   * omits selectedTypes when all types are active, and uses
+   * serializeCaseLinkChartUrlState with window.history.replaceState only when
+   * nextSearch differs from currentSearch.
+   */
+  useEffect(() => {
+    const selectedTypes =
+      activeTypes.length === allTypeValues.length ? undefined : activeTypes;
+    const selectedPath = pathStartId || pathEndId;
+    const state = {
+      yearFrom: yearFrom === initial.yearBounds.min ? undefined : yearFrom,
+      yearTo: yearTo === initial.yearBounds.max ? undefined : yearTo,
+      types: selectedTypes,
+      node:
+        !selectedPath &&
+        !selectedLinkId &&
+        selectedNodeId &&
+        selectedNodeId !== defaultSelectedNodeId
+          ? selectedNodeId
+          : undefined,
+      edge: !selectedPath ? (selectedLinkId ?? undefined) : undefined,
+      from: pathStartId || undefined,
+      to: pathEndId || undefined,
+    } satisfies CaseLinkChartUrlState;
+    const nextSearch = serializeCaseLinkChartUrlState(state);
+    const currentSearch = window.location.search.replace(/^\?/, "");
+    if (nextSearch === currentSearch) return;
+    const nextUrl = `${window.location.pathname}${
+      nextSearch ? `?${nextSearch}` : ""
+    }${window.location.hash}`;
+    window.history.replaceState(null, "", nextUrl);
+  }, [
+    activeTypes,
+    defaultSelectedNodeId,
+    initial.yearBounds.max,
+    initial.yearBounds.min,
+    pathEndId,
+    pathStartId,
+    selectedLinkId,
+    selectedNodeId,
+    yearFrom,
+    yearTo,
+  ]);
 
   const selectedNode = useMemo(
     () =>
