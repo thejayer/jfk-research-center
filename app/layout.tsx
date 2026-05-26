@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   },
   description:
     "An editorial archive for researching the assassination of President John F. Kennedy, built on records from the U.S. National Archives Catalog.",
-  metadataBase: new URL("https://jfk-research-center.local"),
+  metadataBase: new URL("https://researchjfk.ai"),
   openGraph: {
     title: "JFK Research Center",
     description:
