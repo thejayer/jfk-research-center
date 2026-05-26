@@ -220,11 +220,12 @@ export function canCacheMediaAsset(asset: MediaAsset): boolean {
 
 function mediaAssetsSnapshot(): MediaAsset[] {
   if (!cachedMediaAssets) {
+    const source = readManifestAssets() ?? readSeedAssets() ?? [...MEDIA_ASSETS];
     cachedMediaAssets = sortMediaAssets(
-      readManifestAssets() ?? readSeedAssets() ?? [...MEDIA_ASSETS],
+      cloneMediaAssets(source),
     );
   }
-  return cachedMediaAssets;
+  return cloneMediaAssets(cachedMediaAssets);
 }
 
 /**
@@ -242,7 +243,7 @@ export function invalidateMediaAssetsCache(): void {
  * @returns Manifest assets when generated, curated seed assets when present, otherwise static fallback assets; sorted newest first by date and then title.
  */
 export function listMediaAssets(): MediaAsset[] {
-  return [...mediaAssetsSnapshot()];
+  return mediaAssetsSnapshot();
 }
 
 /**
@@ -461,6 +462,19 @@ function sortMediaAssets(assets: MediaAsset[]): MediaAsset[] {
       (b.date ?? "").localeCompare(a.date ?? "") ||
       a.title.localeCompare(b.title),
   );
+}
+
+function cloneMediaAssets(assets: readonly MediaAsset[]): MediaAsset[] {
+  return assets.map(cloneMediaAsset);
+}
+
+function cloneMediaAsset(asset: MediaAsset): MediaAsset {
+  return {
+    ...asset,
+    tags: [...asset.tags],
+    relatedEntities: [...asset.relatedEntities],
+    relatedTopics: [...asset.relatedTopics],
+  };
 }
 
 function mediaSearchText(asset: MediaAsset): string {

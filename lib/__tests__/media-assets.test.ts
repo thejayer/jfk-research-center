@@ -67,6 +67,25 @@ describe("media assets", () => {
     );
   });
 
+  it("does not expose mutable references from the cached media snapshot", () => {
+    const [asset] = listMediaAssets();
+    expect(asset).toBeDefined();
+    if (!asset) return;
+
+    const original = getMediaAsset(asset.id);
+    expect(original).not.toBeNull();
+    asset.title = "Mutated by caller";
+    asset.tags.push("mutated-cache-reference");
+    if (original) {
+      original.relatedEntities.push("mutated-entity");
+    }
+
+    const reread = getMediaAsset(asset.id);
+    expect(reread?.title).not.toBe("Mutated by caller");
+    expect(reread?.tags).not.toContain("mutated-cache-reference");
+    expect(reread?.relatedEntities).not.toContain("mutated-entity");
+  });
+
   it("filters media assets and builds relationship facets", () => {
     const assets = listMediaAssets();
     const dallas = filterMediaAssets(assets, {
