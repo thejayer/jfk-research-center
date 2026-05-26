@@ -25,6 +25,7 @@ import type {
   EntityResponse,
   EstablishedFactsIndex,
   HomeResponse,
+  MediaIndexResponse,
   OpenQuestionsIndexResponse,
   OpenQuestionsTopicResponse,
   PhysicalEvidenceDetail,
@@ -80,6 +81,12 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
     revalidate: 600,
   });
   if (!data) throw new Error("Corpus manifest missing");
+  return data;
+}
+
+export async function fetchMediaIndex(): Promise<MediaIndexResponse> {
+  const data = await get<MediaIndexResponse>("/api/media", { revalidate: 600 });
+  if (!data) throw new Error("Media index missing");
   return data;
 }
 

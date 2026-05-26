@@ -201,6 +201,35 @@ export const sourceReliabilityDefinitions = {
 
 export type SourceReliabilityKind = keyof typeof sourceReliabilityDefinitions;
 
+export const mediaRightsDefinitions = {
+  public_domain_likely: {
+    label: "Public domain likely",
+    description:
+      "Item metadata points to official federal-government creation, but item-level restrictions still need review before storing image files.",
+  },
+  permission_required: {
+    label: "Permission required",
+    description:
+      "Collection policy or known rights ownership requires written permission before image reuse or local storage.",
+  },
+  copyright_unknown: {
+    label: "Copyright unknown",
+    description:
+      "Creator, provenance, or donor rights are unclear; keep metadata and source links only until researched.",
+  },
+  metadata_only: {
+    label: "Metadata only",
+    description:
+      "The asset is indexed as a research pointer, with no local image storage planned in the first pass.",
+  },
+} as const;
+
+export type MediaRightsStatus = keyof typeof mediaRightsDefinitions;
+
+export const mediaRightsKeys = Object.keys(
+  mediaRightsDefinitions,
+) as MediaRightsStatus[];
+
 export const askCitationRequirementStrict: AskCitationRequirement = {
   minInlineCitations: 2,
   allowOnlyRetrievedDocuments: true,
