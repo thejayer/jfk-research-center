@@ -397,8 +397,18 @@ mark {
   padding: 3px 0;
 }
 
+.research-tray-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 22px 22px;
+}
+
+.research-tray-brief-link,
 .research-tray-clear {
-  margin: 0 22px 22px;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 9px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -406,6 +416,13 @@ mark {
   color: var(--text-muted);
   font-size: 0.82rem;
   font-weight: 600;
+  text-decoration: none;
+}
+
+.research-tray-brief-link {
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
 }
 
 .research-tray-empty {

@@ -215,7 +215,8 @@ function isSavedResearchType(value: unknown): value is SavedResearchType {
     value === "entity" ||
     value === "topic" ||
     value === "timeline" ||
-    value === "question"
+    value === "question" ||
+    value === "media"
   );
 }
 

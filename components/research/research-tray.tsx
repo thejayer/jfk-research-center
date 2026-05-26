@@ -133,13 +133,22 @@ export function ResearchTray() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  className="research-tray-clear"
-                  onClick={() => clearSavedResearchItems()}
-                >
-                  Clear tray
-                </button>
+                <div className="research-tray-actions">
+                  <Link
+                    href="/research/brief"
+                    className="research-tray-brief-link"
+                    onClick={() => setOpen(false)}
+                  >
+                    Build brief
+                  </Link>
+                  <button
+                    type="button"
+                    className="research-tray-clear"
+                    onClick={() => clearSavedResearchItems()}
+                  >
+                    Clear tray
+                  </button>
+                </div>
               </>
             ) : (
               <div className="research-tray-empty">
