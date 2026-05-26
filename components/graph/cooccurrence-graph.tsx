@@ -271,7 +271,7 @@ export function CooccurrenceGraphViz({ initial }: { initial: CooccurrenceGraph }
                   l.href ??
                   `/search?entity=${encodeURIComponent(sourceId)}&entity=${encodeURIComponent(targetId)}`
                 }
-                aria-label={`Search records mentioning both ${s.name} and ${t.name}`}
+                aria-label={`Open relationship details between ${s.name} and ${t.name}`}
               >
                 <line
                   x1={s.x}
