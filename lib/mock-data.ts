@@ -1668,7 +1668,9 @@ export function buildEntityCooccurrence({
         .filter((doc): doc is DocumentSeed => Boolean(doc))
         .sort(
           (a, b) =>
-            (b.date ?? "").localeCompare(a.date ?? "") ||
+            (b.startDate ?? b.date ?? "").localeCompare(
+              a.startDate ?? a.date ?? "",
+            ) ||
             a.title.localeCompare(b.title),
         )
         .slice(0, 4)

@@ -173,7 +173,7 @@ export type CooccurrenceLink = {
   target: string;
   count: number; // total co-occurring documents within year range
   /** Small sample of records that mention both endpoints, newest first. */
-  documents?: DocumentCard[];
+  documents: DocumentCard[];
 };
 
 export type CooccurrenceGraph = {
