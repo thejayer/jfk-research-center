@@ -1,11 +1,5 @@
 import type { CooccurrenceNode } from "./api-types";
-
-export const graphTypeParamValues = [
-  "person",
-  "org",
-  "place",
-  "concept",
-] as const satisfies readonly CooccurrenceNode["type"][];
+import { graphTypeParamValues } from "./constants";
 
 export type CaseLinkChartUrlState = {
   yearFrom?: number;
@@ -67,8 +61,11 @@ export function serializeCaseLinkChartUrlState(
 }
 
 /** Guards node-type filter params before they reach chart state. */
-export function isGraphType(value: string): value is CooccurrenceNode["type"] {
-  return graphTypeParamValues.includes(value as CooccurrenceNode["type"]);
+export function isGraphType(value: unknown): value is CooccurrenceNode["type"] {
+  return (
+    typeof value === "string" &&
+    graphTypeParamValues.includes(value as CooccurrenceNode["type"])
+  );
 }
 
 function parseTypeParams(values: string[]): CooccurrenceNode["type"][] {

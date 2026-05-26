@@ -184,6 +184,14 @@ export function CaseLinkChart({
     }
   }, [layout.nodes, selectedLinkId, selectedNodeId]);
 
+  /**
+   * URL sync invariant: this useEffect builds the canonical share state object,
+   * elides default yearFrom/yearTo values from initial.yearBounds, lets
+   * pathStartId/pathEndId take precedence over selectedNodeId/selectedLinkId,
+   * omits selectedTypes when all types are active, and uses
+   * serializeCaseLinkChartUrlState with window.history.replaceState only when
+   * nextSearch differs from currentSearch.
+   */
   useEffect(() => {
     const selectedTypes =
       activeTypes.length === allTypeValues.length ? undefined : activeTypes;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isGraphType,
   parseCaseLinkChartUrlState,
   serializeCaseLinkChartUrlState,
 } from "../case-link-chart-url";
@@ -49,5 +50,12 @@ describe("case link chart URL state", () => {
     ).toBe(
       "yearFrom=1950&yearTo=2005&type=person&type=org&edge=cia--oswald&from=oswald&to=fbi",
     );
+  });
+
+  it("guards graph type values", () => {
+    expect(isGraphType("person")).toBe(true);
+    expect(isGraphType("bad")).toBe(false);
+    expect(isGraphType(123)).toBe(false);
+    expect(isGraphType(undefined)).toBe(false);
   });
 });
