@@ -55,6 +55,8 @@ const graph: CooccurrenceGraph = {
       kind: "media_topic",
       label: "Topic media link",
       href: "/media/jfkl-jfkwhp-1963-11-22-b",
+      rightsLabel: "Public domain likely",
+      storageLabel: "External reference",
       documents: [],
     },
   ],
@@ -99,6 +101,8 @@ describe("case link chart", () => {
       href: "/media/jfkl-jfkwhp-1963-11-22-b",
       searchHref: null,
       typeLabel: "Media",
+      description: "Official media record.",
+      sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-1963-11-22-b",
       rightsLabel: "Public domain likely",
       storageLabel: "External reference",
     });
@@ -106,6 +110,8 @@ describe("case link chart", () => {
       id: "media:jfkl-jfkwhp-1963-11-22-b--dealey-plaza",
       label: "Topic media link",
       href: "/media/jfkl-jfkwhp-1963-11-22-b",
+      rightsLabel: "Public domain likely",
+      storageLabel: "External reference",
       documents: [],
     });
   });

@@ -186,6 +186,8 @@ export type CooccurrenceLink = {
   kind?: "cooccurrence" | "media_entity" | "media_topic";
   label?: string;
   href?: string;
+  rightsLabel?: string | null;
+  storageLabel?: string | null;
   /** Small sample of records that mention both endpoints, newest first. */
   documents: DocumentCard[];
 };

@@ -91,11 +91,12 @@ describe("buildEntityCooccurrence", () => {
 
   it("adds rights-aware media and topic nodes from media metadata", () => {
     const response = buildEntityCooccurrence({ minCount: 2 });
+    const mediaNodes = response.nodes.filter((node) => node.type === "media");
     const mediaLinks = response.links.filter((link) =>
       link.kind?.startsWith("media_"),
     );
 
-    expect(response.nodes.some((node) => node.type === "media")).toBe(true);
+    expect(mediaNodes.length).toBeGreaterThan(0);
     expect(
       response.nodes.some(
         (node) => node.id.startsWith("topic:") && node.typeLabel === "Topic",
@@ -104,9 +105,17 @@ describe("buildEntityCooccurrence", () => {
     expect(mediaLinks.length).toBeGreaterThan(0);
     expect(mediaLinks.every((link) => link.documents.length === 0)).toBe(true);
     expect(
-      response.nodes
-        .filter((node) => node.type === "media")
-        .every((node) => node.href?.startsWith("/media/")),
+      mediaNodes.every((node) => node.href?.startsWith("/media/")),
+    ).toBe(true);
+    expect(
+      mediaNodes.every(
+        (node) => Boolean(node.rightsLabel) && Boolean(node.storageLabel),
+      ),
+    ).toBe(true);
+    expect(
+      mediaLinks.every(
+        (link) => Boolean(link.rightsLabel) && Boolean(link.storageLabel),
+      ),
     ).toBe(true);
   });
 

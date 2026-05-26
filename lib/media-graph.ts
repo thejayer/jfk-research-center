@@ -68,6 +68,8 @@ export function addMediaAssetsToCooccurrenceGraph(
         kind: "media_entity",
         label: "Official media link",
         href: mediaAssetHref(asset.id),
+        rightsLabel: mediaRightsLabel(asset.rightsStatus),
+        storageLabel: storageLabels[asset.storageStatus],
         documents: [],
       });
     }
@@ -82,6 +84,8 @@ export function addMediaAssetsToCooccurrenceGraph(
         kind: "media_topic",
         label: "Topic media link",
         href: mediaAssetHref(asset.id),
+        rightsLabel: mediaRightsLabel(asset.rightsStatus),
+        storageLabel: storageLabels[asset.storageStatus],
         documents: [],
       });
     }

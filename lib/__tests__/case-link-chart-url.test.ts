@@ -42,13 +42,13 @@ describe("case link chart URL state", () => {
       serializeCaseLinkChartUrlState({
         yearFrom: 1950,
         yearTo: 2005,
-        types: ["person", "org"],
+        types: ["person", "org", "media"],
         edge: "cia--oswald",
         from: "oswald",
         to: "fbi",
       }),
     ).toBe(
-      "yearFrom=1950&yearTo=2005&type=person&type=org&edge=cia--oswald&from=oswald&to=fbi",
+      "yearFrom=1950&yearTo=2005&type=person&type=org&type=media&edge=cia--oswald&from=oswald&to=fbi",
     );
   });
 
