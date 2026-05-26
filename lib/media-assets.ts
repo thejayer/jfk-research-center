@@ -23,10 +23,10 @@ const eligibleStorageNote =
 
 const MEDIA_ASSETS: readonly MediaAsset[] = [
   {
-    id: "jfkl-jfkwhp-kn-30618",
+    id: "jfkl-jfkwhp-1963-11-23-a",
     title: "State Funeral of President Kennedy: body returns to the White House",
     sourceName: "John F. Kennedy Presidential Library and Museum",
-    sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-kn-30618",
+    sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-1963-11-23-a",
     collection: "White House Photographs",
     digitalIdentifier: "JFKWHP-1963-11-23-A",
     mediaType: "Negative",
@@ -73,10 +73,10 @@ const MEDIA_ASSETS: readonly MediaAsset[] = [
     relatedTopics: ["warren-commission"],
   },
   {
-    id: "jfkl-jfkwhp-kn-23401",
+    id: "jfkl-jfkwhp-1962-08-24-d",
     title: "President Kennedy in the Treaty Room",
     sourceName: "John F. Kennedy Presidential Library and Museum",
-    sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-kn-23401",
+    sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/jfkwhp-1962-08-24-d",
     collection: "White House Photographs",
     digitalIdentifier: "JFKWHP-1962-08-24-D",
     mediaType: "Negative",
@@ -123,12 +123,12 @@ const MEDIA_ASSETS: readonly MediaAsset[] = [
     relatedTopics: ["fbi"],
   },
   {
-    id: "jfkl-kfc-004-018-p0004",
+    id: "jfkl-kfc-004-018-p0003",
     title: "New York City, Kathleen Kennedy, portrait photographs, 1927",
     sourceName: "John F. Kennedy Presidential Library and Museum",
-    sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/kfc-004-018-p0004",
+    sourceUrl: "https://www.jfklibrary.org/asset-viewer/archives/kfc-004-018-p0003",
     collection: "Kennedy Family Collection",
-    digitalIdentifier: "KFC-004-018-p0004",
+    digitalIdentifier: "KFC-004-018",
     mediaType: "Photograph",
     date: "1927-01-01",
     dateLabel: "1927",

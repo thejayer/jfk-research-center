@@ -32,4 +32,12 @@ The first ingestion step stores metadata only: title, collection, digital identi
 
 ## Next Implementation Step
 
-Add an ingestion script that accepts a curated list of JFK Library asset URLs, extracts metadata, writes a manifest, and downloads binaries only when an explicit `eligible_for_cache` status is present.
+Use `npm run media:ingest:dry-run` to validate the curated seed list without network access or file writes.
+
+Use `npm run media:ingest -- --input data/media/jfkl-media-seeds.json --output data/media/jfkl-media-manifest.json` to fetch JFK Library asset pages and write a metadata manifest.
+
+Only use `npm run media:ingest -- --download-cleared` after item-level review confirms that every `eligible_for_cache` seed can be locally stored. The script still skips permission-required, copyright-unknown, and metadata-only items.
+
+## Seed Format
+
+Curated seeds live in `data/media/jfkl-media-seeds.json`. Each seed must include `sourceUrl` and should include explicit `rightsStatus`, `storageStatus`, `rightsNote`, and `storageNote` values. Missing rights values default to `copyright_unknown` and `metadata_only`.

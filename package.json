@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "media:ingest": "node scripts/ingest-jfkl-media.mjs",
+    "media:ingest:dry-run": "node scripts/ingest-jfkl-media.mjs --dry-run --no-fetch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
