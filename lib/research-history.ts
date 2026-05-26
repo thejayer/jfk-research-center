@@ -11,6 +11,7 @@ export type ResearchHistoryType =
   | "topic"
   | "timeline"
   | "question"
+  | "media"
   | "search"
   | "path";
 
@@ -42,6 +43,8 @@ export function researchHistoryTypeLabel(type: ResearchHistoryType): string {
       return "Timeline";
     case "question":
       return "Open question";
+    case "media":
+      return "Media";
     case "search":
       return "Search";
     case "path":
@@ -198,6 +201,7 @@ function isResearchHistoryType(value: unknown): value is ResearchHistoryType {
     value === "topic" ||
     value === "timeline" ||
     value === "question" ||
+    value === "media" ||
     value === "search" ||
     value === "path"
   );

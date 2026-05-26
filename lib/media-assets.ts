@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { MediaAsset, MediaIndexResponse } from "./api-types";
 import {
   mediaRightsDefinitions,
@@ -150,6 +152,39 @@ const MEDIA_ASSETS: readonly MediaAsset[] = [
   },
 ];
 
+const manifestPath = path.join(process.cwd(), "data/media/jfkl-media-manifest.json");
+const seedPath = path.join(process.cwd(), "data/media/jfkl-media-seeds.json");
+let cachedMediaAssets: MediaAsset[] | null = null;
+const storageStatuses = [
+  "metadata_only",
+  "external_reference",
+  "eligible_for_cache",
+  "cached",
+] as const satisfies readonly MediaAsset["storageStatus"][];
+
+export type MediaAssetFilters = {
+  q?: string;
+  collection?: string;
+  rights?: MediaRightsStatus | null;
+  storage?: MediaAsset["storageStatus"] | null;
+  tag?: string;
+  entity?: string;
+  topic?: string;
+};
+
+export type MediaFacetItem = {
+  value: string;
+  label: string;
+  count: number;
+};
+
+export type MediaFacets = {
+  collections: MediaFacetItem[];
+  tags: MediaFacetItem[];
+  entities: MediaFacetItem[];
+  topics: MediaFacetItem[];
+};
+
 /**
  * Returns the user-facing label for a canonical media rights status.
  *
@@ -183,17 +218,133 @@ export function canCacheMediaAsset(asset: MediaAsset): boolean {
   );
 }
 
+function mediaAssetsSnapshot(): MediaAsset[] {
+  if (!cachedMediaAssets) {
+    const source = readManifestAssets() ?? readSeedAssets() ?? [...MEDIA_ASSETS];
+    cachedMediaAssets = sortMediaAssets(
+      cloneMediaAssets(source),
+    );
+  }
+  return cloneMediaAssets(cachedMediaAssets);
+}
+
 /**
- * Lists the seeded official media candidates in display order.
+ * Clears the memoized media manifest snapshot after an ingest or admin update.
  *
- * @returns Media assets sorted newest first by date, then title for stable ties.
+ * @returns Nothing; the next list/get call will re-read the manifest or seeds.
+ */
+export function invalidateMediaAssetsCache(): void {
+  cachedMediaAssets = null;
+}
+
+/**
+ * Lists the rights-aware media candidates in display order.
+ *
+ * @returns Manifest assets when generated, curated seed assets when present, otherwise static fallback assets; sorted newest first by date and then title.
  */
 export function listMediaAssets(): MediaAsset[] {
-  return [...MEDIA_ASSETS].sort(
-    (a, b) =>
-      (b.date ?? "").localeCompare(a.date ?? "") ||
-      a.title.localeCompare(b.title),
-  );
+  return mediaAssetsSnapshot();
+}
+
+/**
+ * Builds the canonical public URL for a media asset detail page.
+ *
+ * @param id Media asset id to encode into the route segment.
+ * @returns Site-relative media detail URL.
+ */
+export function mediaAssetHref(id: string): string {
+  return `/media/${encodeURIComponent(id)}`;
+}
+
+/**
+ * Finds one media asset by id from the memoized manifest snapshot.
+ *
+ * @param id Canonical media asset id.
+ * @returns Matching MediaAsset, or null when the id is absent.
+ */
+export function getMediaAsset(id: string): MediaAsset | null {
+  return mediaAssetsSnapshot().find((asset) => asset.id === id) ?? null;
+}
+
+/**
+ * Applies the public media explorer filters to a media asset list.
+ *
+ * @param assets Candidate assets to filter.
+ * @param filters Optional query, collection, rights, storage, tag, entity, and topic filters.
+ * @returns Assets matching every supplied filter; q is trimmed and lowercased before matching.
+ */
+export function filterMediaAssets(
+  assets: readonly MediaAsset[],
+  filters: MediaAssetFilters,
+): MediaAsset[] {
+  const query = normalizeString(filters.q).toLowerCase();
+  return assets.filter((asset) => {
+    if (query && !mediaSearchText(asset).includes(query)) return false;
+    if (filters.collection && asset.collection !== filters.collection) return false;
+    if (filters.rights && asset.rightsStatus !== filters.rights) return false;
+    if (filters.storage && asset.storageStatus !== filters.storage) return false;
+    if (filters.tag && !asset.tags.includes(filters.tag)) return false;
+    if (filters.entity && !asset.relatedEntities.includes(filters.entity)) return false;
+    if (filters.topic && !asset.relatedTopics.includes(filters.topic)) return false;
+    return true;
+  });
+}
+
+/**
+ * Builds relationship facets for the media explorer filter controls.
+ *
+ * @param assets Assets to summarize.
+ * @returns Counted collection, tag, entity, and topic facet arrays sorted by count then label.
+ */
+export function buildMediaFacets(assets: readonly MediaAsset[]): MediaFacets {
+  return {
+    collections: countFacet(assets.map((asset) => asset.collection)),
+    tags: countFacet(assets.flatMap((asset) => asset.tags)),
+    entities: countFacet(assets.flatMap((asset) => asset.relatedEntities)),
+    topics: countFacet(assets.flatMap((asset) => asset.relatedTopics)),
+  };
+}
+
+/**
+ * Finds media assets related to a page by entity/topic overlap.
+ *
+ * @param assets Candidate media assets.
+ * @param options Related entity/topic slugs plus optional result limit, defaulting to 4.
+ * @returns Highest-scoring related assets; entity matches score higher than topic matches and invalid limits return no items.
+ */
+export function findRelatedMediaAssets(
+  assets: readonly MediaAsset[],
+  {
+    entities = [],
+    topics = [],
+    limit = 4,
+  }: {
+    entities?: readonly string[];
+    topics?: readonly string[];
+    limit?: number;
+  },
+): MediaAsset[] {
+  const safeLimit = Math.max(0, Number.isFinite(limit) ? Math.floor(limit) : 0);
+  const entitySet = new Set(entities.filter(Boolean));
+  const topicSet = new Set(topics.filter(Boolean));
+  if (safeLimit === 0 || (entitySet.size === 0 && topicSet.size === 0)) return [];
+
+  return assets
+    .map((asset) => ({
+      asset,
+      score:
+        asset.relatedEntities.filter((entity) => entitySet.has(entity)).length * 2 +
+        asset.relatedTopics.filter((topic) => topicSet.has(topic)).length,
+    }))
+    .filter((item) => item.score > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        (b.asset.date ?? "").localeCompare(a.asset.date ?? "") ||
+        a.asset.title.localeCompare(b.asset.title),
+    )
+    .slice(0, safeLimit)
+    .map((item) => item.asset);
 }
 
 /**
@@ -225,4 +376,217 @@ export function buildMediaIndexResponse(): MediaIndexResponse {
         "Keep metadata and official source links for all candidate media. Store or serve local image files only after item-level rights review clears the asset.",
     },
   };
+}
+
+function readManifestAssets(): MediaAsset[] | null {
+  const raw = readJsonFile(manifestPath);
+  if (!raw || typeof raw !== "object") return null;
+  const assets = Array.isArray((raw as { assets?: unknown }).assets)
+    ? (raw as { assets: unknown[] }).assets
+    : [];
+  const normalized = assets
+    .map((asset) => normalizeMediaAsset(asset))
+    .filter((asset): asset is MediaAsset => asset != null);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function readSeedAssets(): MediaAsset[] | null {
+  const raw = readJsonFile(seedPath);
+  if (!Array.isArray(raw)) return null;
+  const normalized = raw
+    .map((seed) => normalizeMediaAsset(seed))
+    .filter((asset): asset is MediaAsset => asset != null);
+  return normalized.length > 0 ? normalized : null;
+}
+
+function readJsonFile(filePath: string): unknown {
+  if (!existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8")) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeMediaAsset(raw: unknown): MediaAsset | null {
+  if (!raw || typeof raw !== "object") return null;
+  const input = raw as Partial<MediaAsset>;
+  const sourceUrl = normalizeString(input.sourceUrl);
+  if (!sourceUrl) return null;
+  const id = normalizeString(input.id) || deriveAssetId(sourceUrl);
+  const digitalIdentifier =
+    normalizeString(input.digitalIdentifier) || deriveIdentifierFromUrl(sourceUrl);
+  const collection =
+    normalizeString(input.collection) || inferCollection(sourceUrl);
+  const rightsStatus = normalizeRightsStatus(input.rightsStatus);
+  const storageStatus = normalizeStorageStatus(input.storageStatus, rightsStatus);
+
+  return {
+    id,
+    title: normalizeString(input.title) || digitalIdentifier || id,
+    sourceName:
+      normalizeString(input.sourceName) ||
+      "John F. Kennedy Presidential Library and Museum",
+    sourceUrl,
+    collection,
+    digitalIdentifier,
+    mediaType: normalizeString(input.mediaType) || "Media asset",
+    date: normalizeNullableString(input.date),
+    dateLabel: normalizeNullableString(input.dateLabel),
+    description:
+      normalizeString(input.description) ||
+      "Official JFK Library media record pending item-level metadata review.",
+    creditLine:
+      normalizeString(input.creditLine) ||
+      `${collection}. John F. Kennedy Presidential Library and Museum, Boston.`,
+    rightsStatus,
+    rightsNote:
+      normalizeString(input.rightsNote) ||
+      defaultRightsNote(rightsStatus),
+    storageStatus,
+    storageNote:
+      normalizeString(input.storageNote) ||
+      defaultStorageNote(storageStatus),
+    thumbnailUrl: normalizeNullableString(input.thumbnailUrl),
+    imageUrl: normalizeNullableString(input.imageUrl),
+    localImagePath: normalizeNullableString(input.localImagePath),
+    tags: normalizeStringArray(input.tags),
+    relatedEntities: normalizeStringArray(input.relatedEntities),
+    relatedTopics: normalizeStringArray(input.relatedTopics),
+  };
+}
+
+function sortMediaAssets(assets: MediaAsset[]): MediaAsset[] {
+  return [...assets].sort(
+    (a, b) =>
+      (b.date ?? "").localeCompare(a.date ?? "") ||
+      a.title.localeCompare(b.title),
+  );
+}
+
+function cloneMediaAssets(assets: readonly MediaAsset[]): MediaAsset[] {
+  return assets.map(cloneMediaAsset);
+}
+
+function cloneMediaAsset(asset: MediaAsset): MediaAsset {
+  return {
+    ...asset,
+    tags: [...asset.tags],
+    relatedEntities: [...asset.relatedEntities],
+    relatedTopics: [...asset.relatedTopics],
+  };
+}
+
+function mediaSearchText(asset: MediaAsset): string {
+  return [
+    asset.title,
+    asset.description,
+    asset.collection,
+    asset.digitalIdentifier,
+    asset.mediaType,
+    asset.creditLine,
+    ...asset.tags,
+    ...asset.relatedEntities,
+    ...asset.relatedTopics,
+  ]
+    .join(" ")
+    .toLowerCase();
+}
+
+function countFacet(values: readonly string[]): MediaFacetItem[] {
+  const counts = new Map<string, number>();
+  for (const value of values) {
+    const normalized = normalizeString(value);
+    if (!normalized) continue;
+    counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([value, count]) => ({ value, label: facetLabel(value), count }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function normalizeRightsStatus(value: unknown): MediaRightsStatus {
+  const normalized = normalizeString(value);
+  return mediaRightsKeys.includes(normalized as MediaRightsStatus)
+    ? (normalized as MediaRightsStatus)
+    : "copyright_unknown";
+}
+
+function normalizeStorageStatus(
+  value: unknown,
+  rightsStatus: MediaRightsStatus,
+): MediaAsset["storageStatus"] {
+  const normalized = normalizeString(value);
+  return storageStatuses.includes(normalized as MediaAsset["storageStatus"])
+    ? (normalized as MediaAsset["storageStatus"])
+    : rightsStatus === "public_domain_likely"
+      ? "external_reference"
+      : "metadata_only";
+}
+
+function normalizeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeNullableString(value: unknown): string | null {
+  return normalizeString(value) || null;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map(normalizeString)
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function deriveAssetId(sourceUrl: string): string {
+  const slug = sourceUrl.split("/").filter(Boolean).pop() ?? "media";
+  return `jfkl-${slug.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+}
+
+function deriveIdentifierFromUrl(sourceUrl: string): string {
+  const slug = sourceUrl.split("/").filter(Boolean).pop();
+  return slug ? slug.toUpperCase() : "JFKL-MEDIA";
+}
+
+function inferCollection(sourceUrl: string): string {
+  const id = deriveIdentifierFromUrl(sourceUrl).toLowerCase();
+  if (id.startsWith("kfc-")) return "Kennedy Family Collection";
+  if (id.startsWith("jfkwhp-")) return "White House Photographs";
+  return "JFK Library media collection";
+}
+
+function defaultRightsNote(status: MediaRightsStatus): string {
+  if (status === "public_domain_likely") {
+    return "Review the official asset record before local image storage; public-domain status is inferred, not assumed.";
+  }
+  if (status === "permission_required") {
+    return "Written permission or licensing may be required before reuse.";
+  }
+  return "Rights status is not cleared; keep metadata and official links only.";
+}
+
+function defaultStorageNote(status: MediaAsset["storageStatus"]): string {
+  if (status === "eligible_for_cache") {
+    return "Eligible for a later cache/download job after item-level rights review.";
+  }
+  if (status === "cached") {
+    return "Local file path should point to a reviewed cached image.";
+  }
+  if (status === "external_reference") {
+    return "Indexed as an official external reference until rights review marks the item cache eligible.";
+  }
+  return "Metadata-only source pointer; do not download binaries.";
+}
+
+function facetLabel(value: string): string {
+  return value
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }

@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 type IngestModule = {
@@ -37,7 +38,9 @@ let ingest: IngestModule;
 const tempDirs: string[] = [];
 
 beforeAll(async () => {
-  const scriptPath = "../../scripts/ingest-jfkl-media.mjs";
+  const scriptPath = pathToFileURL(
+    path.resolve(process.cwd(), "scripts/ingest-jfkl-media.mjs"),
+  ).href;
   ingest = (await import(scriptPath)) as IngestModule;
 });
 

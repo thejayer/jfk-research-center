@@ -36,6 +36,7 @@ describe("saved research storage", () => {
       topic: "Topic",
       timeline: "Timeline",
       question: "Question",
+      media: "Media",
     };
 
     for (const [type, label] of Object.entries(labels) as Array<

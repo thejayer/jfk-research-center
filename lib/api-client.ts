@@ -26,6 +26,7 @@ import type {
   EstablishedFactsIndex,
   HomeResponse,
   MediaIndexResponse,
+  MediaAsset,
   OpenQuestionsIndexResponse,
   OpenQuestionsTopicResponse,
   PhysicalEvidenceDetail,
@@ -88,6 +89,12 @@ export async function fetchMediaIndex(): Promise<MediaIndexResponse> {
   const data = await get<MediaIndexResponse>("/api/media", { revalidate: 600 });
   if (!data) throw new Error("Media index missing");
   return data;
+}
+
+export async function fetchMediaAsset(id: string): Promise<MediaAsset | null> {
+  return get<MediaAsset>(`/api/media/${encodeURIComponent(id)}`, {
+    revalidate: 600,
+  });
 }
 
 export async function fetchSearch(

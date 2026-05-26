@@ -20,7 +20,7 @@ export const changeEvent = "jfkrc:saved-research-changed";
 /** Maximum saved research items retained; overflow drops oldest items. */
 export const maxItems = 80;
 
-/** Human-readable saved research labels; readonly record keys: document, evidence, entity, topic, timeline, question. */
+/** Human-readable saved research labels; readonly record keys: document, evidence, entity, topic, timeline, question, media. */
 export const typeLabels = {
   document: "Document",
   evidence: "Evidence",
@@ -28,6 +28,7 @@ export const typeLabels = {
   topic: "Topic",
   timeline: "Timeline",
   question: "Question",
+  media: "Media",
 } as const;
 
 export const historyStorageKey = "jfkrc-research-history";

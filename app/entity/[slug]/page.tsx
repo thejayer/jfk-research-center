@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchEntity } from "@/lib/api-client";
+import { fetchEntity, fetchMediaIndex } from "@/lib/api-client";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { EntityEvidenceTrail } from "@/components/entities/entity-evidence-trail";
 import { EntityHero } from "@/components/entities/entity-hero";
@@ -17,7 +17,9 @@ import { ReportErrorLink } from "@/components/corrections/report-error-link";
 import { RelatedDocumentsRail } from "@/components/research/related-documents-rail";
 import { ResearchContextPanel } from "@/components/research/research-context-panel";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { RelatedMediaPanel } from "@/components/media/related-media-panel";
 import { buildEntityRelationshipPaths } from "@/lib/entity-relationship-paths";
+import { findRelatedMediaAssets } from "@/lib/media-assets";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +43,26 @@ export default async function EntityPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const data = await fetchEntity(slug);
+  const [entityResult, mediaResult] = await Promise.allSettled([
+    fetchEntity(slug),
+    fetchMediaIndex(),
+  ]);
+  if (entityResult.status === "rejected") throw entityResult.reason;
+  const data = entityResult.value;
+  const media = mediaResult.status === "fulfilled" ? mediaResult.value : null;
   if (!data) notFound();
 
   const searchHref = `/search?q=${encodeURIComponent(data.entity.name)}&mode=mention`;
   const documentsHref = `/search?entity=${encodeURIComponent(data.entity.slug)}`;
   const hasDocuments = (data.entity.documentCount ?? 0) > 0;
   const relationshipPaths = buildEntityRelationshipPaths(data);
+  const relatedMedia = media
+    ? findRelatedMediaAssets(media.assets, {
+        entities: [data.entity.slug],
+        topics: data.relatedTopics.map((topic) => topic.slug),
+        limit: 4,
+      })
+    : [];
 
   return (
     <div className="container" style={{ paddingBottom: 96 }}>
@@ -101,6 +116,12 @@ export default async function EntityPage({
       <EntityRelationshipPaths
         entityName={data.entity.name}
         paths={relationshipPaths}
+      />
+
+      <RelatedMediaPanel
+        assets={relatedMedia}
+        title={`Official media connected to ${data.entity.name}`}
+        description="JFK Library media records connected through this entity or the same topic lanes."
       />
 
       <ResearchContextPanel
