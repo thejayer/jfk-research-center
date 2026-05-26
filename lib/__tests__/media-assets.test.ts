@@ -4,6 +4,7 @@ import {
   buildMediaIndexResponse,
   canCacheMediaAsset,
   listMediaAssets,
+  mediaRightsDescription,
   mediaRightsLabel,
 } from "../media-assets";
 
@@ -44,5 +45,8 @@ describe("media assets", () => {
 
     expect(assets[0]?.date).toBe("1963-11-24");
     expect(mediaRightsLabel("permission_required")).toBe("Permission required");
+    expect(mediaRightsDescription("permission_required")).toBe(
+      "Collection policy or known rights ownership requires written permission before image reuse or local storage.",
+    );
   });
 });

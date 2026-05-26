@@ -150,14 +150,32 @@ const MEDIA_ASSETS: readonly MediaAsset[] = [
   },
 ];
 
+/**
+ * Returns the user-facing label for a canonical media rights status.
+ *
+ * @param status Media rights status key from the shared rights definitions.
+ * @returns Short human-readable label for badges and summaries.
+ */
 export function mediaRightsLabel(status: MediaRightsStatus): string {
   return mediaRightsDefinitions[status].label;
 }
 
+/**
+ * Returns explanatory copy for a canonical media rights status.
+ *
+ * @param status Media rights status key from the shared rights definitions.
+ * @returns Description of the reuse/storage implication for the status.
+ */
 export function mediaRightsDescription(status: MediaRightsStatus): string {
   return mediaRightsDefinitions[status].description;
 }
 
+/**
+ * Determines whether an asset can enter a later local-cache workflow.
+ *
+ * @param asset Media manifest entry being evaluated.
+ * @returns True only when rightsStatus is public_domain_likely and storageStatus is eligible_for_cache.
+ */
 export function canCacheMediaAsset(asset: MediaAsset): boolean {
   return (
     asset.rightsStatus === "public_domain_likely" &&
@@ -165,6 +183,11 @@ export function canCacheMediaAsset(asset: MediaAsset): boolean {
   );
 }
 
+/**
+ * Lists the seeded official media candidates in display order.
+ *
+ * @returns Media assets sorted newest first by date, then title for stable ties.
+ */
 export function listMediaAssets(): MediaAsset[] {
   return [...MEDIA_ASSETS].sort(
     (a, b) =>
@@ -173,6 +196,11 @@ export function listMediaAssets(): MediaAsset[] {
   );
 }
 
+/**
+ * Builds the API response for the rights-aware media index.
+ *
+ * @returns MediaIndexResponse with sorted assets, per-status rightsSummary counts, cache eligibility derived through canCacheMediaAsset, cached count from storageStatus, and JFK Library source-policy links.
+ */
 export function buildMediaIndexResponse(): MediaIndexResponse {
   const assets = listMediaAssets();
   const rightsSummary = mediaRightsKeys.map((status) => ({
