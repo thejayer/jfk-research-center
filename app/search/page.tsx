@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { fetchCorpusManifest, fetchSearch } from "@/lib/api-client";
+import { fetchCorpusManifest, fetchMediaIndex, fetchSearch } from "@/lib/api-client";
 import {
   parseSearchParams,
   buildSearchUrl,
   SEARCH_PAGE_SIZE,
 } from "@/lib/search";
+import type { MediaAsset } from "@/lib/api-types";
+import { searchMediaAssets } from "@/lib/media-assets";
 import type { SearchGroup } from "@/lib/constants";
 import { SearchBar } from "@/components/search/search-bar";
 import { SearchFilters } from "@/components/search/search-filters";
@@ -18,6 +20,7 @@ import { PaginationControls } from "@/components/search/pagination-controls";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
+import { MediaAssetCard } from "@/components/media/media-asset-card";
 
 export const dynamic = "force-dynamic";
 
@@ -37,12 +40,18 @@ export default async function SearchPage({
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
   const offset = mode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
   const returnHref = buildSearchUrl(q, mode, filters, page, group);
-  const [response, manifest] = await Promise.all([
+  const [response, manifest, mediaIndex] = await Promise.all([
     fetchSearch(q, mode, filters, offset),
     fetchCorpusManifest(),
+    fetchMediaIndex(),
   ]);
   const triage = buildSearchTriage(response.results);
-  const groupCounts = buildSearchGroupCounts(response);
+  const mediaResults = searchMediaAssets(mediaIndex.assets, {
+    q,
+    entities: filters.entity,
+    topics: filters.topic,
+  });
+  const groupCounts = buildSearchGroupCounts(response, mediaResults.length);
   const trimmedQuery = q.trim();
 
   return (
@@ -156,6 +165,7 @@ export default async function SearchPage({
                   mode={mode}
                   filters={filters}
                   searchFilters={response.filters}
+                  mediaResults={mediaResults}
                 />
               ) : response.total === 0 ? (
                 <SearchEmptyPanel
@@ -276,11 +286,13 @@ function buildSearchTriage(
 
 function buildSearchGroupCounts(
   response: import("@/lib/api-types").SearchResponse,
+  mediaCount: number,
 ) {
   return {
     results: response.total,
     entities: Object.keys(response.filters.entityCounts).length,
     topics: Object.keys(response.filters.topicCounts).length,
+    media: mediaCount,
   };
 }
 
@@ -320,6 +332,12 @@ function SearchGroupTabs({
       label: "Topics",
       count: counts.topics,
       detail: "Curated subject lanes",
+    },
+    {
+      value: "media",
+      label: "Media",
+      count: counts.media,
+      detail: "Official JFK Library records",
     },
     {
       value: "timeline",
@@ -402,12 +420,14 @@ function SearchGroupedPanel({
   mode,
   filters,
   searchFilters,
+  mediaResults,
 }: {
   q: string;
   group: SearchGroup;
   mode: import("@/lib/search").SearchMode;
   filters: import("@/lib/search").ParsedSearch["filters"];
   searchFilters: import("@/lib/api-types").SearchFilters;
+  mediaResults: MediaAsset[];
 }) {
   if (group === "entities") {
     const entities = rankFacetItems(
@@ -447,6 +467,10 @@ function SearchGroupedPanel({
         }))}
       />
     );
+  }
+
+  if (group === "media") {
+    return <MediaGroupPanel q={q} mediaResults={mediaResults} />;
   }
 
   const query = q.trim();
@@ -657,6 +681,76 @@ function FacetGroupPanel({
   );
 }
 
+function MediaGroupPanel({
+  q,
+  mediaResults,
+}: {
+  q: string;
+  mediaResults: MediaAsset[];
+}) {
+  const query = q.trim();
+
+  return (
+    <section
+      aria-label="Official media search results"
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-md)",
+        background: "var(--surface)",
+        padding: 20,
+      }}
+    >
+      <div className="eyebrow" style={{ marginBottom: 8 }}>
+        Official media
+      </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "end",
+          justifyContent: "space-between",
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: "1.45rem",
+            letterSpacing: 0,
+          }}
+        >
+          {query
+            ? `JFK Library media matching ${query}`
+            : "JFK Library media matching current filters"}
+        </h2>
+        <Link
+          href={query ? `/media?q=${encodeURIComponent(query)}` : "/media"}
+          style={{ color: "var(--link)", fontSize: "0.9rem", fontWeight: 650 }}
+        >
+          Open media explorer
+        </Link>
+      </div>
+      {mediaResults.length === 0 ? (
+        <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+          No official media records match this query and filter combination yet.
+        </p>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
+            gap: 14,
+          }}
+        >
+          {mediaResults.slice(0, 18).map((asset) => (
+            <MediaAssetCard key={asset.id} asset={asset} compact />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function rankFacetItems(
   values: string[],
   labels: Record<string, string>,
@@ -689,6 +783,8 @@ function formatGroupLabel(group: SearchGroup): string {
       return "Entities";
     case "topics":
       return "Topics";
+    case "media":
+      return "Media";
     case "timeline":
       return "Timeline";
     case "questions":
@@ -1167,6 +1263,11 @@ function buildEmptySuggestions({
       label: "Search mentions",
       detail: "Jump straight to OCR passages and entity hits.",
       href: buildSearchUrl(fallbackQuery, "mention", filters),
+    },
+    {
+      label: "Search official media",
+      detail: "Check rights-aware JFK Library media records.",
+      href: buildSearchUrl(fallbackQuery, "document", filters, 1, "media"),
     },
     {
       label: "Broaden the query",

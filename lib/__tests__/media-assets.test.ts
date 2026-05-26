@@ -11,6 +11,7 @@ import {
   mediaAssetHref,
   mediaRightsDescription,
   mediaRightsLabel,
+  searchMediaAssets,
 } from "../media-assets";
 
 describe("media assets", () => {
@@ -65,6 +66,26 @@ describe("media assets", () => {
     expect(mediaAssetHref("jfkl-jfkwhp-1963-11-22-b")).toBe(
       "/media/jfkl-jfkwhp-1963-11-22-b",
     );
+  });
+
+  it("searches media records by normalized query and relationship filters", () => {
+    const assets = listMediaAssets();
+    const dealey = searchMediaAssets(assets, { q: "Dealey Plaza" });
+    const oswald = searchMediaAssets(assets, {
+      q: "Oswald",
+      entities: ["oswald"],
+      limit: 2,
+    });
+
+    expect(dealey.some((asset) => asset.relatedTopics.includes("dealey-plaza"))).toBe(
+      true,
+    );
+    expect(oswald).toHaveLength(2);
+    expect(
+      oswald.every((asset) => asset.relatedEntities.includes("oswald")),
+    ).toBe(true);
+    expect(searchMediaAssets(assets, { q: "motorcade", limit: -1 })).toEqual([]);
+    expect(searchMediaAssets(assets, { q: "motorcade", limit: 1.8 })).toHaveLength(1);
   });
 
   it("does not expose mutable references from the cached media snapshot", () => {

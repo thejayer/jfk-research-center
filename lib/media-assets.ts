@@ -172,6 +172,13 @@ export type MediaAssetFilters = {
   topic?: string;
 };
 
+export type MediaSearchOptions = {
+  q?: string;
+  entities?: readonly string[];
+  topics?: readonly string[];
+  limit?: number;
+};
+
 export type MediaFacetItem = {
   value: string;
   label: string;
@@ -277,7 +284,7 @@ export function filterMediaAssets(
   assets: readonly MediaAsset[],
   filters: MediaAssetFilters,
 ): MediaAsset[] {
-  const query = normalizeString(filters.q).toLowerCase();
+  const query = normalizeMediaSearchText(filters.q);
   return assets.filter((asset) => {
     if (query && !mediaSearchText(asset).includes(query)) return false;
     if (filters.collection && asset.collection !== filters.collection) return false;
@@ -288,6 +295,55 @@ export function filterMediaAssets(
     if (filters.topic && !asset.relatedTopics.includes(filters.topic)) return false;
     return true;
   });
+}
+
+/**
+ * Finds official media records that match search query and entity/topic filters.
+ *
+ * @param assets Candidate media assets.
+ * @param options Optional query, selected entity/topic slugs, and result limit.
+ * @returns Media assets sorted by relationship score, date, then title.
+ */
+export function searchMediaAssets(
+  assets: readonly MediaAsset[],
+  { q = "", entities = [], topics = [], limit }: MediaSearchOptions = {},
+): MediaAsset[] {
+  const query = normalizeMediaSearchText(q);
+  const entitySet = new Set(entities.filter(Boolean));
+  const topicSet = new Set(topics.filter(Boolean));
+  const safeLimit =
+    limit === undefined ? null : Math.max(0, Number.isFinite(limit) ? Math.floor(limit) : 0);
+  if (safeLimit === 0) return [];
+
+  const matches = assets
+    .map((asset) => {
+      const text = mediaSearchText(asset);
+      const entityMatches = asset.relatedEntities.filter((entity) =>
+        entitySet.has(entity),
+      ).length;
+      const topicMatches = asset.relatedTopics.filter((topic) =>
+        topicSet.has(topic),
+      ).length;
+      return {
+        asset,
+        queryMatch: !query || text.includes(query),
+        entityMatches,
+        topicMatches,
+        score: (query ? 4 : 0) + entityMatches * 2 + topicMatches,
+      };
+    })
+    .filter((item) => item.queryMatch)
+    .filter((item) => entitySet.size === 0 || item.entityMatches > 0)
+    .filter((item) => topicSet.size === 0 || item.topicMatches > 0)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        (b.asset.date ?? "").localeCompare(a.asset.date ?? "") ||
+        a.asset.title.localeCompare(b.asset.title),
+    )
+    .map((item) => item.asset);
+
+  return safeLimit === null ? matches : matches.slice(0, safeLimit);
 }
 
 /**
@@ -478,7 +534,7 @@ function cloneMediaAsset(asset: MediaAsset): MediaAsset {
 }
 
 function mediaSearchText(asset: MediaAsset): string {
-  return [
+  return normalizeMediaSearchText([
     asset.title,
     asset.description,
     asset.collection,
@@ -489,8 +545,7 @@ function mediaSearchText(asset: MediaAsset): string {
     ...asset.relatedEntities,
     ...asset.relatedTopics,
   ]
-    .join(" ")
-    .toLowerCase();
+    .join(" "));
 }
 
 function countFacet(values: readonly string[]): MediaFacetItem[] {
@@ -526,6 +581,14 @@ function normalizeStorageStatus(
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeMediaSearchText(value: unknown): string {
+  return normalizeString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeNullableString(value: unknown): string | null {
