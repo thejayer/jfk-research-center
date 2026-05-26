@@ -62,6 +62,7 @@ import type {
   PhysicalEvidenceIndex,
   ReleaseHistoryEntry,
   HomeResponse,
+  MediaIndexResponse,
   MentionExcerpt,
   OpenQuestionThread,
   OpenQuestionsArticle,
@@ -75,6 +76,7 @@ import type {
   TopicResponse,
 } from "./api-types";
 import { formatDate } from "./format";
+import { buildMediaIndexResponse } from "./media-assets";
 import {
   buildDocumentResponse,
   buildEntityCooccurrence,
@@ -728,6 +730,10 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
     recordsWith2025Ocr: Number(r.records_with_2025_ocr ?? 0),
     coverageNote: "",
   };
+}
+
+export async function fetchMediaIndex(): Promise<MediaIndexResponse> {
+  return buildMediaIndexResponse();
 }
 
 async function topicCountsMap(): Promise<Map<string, number>> {

@@ -6,6 +6,8 @@
  * must adapt into these shapes so the UI never knows warehouse internals.
  */
 
+import type { MediaRightsStatus } from "./constants";
+
 export type ConfidenceLevel = "high" | "medium" | "low" | "none";
 
 export type DocumentCard = {
@@ -587,6 +589,62 @@ export type PhysicalEvidenceDetail = PhysicalEvidenceCard & {
 export type PhysicalEvidenceIndex = {
   items: PhysicalEvidenceCard[];
   categories: Array<{ category: PhysicalEvidenceCategory; count: number }>;
+};
+
+// ---------------------------------------------------------------------------
+// Official media assets - rights-aware pointers to external collections.
+// ---------------------------------------------------------------------------
+
+export type MediaStorageStatus =
+  | "metadata_only"
+  | "external_reference"
+  | "eligible_for_cache"
+  | "cached";
+
+export type MediaAsset = {
+  id: string;
+  title: string;
+  sourceName: string;
+  sourceUrl: string;
+  collection: string;
+  digitalIdentifier: string;
+  mediaType: string;
+  date: string | null;
+  dateLabel: string | null;
+  description: string;
+  creditLine: string;
+  rightsStatus: MediaRightsStatus;
+  rightsNote: string;
+  storageStatus: MediaStorageStatus;
+  storageNote: string;
+  thumbnailUrl: string | null;
+  imageUrl: string | null;
+  localImagePath: string | null;
+  tags: string[];
+  relatedEntities: string[];
+  relatedTopics: string[];
+};
+
+export type MediaRightsSummary = {
+  status: MediaRightsStatus;
+  label: string;
+  description: string;
+  count: number;
+};
+
+export type MediaIndexResponse = {
+  assets: MediaAsset[];
+  rightsSummary: MediaRightsSummary[];
+  totalAssets: number;
+  cacheEligibleCount: number;
+  cachedCount: number;
+  sourcePolicy: {
+    name: string;
+    copyrightUrl: string;
+    reproductionsUrl: string;
+    searchUrl: string;
+    note: string;
+  };
 };
 
 // ---------------------------------------------------------------------------

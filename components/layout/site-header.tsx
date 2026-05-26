@@ -71,6 +71,11 @@ const EXPLORE_GROUPS: NavGroup[] = [
         href: "/bibliography",
         description: "Reference list for sources used across the site.",
       },
+      {
+        label: "Official media",
+        href: "/media",
+        description: "Rights-aware JFK Library photographs and media candidates.",
+      },
     ],
   },
   {
@@ -146,6 +151,7 @@ const MOBILE_GROUPS: NavGroup[] = [
     title: "Research",
     items: [
       { label: "Entities", href: "/entities" },
+      { label: "Official media", href: "/media" },
       { label: "Bibliography", href: "/bibliography" },
       { label: "Research paths", href: "/research-paths" },
     ],
