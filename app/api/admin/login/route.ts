@@ -7,6 +7,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const secureCookie = process.env.NODE_ENV === "production";
+
 export async function POST(req: NextRequest) {
   let body: Record<string, unknown>;
   try {
@@ -23,7 +25,7 @@ export async function POST(req: NextRequest) {
   res.cookies.set(cookie.name, cookie.value, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: secureCookie,
     path: "/",
     maxAge: cookie.maxAge,
   });
@@ -36,7 +38,7 @@ export async function DELETE() {
   res.cookies.set(cookie.name, cookie.value, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: secureCookie,
     path: "/",
     maxAge: cookie.maxAge,
   });
