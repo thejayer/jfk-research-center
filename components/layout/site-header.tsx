@@ -118,6 +118,11 @@ const EXPLORE_GROUPS: NavGroup[] = [
         description: "Guided entry points through the archive.",
       },
       {
+        label: "Research brief",
+        href: "/research/brief",
+        description: "Build an exportable brief from saved tray items.",
+      },
+      {
         label: "Methodology",
         href: "/about/methodology",
         description: "How the archive handles sources and uncertainty.",
@@ -154,6 +159,7 @@ const MOBILE_GROUPS: NavGroup[] = [
       { label: "Official media", href: "/media" },
       { label: "Bibliography", href: "/bibliography" },
       { label: "Research paths", href: "/research-paths" },
+      { label: "Research brief", href: "/research/brief" },
     ],
   },
   EXPLORE_GROUPS[1]!,

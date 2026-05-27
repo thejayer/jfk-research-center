@@ -163,6 +163,13 @@ describe("saved research storage", () => {
         savedAt: 200,
       },
       {
+        type: "media",
+        sourceId: "jfkl-jfkwhp-1963-11-22-b",
+        title: "Dallas arrival media",
+        href: "/media/jfkl-jfkwhp-1963-11-22-b",
+        savedAt: 100,
+      },
+      {
         type: "entity",
         sourceId: "bad",
         title: "Bad link",
@@ -183,6 +190,10 @@ describe("saved research storage", () => {
         id: "entity:lee-harvey-oswald",
         sourceId: "lee-harvey-oswald",
         href: "/entity/lee-harvey-oswald",
+      }),
+      expect.objectContaining({
+        id: "media:jfkl-jfkwhp-1963-11-22-b",
+        href: "/media/jfkl-jfkwhp-1963-11-22-b",
       }),
     ]);
   });

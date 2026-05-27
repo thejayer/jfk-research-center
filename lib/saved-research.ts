@@ -210,12 +210,8 @@ function browserStorage(): StorageLike | null {
 
 function isSavedResearchType(value: unknown): value is SavedResearchType {
   return (
-    value === "document" ||
-    value === "evidence" ||
-    value === "entity" ||
-    value === "topic" ||
-    value === "timeline" ||
-    value === "question"
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(typeLabels, value)
   );
 }
 

@@ -118,6 +118,14 @@ export const ROADMAP: RoadmapItem[] = [
       "Investigation-style board of entity-pair co-occurrence with labeled links, filters, and year-range controls.",
   },
   {
+    surface: "/research/brief",
+    label: "Research brief builder",
+    status: "shipped",
+    phase: "Research session follow-up",
+    description:
+      "Local-only workspace for turning saved tray items into ordered, source-linked Markdown or plain-text briefs.",
+  },
+  {
     surface: "/api/v1/*",
     label: "Public API v1",
     status: "shipped",
