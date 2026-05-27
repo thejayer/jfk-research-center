@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  filterExistingIds,
+  mergeOrderedIds,
+  moveItem,
+  orderItems,
+  readDraft,
+  toggleSelected,
+  writeDraft,
+} from "@/lib/research-brief-builder-state";
 import {
   formatResearchBriefMarkdown,
   formatResearchBriefPlainText,
@@ -14,16 +22,6 @@ import {
   type SavedResearchItem,
 } from "@/lib/saved-research";
 import styles from "./research-brief-builder.module.css";
-
-const draftStorageKey = "jfkrc-research-brief-draft-v1";
-
-type BriefDraft = {
-  title: string;
-  question: string;
-  notes: string;
-  orderedIds: string[];
-  selectedIds: string[];
-};
 
 export function ResearchBriefBuilder() {
   const [mounted, setMounted] = useState(false);
@@ -41,16 +39,11 @@ export function ResearchBriefBuilder() {
     const draft = readDraft();
     setItems(saved);
     setOrderedIds(mergeOrderedIds(saved, draft?.orderedIds ?? []));
-    setSelectedIds(
-      new Set(
-        filterExistingIds(
-          saved,
-          draft?.selectedIds && draft.selectedIds.length > 0
-            ? draft.selectedIds
-            : saved.map((item) => item.id),
-        ),
-      ),
-    );
+    const draftSelectedIds =
+      draft?.selectedIds !== undefined
+        ? draft.selectedIds
+        : saved.map((item) => item.id);
+    setSelectedIds(new Set(filterExistingIds(saved, draftSelectedIds)));
     if (draft) {
       setTitle(draft.title || "JFK research brief");
       setQuestion(draft.question);
@@ -349,59 +342,6 @@ function EmptyState() {
   );
 }
 
-function orderItems(items: SavedResearchItem[], orderedIds: string[]) {
-  const itemById = new Map(items.map((item) => [item.id, item]));
-  const ordered = orderedIds
-    .map((id) => itemById.get(id))
-    .filter((item): item is SavedResearchItem => Boolean(item));
-  const placed = new Set(ordered.map((item) => item.id));
-  return [
-    ...ordered,
-    ...items.filter((item) => !placed.has(item.id)),
-  ];
-}
-
-function mergeOrderedIds(items: SavedResearchItem[], orderedIds: string[]) {
-  return orderItems(items, orderedIds).map((item) => item.id);
-}
-
-function filterExistingIds(items: SavedResearchItem[], ids: string[]) {
-  const existing = new Set(items.map((item) => item.id));
-  return ids.filter((id) => existing.has(id));
-}
-
-function toggleSelected(
-  id: string,
-  setSelectedIds: Dispatch<SetStateAction<Set<string>>>,
-) {
-  setSelectedIds((current) => {
-    const next = new Set(current);
-    if (next.has(id)) {
-      next.delete(id);
-    } else {
-      next.add(id);
-    }
-    return next;
-  });
-}
-
-function moveItem(
-  id: string,
-  delta: -1 | 1,
-  setOrderedIds: Dispatch<SetStateAction<string[]>>,
-) {
-  setOrderedIds((current) => {
-    const index = current.indexOf(id);
-    const nextIndex = index + delta;
-    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
-    const next = [...current];
-    const [item] = next.splice(index, 1);
-    if (!item) return current;
-    next.splice(nextIndex, 0, item);
-    return next;
-  });
-}
-
 async function copyText(
   text: string,
   successMessage: string,
@@ -425,35 +365,6 @@ function downloadMarkdown(title: string, markdown: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function readDraft(): BriefDraft | null {
-  try {
-    const raw = window.localStorage.getItem(draftStorageKey);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<BriefDraft>;
-    return {
-      title: typeof parsed.title === "string" ? parsed.title : "JFK research brief",
-      question: typeof parsed.question === "string" ? parsed.question : "",
-      notes: typeof parsed.notes === "string" ? parsed.notes : "",
-      orderedIds: Array.isArray(parsed.orderedIds)
-        ? parsed.orderedIds.filter((id): id is string => typeof id === "string")
-        : [],
-      selectedIds: Array.isArray(parsed.selectedIds)
-        ? parsed.selectedIds.filter((id): id is string => typeof id === "string")
-        : [],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeDraft(draft: BriefDraft) {
-  try {
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(draft));
-  } catch {
-    // Local-only draft state should never block the builder.
-  }
 }
 
 function formatSavedAt(savedAt: number): string {

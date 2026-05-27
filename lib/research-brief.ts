@@ -50,6 +50,15 @@ export function normalizeResearchBriefItems(
   return briefItems;
 }
 
+/**
+ * Formats a saved-source brief as Markdown.
+ *
+ * @param input ResearchBriefInput; title/question use cleanInlineText, notes
+ * use cleanBlockText, items use normalizeResearchBriefItems, and optional
+ * generatedAt is formatted with formatBriefDate.
+ * @returns Markdown with escaped text/link labels, selected-source and
+ * reference sections, empty-item messages, and a trailing newline.
+ */
 export function formatResearchBriefMarkdown(input: ResearchBriefInput): string {
   const title = cleanInlineText(input.title) || defaultTitle;
   const question = cleanInlineText(input.question);
@@ -99,6 +108,15 @@ export function formatResearchBriefMarkdown(input: ResearchBriefInput): string {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
+/**
+ * Formats a saved-source brief as plain text.
+ *
+ * @param input ResearchBriefInput; title/question use cleanInlineText, notes
+ * use cleanBlockText, items use normalizeResearchBriefItems, and optional
+ * generatedAt is formatted with formatBriefDate.
+ * @returns Plain text with heading, selected-source and reference sections,
+ * empty-item messages, and a trailing newline.
+ */
 export function formatResearchBriefPlainText(input: ResearchBriefInput): string {
   const title = cleanInlineText(input.title) || defaultTitle;
   const question = cleanInlineText(input.question);
