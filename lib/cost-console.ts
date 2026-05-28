@@ -224,7 +224,11 @@ export function buildCostConsoleData(
     "service",
     "operation",
   ]).filter((row) => Boolean(row.workflowRunId));
-  const windows = summarizeWindows(daily);
+  const windows = summarizeWindows(daily, generatedAt);
+  const byFeatureLast30 = groupCostRows(
+    events.filter((event) => isDateInWindow(event.eventDate, 30, generatedAt)),
+    ["feature", "linearIssue"],
+  ).sort(compareRowsBySpend);
   const thresholds = normalizeThresholds(budgetConfig.thresholds);
   const budgets = buildBudgetRows(
     normalizeBudgets(budgetConfig.budgets),
@@ -233,7 +237,7 @@ export function buildCostConsoleData(
     thresholds,
     sourceKind === "reconciliation",
   );
-  const alerts = buildAlerts(budgets, byFeature, windows.last30, sourceKind);
+  const alerts = buildAlerts(budgets, byFeatureLast30, windows.last30, sourceKind);
 
   return {
     generatedAt: generatedAt.toISOString(),
@@ -306,29 +310,36 @@ export function groupWorkflowRuns(rows: readonly CostConsoleRow[]): CostConsoleR
     .sort(compareRowsBySpend);
 }
 
-export function costSourceLabel(source: CostConsoleSource): string {
-  return sourceLabels[source];
+export function costSourceLabel(
+  source: CostConsoleSource | string | null | undefined,
+): string {
+  return sourceLabels[source as CostConsoleSource] ?? sourceLabels.empty;
 }
 
-export function costStatusLabel(status: CostConsoleSourceStatus): string {
-  return statusLabels[status];
+export function costStatusLabel(
+  status: CostConsoleSourceStatus | string | null | undefined,
+): string {
+  return statusLabels[status as CostConsoleSourceStatus] ?? statusLabels.empty;
 }
 
 export function formatUsd(value: number): string {
-  const sign = value < 0 ? "-" : "";
-  const abs = Math.abs(value);
+  const numeric = Number.isFinite(value) ? value : 0;
+  const sign = numeric < 0 ? "-" : "";
+  const abs = Math.abs(numeric);
   if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}K`;
   if (abs >= 100) return `${sign}$${abs.toFixed(0)}`;
   return `${sign}$${abs.toFixed(2)}`;
 }
 
 export function signedUsd(value: number): string {
-  if (Math.abs(value) < 0.005) return "$0.00";
-  return `${value > 0 ? "+" : ""}${formatUsd(value)}`;
+  const numeric = Number.isFinite(value) ? value : 0;
+  if (Math.abs(numeric) < 0.005) return "$0.00";
+  return `${numeric > 0 ? "+" : ""}${formatUsd(numeric)}`;
 }
 
 export function formatCount(value: number): string {
-  return Math.round(value).toLocaleString("en-US");
+  const numeric = Number.isFinite(value) ? value : 0;
+  return Math.round(numeric).toLocaleString("en-US");
 }
 
 export function titleCaseKey(value: string): string {
@@ -463,10 +474,10 @@ function rowKeyValue(event: CostConsoleEvent, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
-function summarizeWindows(daily: readonly CostConsoleRow[]) {
+function summarizeWindows(daily: readonly CostConsoleRow[], generatedAt: Date) {
   const sorted = [...daily].sort(compareRowsByDate);
   const window = (days: number): CostWindow => {
-    const rows = sorted.slice(-days);
+    const rows = sorted.filter((row) => isDateInWindow(row.date, days, generatedAt));
     return {
       estimatedCost: roundMoney(sum(rows, "estimatedCost")),
       actualCost: roundMoney(sum(rows, "actualCost")),
@@ -499,7 +510,11 @@ function buildBudgetRows(
       const hasOwnerMatch =
         (budget.match.features?.length ?? 0) > 0 ||
         (budget.match.linearIssues?.length ?? 0) > 0;
-      const matchedRows = hasOwnerMatch ? matchedFeatureRows : matchedServiceRows;
+      const matchedRows = budgetMatchedRows(
+        matchedFeatureRows,
+        matchedServiceRows,
+        hasOwnerMatch,
+      );
       const estimatedCost = roundMoney(sum(matchedRows, "estimatedCost"));
       const actualCost = roundMoney(sum(matchedRows, "actualCost"));
       const spendToDate = actualMode ? actualCost : estimatedCost;
@@ -543,12 +558,16 @@ function buildAlerts(
 
   if (source === "reconciliation") {
     for (const row of featureRows) {
-      if (row.estimatedCost > 0 && row.delta > Math.max(1, row.estimatedCost * 0.25)) {
+      const delta30Day = row.delta;
+      if (
+        row.estimatedCost > 0 &&
+        delta30Day > Math.max(1, row.estimatedCost * 0.25)
+      ) {
         alerts.push({
           severity: "warning",
           type: "variance",
           title: `${titleCaseKey(row.feature ?? row.linearIssue ?? "cost item")} actuals are above estimate`,
-          detail: `Actual spend is ${formatUsd(row.delta)} above the 30-day ledger estimate.`,
+          detail: `Actual spend is ${formatUsd(delta30Day)} above the 30-day ledger estimate.`,
           key: row.feature ?? row.linearIssue,
         });
       }
@@ -623,6 +642,34 @@ function budgetMatchesServiceRow(
   return row.service ? services.has(row.service) : false;
 }
 
+function budgetMatchedRows(
+  featureRows: readonly CostConsoleRow[],
+  serviceRows: readonly CostConsoleRow[],
+  hasOwnerMatch: boolean,
+): CostConsoleRow[] {
+  if (!hasOwnerMatch) return [...serviceRows];
+  if (featureRows.length === 0) return [...serviceRows];
+  if (serviceRows.length === 0) return [...featureRows];
+
+  const rows = new Map<string, CostConsoleRow>();
+  for (const row of [...featureRows, ...serviceRows]) {
+    rows.set(costRowIdentity(row), row);
+  }
+  return [...rows.values()];
+}
+
+function costRowIdentity(row: CostConsoleRow): string {
+  return [
+    row.date ?? "",
+    row.feature ?? "",
+    row.service ?? "",
+    row.workflow ?? "",
+    row.workflowRunId ?? "",
+    row.linearIssue ?? "",
+    row.operation ?? "",
+  ].join("\u0000");
+}
+
 function budgetStatus(
   pct: number,
   thresholds: BudgetThresholds,
@@ -666,6 +713,32 @@ function normalizeDateString(value: unknown): string {
   const raw = normalizeString(value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
   return Number.isNaN(new Date(`${raw}T00:00:00Z`).valueOf()) ? "" : raw;
+}
+
+function isDateInWindow(
+  date: string | undefined,
+  days: number,
+  generatedAt: Date,
+): boolean {
+  const time = isoDateToUtcDay(date);
+  if (time == null) return false;
+  const end = utcDay(generatedAt);
+  const start = end - (Math.max(1, days) - 1) * 24 * 60 * 60 * 1000;
+  return time >= start && time <= end;
+}
+
+function isoDateToUtcDay(date: string | undefined): number | null {
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  const parsed = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function utcDay(date: Date): number {
+  if (!Number.isFinite(date.valueOf())) {
+    const now = new Date();
+    return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  }
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
 function compareRowsByDate(a: CostConsoleRow, b: CostConsoleRow): number {
