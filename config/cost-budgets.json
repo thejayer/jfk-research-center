@@ -1,0 +1,46 @@
+{
+  "thresholds": {
+    "warningPct": 80,
+    "criticalPct": 100
+  },
+  "budgets": [
+    {
+      "key": "media_rights_and_assets",
+      "label": "Media rights and assets",
+      "type": "feature",
+      "budgetUsd": 25,
+      "match": {
+        "features": ["rights_aware_media"],
+        "services": ["jfk_library", "app_static_storage"]
+      }
+    },
+    {
+      "key": "dealey_plaza_modeling",
+      "label": "Dealey Plaza modeling",
+      "type": "feature",
+      "budgetUsd": 75,
+      "match": {
+        "features": ["trajectory_modeling", "historical_map_overlay"]
+      }
+    },
+    {
+      "key": "warehouse_and_ai",
+      "label": "Warehouse and AI retrieval",
+      "type": "platform",
+      "budgetUsd": 150,
+      "match": {
+        "features": ["document_search", "semantic_search", "ocr_pipeline"],
+        "services": ["bigquery", "vertex_ai", "document_ai", "cloud_run"]
+      }
+    },
+    {
+      "key": "project_operations",
+      "label": "Project operations",
+      "type": "project",
+      "budgetUsd": 50,
+      "match": {
+        "features": ["cost_console", "domain_setup", "deployment"]
+      }
+    }
+  ]
+}

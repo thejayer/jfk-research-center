@@ -1,0 +1,56 @@
+{
+  "source": "manual_seed",
+  "sourceStatus": "known_direct_costs",
+  "notes": [
+    "Initial seed captures known direct-cost facts from the JFK Library media work.",
+    "No JFK Library image binaries are cached in the app; media records are metadata and official source links only.",
+    "Cloud Billing reconciliation is not enabled yet, so non-seeded infrastructure spend remains pending."
+  ],
+  "events": [
+    {
+      "id": "jfkl-media-candidate-metadata",
+      "eventDate": "2026-05-26",
+      "feature": "rights_aware_media",
+      "service": "jfk_library",
+      "operation": "metadata_seed",
+      "workflow": "Manual media seed curation",
+      "linearIssue": "",
+      "estimatedCostUsd": 0,
+      "actualCostUsd": 0,
+      "requestCount": 0,
+      "rowCount": 18,
+      "byteCount": 0,
+      "note": "Recorded 18 official JFK Library media source URLs with rights and storage status; no image URL or binary cache was stored."
+    },
+    {
+      "id": "jfkl-media-cache-eligibility",
+      "eventDate": "2026-05-26",
+      "feature": "rights_aware_media",
+      "service": "jfk_library",
+      "operation": "cache_eligibility_review",
+      "workflow": "Manual media seed curation",
+      "linearIssue": "",
+      "estimatedCostUsd": 0,
+      "actualCostUsd": 0,
+      "requestCount": 0,
+      "rowCount": 4,
+      "byteCount": 0,
+      "note": "Marked four public-domain-likely candidates eligible for a later cache workflow, but no download-cleared run was executed."
+    },
+    {
+      "id": "jfkl-media-local-binary-cache",
+      "eventDate": "2026-05-26",
+      "feature": "rights_aware_media",
+      "service": "app_static_storage",
+      "operation": "binary_cache",
+      "workflow": "Manual media seed curation",
+      "linearIssue": "",
+      "estimatedCostUsd": 0,
+      "actualCostUsd": 0,
+      "requestCount": 0,
+      "rowCount": 0,
+      "byteCount": 0,
+      "note": "No public/media/jfkl directory exists, so the JFK Library image storage footprint is zero bytes."
+    }
+  ]
+}
