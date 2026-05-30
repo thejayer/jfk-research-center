@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -27,6 +28,7 @@ import type {
   CaseTimelineEvent,
   CaseTimelineIndex,
 } from "@/lib/api-types";
+import { formatDate } from "@/lib/format";
 import { EventCard } from "./event-card";
 
 const VIEW_W = 1200;
@@ -198,6 +200,7 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
   const [transform, setTransform] = useState<ZoomTransform>(zoomIdentity);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -540,6 +543,8 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
         onZoomOut={() => zoomBy(1 / 1.5)}
         onReset={resetZoom}
         countByCategory={countCategories(events)}
+        visibleCount={visibleEvents.length}
+        totalCount={events.length}
       />
 
       <div
@@ -683,24 +688,53 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
               const r = isHeadline ? 5.5 : 3.5;
               const isHovered = hoveredId === e.id;
               const isSelected = selectedId === e.id;
+              const isFocused = focusedId === e.id;
               const style = CATEGORY_STYLE[e.category];
               return (
                 <g
                   key={e.id}
                   transform={`translate(${x}, ${y})`}
                   style={{ cursor: "pointer" }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={timelineMarkerLabel(e)}
                   onMouseEnter={() => setHoveredId(e.id)}
                   onMouseLeave={() => setHoveredId(null)}
+                  onFocus={() => setFocusedId(e.id)}
+                  onBlur={() => setFocusedId(null)}
                   onClick={() => {
                     setSelectedId(e.id);
                     window.history.replaceState({}, "", `#${e.id}`);
                   }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setSelectedId(e.id);
+                    window.history.replaceState({}, "", `#${e.id}`);
+                  }}
                 >
+                  {isFocused && (
+                    <circle
+                      r={r + 7}
+                      fill="none"
+                      stroke="var(--text)"
+                      strokeWidth={1.25}
+                      strokeDasharray="3 3"
+                      opacity={0.75}
+                    />
+                  )}
                   <circle
-                    r={isHovered || isSelected ? r + 2 : r}
+                    r={isHovered || isSelected || isFocused ? r + 2 : r}
                     fill={style.fill}
                     fillOpacity={
-                      isSelected ? 1 : isHovered ? 0.95 : isHeadline ? 0.85 : 0.65
+                      isSelected || isFocused
+                        ? 1
+                        : isHovered
+                          ? 0.95
+                          : isHeadline
+                            ? 0.85
+                            : 0.65
                     }
                     stroke={isSelected ? "var(--bg)" : "transparent"}
                     strokeWidth={isSelected ? 2 : 0}
@@ -796,13 +830,11 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
         <ZoomLevelBadge level={level} />
       </div>
 
-      <Legend visible={visibleEvents.length} total={events.length} />
+      <TimelineHelp />
 
       {/* Selected-event side panel */}
       {selectedEvent && (
-        <SidePanel onClose={() => setSelectedId(null)}>
-          <EventCard event={selectedEvent} as="article" showPermalink />
-        </SidePanel>
+        <SidePanel event={selectedEvent} onClose={() => setSelectedId(null)} />
       )}
 
       {/* Screen-reader mirror — list of currently visible events */}
@@ -832,6 +864,8 @@ function Toolbar({
   onZoomOut,
   onReset,
   countByCategory,
+  visibleCount,
+  totalCount,
 }: {
   level: ZoomLevel;
   activeCategories: Set<CaseTimelineCategory>;
@@ -840,7 +874,12 @@ function Toolbar({
   onZoomOut: () => void;
   onReset: () => void;
   countByCategory: Record<CaseTimelineCategory, number>;
+  visibleCount: number;
+  totalCount: number;
 }) {
+  const activeCount = activeCategories.size;
+  const allCategoriesActive = activeCount === CATEGORIES.length;
+
   return (
     <div
       style={{
@@ -851,6 +890,35 @@ function Toolbar({
         marginBottom: 12,
       }}
     >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          alignItems: "baseline",
+        }}
+      >
+        <span
+          className="num"
+          style={{
+            fontSize: "0.74rem",
+            color: "var(--text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          {level} view
+        </span>
+        <span style={{ color: "var(--text)", fontSize: "0.86rem", fontWeight: 650 }}>
+          Showing {visibleCount} of {totalCount} events
+        </span>
+        <span className="muted" style={{ fontSize: "0.78rem" }}>
+          {allCategoriesActive
+            ? "All categories active"
+            : `${activeCount} of ${CATEGORIES.length} categories active`}
+        </span>
+      </div>
+
       <div
         role="group"
         aria-label="Filter by category"
@@ -962,6 +1030,40 @@ function ZoomLevelBadge({ level }: { level: ZoomLevel }) {
   );
 }
 
+function TimelineHelp() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "baseline",
+        gap: 12,
+        fontSize: "0.74rem",
+        color: "var(--text-muted)",
+        marginTop: 8,
+      }}
+    >
+      <span>Scroll or pinch to zoom / drag to pan / ringed points are headline events</span>
+      <details>
+        <summary
+          style={{
+            cursor: "pointer",
+            color: "var(--text)",
+            fontWeight: 650,
+          }}
+        >
+          Keyboard help
+        </summary>
+        <div style={{ marginTop: 6, lineHeight: 1.55 }}>
+          Use + and - to zoom, left and right arrows to pan, 0 to reset, [
+          and ] to step through events after zooming in, Enter or Space to open
+          a focused event, and Escape to close event details.
+        </div>
+      </details>
+    </div>
+  );
+}
+
 function Legend({ visible, total }: { visible: number; total: number }) {
   return (
     <div
@@ -986,19 +1088,28 @@ function Legend({ visible, total }: { visible: number; total: number }) {
 }
 
 function SidePanel({
-  children,
+  event,
   onClose,
 }: {
-  children: React.ReactNode;
+  event: CaseTimelineEvent;
   onClose: () => void;
 }) {
   return (
     <div
       role="dialog"
+      aria-modal="false"
       aria-label="Selected timeline event"
       className="timeline-side-panel"
     >
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+        <div>
+          <div className="eyebrow" style={{ marginBottom: 4 }}>
+            Selected event
+          </div>
+          <div className="muted num" style={{ fontSize: "0.76rem" }}>
+            {formatEventDateTime(event)}
+          </div>
+        </div>
         <button
           type="button"
           onClick={onClose}
@@ -1016,7 +1127,97 @@ function SidePanel({
           Close ✕
         </button>
       </div>
-      {children}
+      <EventInspector event={event} />
+    </div>
+  );
+}
+
+function EventInspector({ event }: { event: CaseTimelineEvent }) {
+  const documentCount = event.documentLinks.length;
+  const externalCount = event.sourceExternal.length;
+  const category = CATEGORIES.find((c) => c.value === event.category)?.label ?? event.category;
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div>
+        <div
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: "1.45rem",
+            lineHeight: 1.15,
+            letterSpacing: 0,
+            marginBottom: 8,
+          }}
+        >
+          {event.title}
+        </div>
+        <p style={{ margin: 0, lineHeight: 1.62, color: "var(--text)" }}>
+          {event.description}
+        </p>
+      </div>
+
+      <dl
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+          gap: 8,
+          margin: 0,
+        }}
+      >
+        <InspectorMetric label="Category" value={category} />
+        <InspectorMetric label="Importance" value={String(event.importance)} />
+        <InspectorMetric label="Documents" value={String(documentCount)} />
+        <InspectorMetric label="External sources" value={String(externalCount)} />
+      </dl>
+
+      <Link
+        href={`/timeline?view=list#${encodeURIComponent(event.id)}`}
+        style={{
+          display: "inline-flex",
+          justifyContent: "center",
+          alignItems: "center",
+          border: "1px solid var(--text)",
+          borderRadius: 6,
+          background: "var(--text)",
+          color: "var(--bg)",
+          padding: "9px 12px",
+          fontSize: "0.86rem",
+          fontWeight: 700,
+          textDecoration: "none",
+        }}
+      >
+        Open in reading list
+      </Link>
+
+      {(documentCount > 0 || externalCount > 0) && (
+        <EventCard event={event} as="article" showPermalink={false} />
+      )}
+    </div>
+  );
+}
+
+function InspectorMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "9px 10px",
+      }}
+    >
+      <dt
+        className="eyebrow"
+        style={{
+          fontSize: "0.62rem",
+          letterSpacing: "0.08em",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </dt>
+      <dd style={{ margin: 0, fontSize: "0.86rem", color: "var(--text)" }}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -1035,6 +1236,17 @@ function laneY(i: number) {
 function truncate(s: string, n: number): string {
   if (s.length <= n) return s;
   return s.slice(0, n - 1).trimEnd() + "…";
+}
+
+function formatEventDateTime(event: CaseTimelineEvent): string {
+  const date = formatDate(event.date) ?? event.date;
+  return event.timeLocal ? `${date} / ${event.timeLocal}` : date;
+}
+
+function timelineMarkerLabel(event: CaseTimelineEvent): string {
+  const category =
+    CATEGORIES.find((c) => c.value === event.category)?.label ?? event.category;
+  return `${event.title}. ${formatEventDateTime(event)}. ${category}. Open event details.`;
 }
 
 function countCategories(
