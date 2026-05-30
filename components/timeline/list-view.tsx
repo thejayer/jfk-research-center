@@ -431,6 +431,18 @@ function summarizeEvents(events: CaseTimelineEvent[]): EventSummary {
   return { total: events.length, sourceBacked, headline };
 }
 
+/**
+ * Summarize the year span for timeline events whose date begins with YYYY.
+ *
+ * @param events - Case timeline events with ISO-like date strings.
+ * @returns "No events" for empty input, one year for same-year events, or
+ * a lexical min-max range such as "1939-2025" for multi-year input. Update
+ * this if event.date stops placing the four-digit year at the start.
+ *
+ * @example summarizeYearRange([]) -> "No events"
+ * @example summarizeYearRange([{ date: "1963-11-22", ... }]) -> "1963"
+ * @example summarizeYearRange(multiYearEvents) -> "1939-2025"
+ */
 function summarizeYearRange(events: CaseTimelineEvent[]): string {
   if (events.length === 0) return "No events";
   let min = events[0]!.date.slice(0, 4);

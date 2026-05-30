@@ -35,6 +35,13 @@ export function CategoryFilterChips({
     setActive(getInitialActive(initialCategory));
   }, [initialCategory]);
 
+  /**
+   * Toggle one category filter with setActive while preserving a non-empty set.
+   *
+   * @param category - Timeline category to add or remove from the active set.
+   * If removing it would hide every lane, the control falls back to allValues
+   * so the reading list never renders as an empty page.
+   */
   const toggle = (category: CaseTimelineCategory) => {
     setActive((prev) => {
       const next = new Set(prev);
