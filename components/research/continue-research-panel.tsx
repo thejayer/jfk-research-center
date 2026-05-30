@@ -29,8 +29,8 @@ export function ContinueResearchPanel() {
   return (
     <section
       className="container"
-      aria-label="Continue research"
-      style={{ marginTop: 52 }}
+      aria-label="Resume research from this browser"
+      style={{ marginTop: 72 }}
     >
       <div
         className="research-history-panel"
@@ -46,7 +46,7 @@ export function ContinueResearchPanel() {
       >
         <div style={{ minWidth: 0 }}>
           <div className="eyebrow" style={{ marginBottom: 10 }}>
-            Continue research
+            Resume from this browser
           </div>
           <h2
             style={{
@@ -55,7 +55,7 @@ export function ContinueResearchPanel() {
               marginBottom: 10,
             }}
           >
-            Pick up where this browser left off.
+            Pick up local research history.
           </h2>
           <p
             className="muted"
@@ -98,7 +98,7 @@ export function ContinueResearchPanel() {
                 marginBottom: 6,
               }}
             >
-              No recent work yet
+              No recent pages yet
             </div>
             <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
               Open a document, entity, topic, evidence item, search, or timeline
@@ -116,7 +116,7 @@ export function ContinueResearchPanel() {
               gap: 10,
             }}
           >
-            {items.slice(0, 6).map((item) => (
+            {items.slice(0, 3).map((item) => (
               <li key={item.id}>
                 <div
                   style={{
