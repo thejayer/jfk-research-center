@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { CaseTimelineCategory } from "@/lib/api-types";
+import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { fetchCaseTimeline } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
 import { DallasView } from "@/components/timeline/dallas-view";
@@ -30,20 +30,26 @@ const CATEGORY_LABELS: Record<CaseTimelineCategory, string> = {
   death: "Death",
 };
 
-const VIEW_COPY: Record<View, { title: string; body: string; href: string }> = {
+const VIEW_COPY: Record<
+  View,
+  { title: string; body: string; bestFor: string; href: string }
+> = {
   zoom: {
-    title: "Zoom map",
-    body: "Use the interactive canvas to scan long arcs, density, and category distribution.",
+    title: "Overview timeline",
+    body: "Scan the whole case across decades, clusters, and headline events.",
+    bestFor: "Best for broad orientation",
     href: "/timeline",
   },
   dallas: {
-    title: "72h Dallas",
-    body: "Read the hour-by-hour sequence from the motorcade through Oswald's transfer.",
+    title: "72-hour Dallas",
+    body: "Follow the assassination weekend from the motorcade through Oswald's transfer.",
+    bestFor: "Best for the Dallas sequence",
     href: "/timeline?view=dallas",
   },
   list: {
-    title: "Chronology",
-    body: "Move through the record by decade and year in a compact reading list.",
+    title: "Reading list",
+    body: "Move through the record step by step by decade, year, and source trail.",
+    bestFor: "Best for careful study",
     href: "/timeline?view=list",
   },
 };
@@ -70,16 +76,29 @@ export default async function TimelinePage({ searchParams }: Props) {
   const sourcedCount = data.events.filter(
     (event) => event.documentLinks.length > 0 || event.sourceExternal.length > 0,
   ).length;
-  const topCategory = [...data.countsByCategory].sort((a, b) => b.count - a.count)[0];
-  const topDecades = [...data.countsByDecade].sort((a, b) => b.count - a.count).slice(0, 4);
+  const topCategory = [...data.countsByCategory].sort(
+    (a, b) => b.count - a.count,
+  )[0];
+  const topDecades = [...data.countsByDecade]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4);
   const sourcePackets = sortedEvents
-    .filter((event) => event.documentLinks.length > 0 || event.sourceExternal.length > 0)
+    .filter(
+      (event) =>
+        event.documentLinks.length > 0 || event.sourceExternal.length > 0,
+    )
     .sort((a, b) => b.importance - a.importance)
-    .slice(0, 3);
+    .slice(0, 4);
   const isListMode = view === "list";
+  const activeCategoryLabel = selectedCategory
+    ? CATEGORY_LABELS[selectedCategory]
+    : null;
 
   return (
     <div className="container" style={{ paddingTop: 20, paddingBottom: 96 }}>
+      <a className="timeline-skip-link" href="#timeline-workspace">
+        Skip to timeline workspace
+      </a>
       <ResearchHistoryTracker
         item={{
           type: "timeline",
@@ -90,7 +109,9 @@ export default async function TimelinePage({ searchParams }: Props) {
               ? "/timeline"
               : `/timeline?${new URLSearchParams({
                   view,
-                  ...(isListMode && selectedCategory ? { category: selectedCategory } : {}),
+                  ...(isListMode && selectedCategory
+                    ? { category: selectedCategory }
+                    : {}),
                 }).toString()}`,
           context:
             isListMode && selectedCategory
@@ -117,16 +138,12 @@ export default async function TimelinePage({ searchParams }: Props) {
 
       <header
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
-          gap: 24,
-          alignItems: "start",
           paddingTop: 40,
-          paddingBottom: 34,
+          paddingBottom: 28,
           borderBottom: "1px solid var(--border)",
         }}
       >
-        <div style={{ maxWidth: "70ch" }}>
+        <div style={{ maxWidth: "76ch" }}>
           <div className="eyebrow" style={{ marginBottom: 12 }}>
             Case chronology
           </div>
@@ -136,52 +153,68 @@ export default async function TimelinePage({ searchParams }: Props) {
               letterSpacing: 0,
               fontWeight: 500,
               marginBottom: 16,
+              maxWidth: "15ch",
             }}
           >
-            The case, 1939 to present
+            Trace the Kennedy case across events, investigations, and releases
           </h1>
           <p
             style={{
               fontFamily: "var(--font-serif)",
-              fontSize: "clamp(1.05rem, 0.9rem + 0.4vw, 1.22rem)",
+              fontSize: "clamp(1.06rem, 0.94rem + 0.36vw, 1.22rem)",
               lineHeight: 1.5,
               color: "var(--text)",
-              marginBottom: 16,
+              marginBottom: 14,
+              maxWidth: "62ch",
             }}
           >
-            A case-wide chronology for moving between biography, Cold War
-            context, the Dallas weekend, investigation milestones, and release
-            history.
+            Move from Cold War context to the Dallas weekend, later inquiries,
+            and release history in one linked chronology.
           </p>
           <p
             className="muted"
-            style={{ fontSize: "0.95rem", lineHeight: 1.65, marginBottom: 18 }}
+            style={{ fontSize: "0.95rem", lineHeight: 1.65, margin: 0 }}
           >
-            Switch views depending on the question: zoom out for the whole
-            record, isolate the 72-hour Dallas sequence, or read the timeline
-            by decade.
+            Choose a view based on your question: overview, Dallas sequence, or
+            reading list.
           </p>
-          <ViewModeCards current={view} />
         </div>
+      </header>
 
-        <aside
-          aria-label="Timeline profile"
-          style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)",
-            background: "var(--surface)",
-            padding: 18,
-            display: "grid",
-            gap: 14,
-          }}
-        >
-          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-            Timeline profile
+      <ViewModeSelector current={view} />
+
+      <section
+        aria-label="Timeline profile and filters"
+        style={{
+          marginTop: 22,
+          marginBottom: 34,
+          padding: "20px 0",
+          display: "grid",
+          gridTemplateColumns:
+            "repeat(auto-fit, minmax(min(100%, 300px), 1fr))",
+          gap: 18,
+          alignItems: "start",
+          borderTop: "1px solid var(--border)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <div style={{ display: "grid", gap: 14, minWidth: 0 }}>
+          <div>
+            <div className="eyebrow" style={{ marginBottom: 8 }}>
+              Timeline profile
+            </div>
+            <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+              {earliestDate && latestDate
+                ? `${formatDate(earliestDate)} through ${formatDate(latestDate)}.`
+                : "Timeline range pending."}{" "}
+              {topCategory &&
+                `${CATEGORY_LABELS[topCategory.category]} is the largest category.`}
+            </p>
           </div>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
+              gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
               gap: 8,
             }}
           >
@@ -190,110 +223,147 @@ export default async function TimelinePage({ searchParams }: Props) {
             <ProfileStat label="Sourced" value={sourcedCount} />
             <ProfileStat label="Decades" value={data.countsByDecade.length} />
           </div>
-          <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
-            {earliestDate && latestDate
-              ? `${formatDate(earliestDate)} through ${formatDate(latestDate)}.`
-              : "Timeline range pending."}{" "}
-            {topCategory &&
-              `${CATEGORY_LABELS[topCategory.category]} is the largest category.`}
+          <p
+            className="muted"
+            style={{ margin: 0, fontSize: "0.83rem", lineHeight: 1.55 }}
+          >
+            Events are selected to connect biography, operations, Dallas,
+            investigations, deaths, and release history into one working
+            chronology.
           </p>
-        </aside>
-      </header>
+        </div>
 
-      <section
-        aria-label="Timeline navigation"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
-          gap: 18,
-          marginTop: 26,
-          marginBottom: 38,
-        }}
-      >
-        <nav aria-label="Timeline categories" style={{ display: "grid", gap: 10 }}>
-          <div className="eyebrow">Categories</div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 8,
-            }}
+        <div
+          style={{
+            display: "grid",
+            gap: 16,
+            minWidth: 0,
+          }}
+        >
+          <nav
+            aria-label="Timeline categories"
+            style={{ display: "grid", gap: 10 }}
           >
-            {data.countsByCategory.map((item) => (
-              <a
-                key={item.category}
-                href={`/timeline?view=list&category=${item.category}`}
-                className="surface-card"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "9px 11px",
-                  color: "var(--text)",
-                  textDecoration: "none",
-                  fontSize: "0.82rem",
-                }}
-              >
-                <span>{CATEGORY_LABELS[item.category]}</span>
-                <span className="muted num">{formatNumber(item.count)}</span>
-              </a>
-            ))}
-          </div>
-        </nav>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 12,
+                alignItems: "baseline",
+                flexWrap: "wrap",
+              }}
+            >
+              <div className="eyebrow">Category filters</div>
+              {activeCategoryLabel && (
+                <Link
+                  href="/timeline?view=list"
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  Clear {activeCategoryLabel}
+                </Link>
+              )}
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              {data.countsByCategory.map((item) => (
+                <a
+                  key={item.category}
+                  href={`/timeline?view=list&category=${item.category}`}
+                  className="surface-card"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "8px 10px",
+                    borderRadius: 999,
+                    color: "var(--text)",
+                    textDecoration: "none",
+                    fontSize: "0.82rem",
+                  }}
+                >
+                  <span>{CATEGORY_LABELS[item.category]}</span>
+                  <span className="muted num">{formatNumber(item.count)}</span>
+                </a>
+              ))}
+            </div>
+          </nav>
 
-        <nav aria-label="Dense decades" style={{ display: "grid", gap: 10 }}>
-          <div className="eyebrow">Dense decades</div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-              gap: 8,
-            }}
-          >
-            {topDecades.map((item) => (
+          <nav aria-label="Dense decades" style={{ display: "grid", gap: 10 }}>
+            <div className="eyebrow">Dense decades</div>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
               <a
-                key={item.decade}
-                href={`/timeline?view=list#decade-${item.decade}`}
+                href="/timeline?view=list"
                 className="num surface-card"
                 style={{
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  padding: "9px 11px",
+                  gap: 8,
+                  padding: "8px 10px",
+                  borderRadius: 999,
                   color: "var(--text)",
                   textDecoration: "none",
                   fontSize: "0.82rem",
                 }}
               >
-                <span>{item.decade}</span>
-                <span className="muted">{formatNumber(item.count)}</span>
+                All decades
               </a>
-            ))}
-          </div>
-        </nav>
+              {topDecades.map((item) => (
+                <a
+                  key={item.decade}
+                  href={`/timeline?view=list#decade-${item.decade}`}
+                  className="num surface-card"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 10px",
+                    borderRadius: 999,
+                    color: "var(--text)",
+                    textDecoration: "none",
+                    fontSize: "0.82rem",
+                  }}
+                >
+                  <span>{item.decade}</span>
+                  <span className="muted">{formatNumber(item.count)}</span>
+                </a>
+              ))}
+            </div>
+          </nav>
+        </div>
       </section>
 
       {sourcePackets.length > 0 && (
-        <section
-          aria-label="Timeline source packets"
-          className="research-panel"
-          style={{
-            marginBottom: 38,
-          }}
-        >
+        <section aria-label="Start with sourced events" style={{ marginBottom: 38 }}>
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
-              gap: 18,
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+              gap: 20,
               alignItems: "start",
+              borderTop: "1px solid var(--border)",
+              borderBottom: "1px solid var(--border)",
+              padding: "24px 0",
             }}
           >
             <div style={{ minWidth: 0 }}>
               <div className="eyebrow" style={{ marginBottom: 10 }}>
-                Source packets
+                Start with sourced events
               </div>
               <h2
                 style={{
@@ -307,66 +377,45 @@ export default async function TimelinePage({ searchParams }: Props) {
                 Read the record behind the event.
               </h2>
               <p className="muted" style={{ maxWidth: "48ch", lineHeight: 1.6 }}>
-                Start with events that already have linked documents or external
-                source anchors, then jump into the full timeline.
+                These events already connect directly to records or external
+                source anchors, making them the fastest route from chronology
+                into evidence.
               </p>
+              <Link
+                href="/timeline?view=list"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  color: "var(--text)",
+                  fontSize: "0.84rem",
+                  fontWeight: 700,
+                  marginTop: 4,
+                }}
+              >
+                Open reading list
+                <ArrowRightIcon />
+              </Link>
             </div>
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 190px), 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 210px), 1fr))",
                 gap: 10,
               }}
             >
               {sourcePackets.map((event) => (
-                <article
-                  key={event.id}
-                  className="surface-card"
-                  style={{
-                    padding: "13px 14px",
-                    display: "grid",
-                    gap: 8,
-                  }}
-                >
-                  <div className="muted num" style={{ fontSize: "0.76rem" }}>
-                    {formatDate(event.date)}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: "1rem",
-                      lineHeight: 1.25,
-                      letterSpacing: 0,
-                    }}
-                  >
-                    {event.title}
-                  </div>
-                  <div className="muted" style={{ fontSize: "0.78rem" }}>
-                    {event.documentLinks.length} documents /{" "}
-                    {event.sourceExternal.length} external sources
-                  </div>
-                  <Link
-                    href={`/timeline?view=list#${event.id}`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      color: "var(--text)",
-                      fontSize: "0.84rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Open event
-                    <ArrowRightIcon />
-                  </Link>
-                </article>
+                <SourceEventCard key={event.id} event={event} />
               ))}
             </div>
           </div>
         </section>
       )}
 
-      <main aria-label={`${VIEW_COPY[view].title} timeline view`}>
+      <main
+        id="timeline-workspace"
+        aria-label={`${VIEW_COPY[view].title} timeline view`}
+      >
         {view === "list" && (
           <ListView data={data} initialCategory={selectedCategory} />
         )}
@@ -383,12 +432,12 @@ export default async function TimelinePage({ searchParams }: Props) {
             maxWidth: "72ch",
           }}
         >
-          Prefer a chronological list?{" "}
+          Prefer a step-by-step chronology?{" "}
           <Link
             href="/timeline?view=list"
             style={{ color: "var(--text)", textDecoration: "underline" }}
           >
-            Switch to list view
+            Open reading list mode
           </Link>
         </p>
       )}
@@ -406,14 +455,15 @@ function isTimelineCategory(value: string | undefined): value is CaseTimelineCat
   );
 }
 
-function ViewModeCards({ current }: { current: View }) {
+function ViewModeSelector({ current }: { current: View }) {
   return (
     <nav
-      aria-label="Timeline view"
+      aria-label="Choose timeline view"
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-        gap: 8,
+        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
+        gap: 10,
+        marginTop: 22,
       }}
     >
       {(Object.keys(VIEW_COPY) as View[]).map((view) => {
@@ -424,10 +474,11 @@ function ViewModeCards({ current }: { current: View }) {
             key={view}
             href={copy.href}
             aria-current={active ? "page" : undefined}
+            className="surface-card"
             style={{
               display: "grid",
-              gap: 6,
-              padding: "11px 12px",
+              gap: 8,
+              padding: "14px 15px",
               border: `1px solid ${active ? "var(--text)" : "var(--border)"}`,
               borderRadius: 8,
               background: active ? "var(--text)" : "var(--surface)",
@@ -435,14 +486,23 @@ function ViewModeCards({ current }: { current: View }) {
               textDecoration: "none",
             }}
           >
-            <span style={{ fontSize: "0.9rem", fontWeight: 600 }}>
+            <span
+              className="eyebrow"
+              style={{
+                color: active ? "color-mix(in srgb, var(--bg) 76%, transparent)" : "var(--text-muted)",
+                letterSpacing: "0.09em",
+              }}
+            >
+              {copy.bestFor}
+            </span>
+            <span style={{ fontSize: "1rem", fontWeight: 700 }}>
               {copy.title}
             </span>
             <span
               style={{
                 color: active ? "color-mix(in srgb, var(--bg) 74%, transparent)" : "var(--text-muted)",
-                fontSize: "0.75rem",
-                lineHeight: 1.35,
+                fontSize: "0.82rem",
+                lineHeight: 1.45,
               }}
             >
               {copy.body}
@@ -451,6 +511,51 @@ function ViewModeCards({ current }: { current: View }) {
         );
       })}
     </nav>
+  );
+}
+
+function SourceEventCard({ event }: { event: CaseTimelineEvent }) {
+  return (
+    <article
+      className="surface-card"
+      style={{
+        padding: "14px 14px 15px",
+        display: "grid",
+        gap: 9,
+      }}
+    >
+      <div className="muted num" style={{ fontSize: "0.76rem" }}>
+        {formatDate(event.date)}
+      </div>
+      <div
+        style={{
+          fontFamily: "var(--font-serif)",
+          fontSize: "1rem",
+          lineHeight: 1.25,
+          letterSpacing: 0,
+        }}
+      >
+        {event.title}
+      </div>
+      <div className="muted" style={{ fontSize: "0.78rem" }}>
+        {countLabel(event.documentLinks.length, "document")} /{" "}
+        {countLabel(event.sourceExternal.length, "external source")}
+      </div>
+      <Link
+        href={`/timeline?view=list#${event.id}`}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          color: "var(--text)",
+          fontSize: "0.84rem",
+          fontWeight: 600,
+        }}
+      >
+        Open event
+        <ArrowRightIcon />
+      </Link>
+    </article>
   );
 }
 
@@ -500,4 +605,8 @@ function ArrowRightIcon() {
       />
     </svg>
   );
+}
+
+function countLabel(value: number, noun: string): string {
+  return `${value} ${value === 1 ? noun : `${noun}s`}`;
 }
