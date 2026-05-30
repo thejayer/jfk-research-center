@@ -75,6 +75,7 @@ import type {
   TopicDetail,
   TopicResponse,
 } from "./api-types";
+import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
 import { formatDate } from "./format";
 import { buildMediaIndexResponse } from "./media-assets";
 import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
@@ -2643,28 +2644,9 @@ export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> 
     role: r.role,
   }));
 
-  // Compute the bounding box with a small pad so witnesses near the
-  // edge aren't visually pinned against the SVG border.
-  let minLat = Infinity,
-    maxLat = -Infinity,
-    minLng = Infinity,
-    maxLng = -Infinity;
-  for (const w of witnesses) {
-    if (w.positionLat < minLat) minLat = w.positionLat;
-    if (w.positionLat > maxLat) maxLat = w.positionLat;
-    if (w.positionLng < minLng) minLng = w.positionLng;
-    if (w.positionLng > maxLng) maxLng = w.positionLng;
-  }
-  const padLat = (maxLat - minLat) * 0.08 || 0.0005;
-  const padLng = (maxLng - minLng) * 0.08 || 0.0005;
   return {
     witnesses,
-    bounds: {
-      minLat: minLat - padLat,
-      maxLat: maxLat + padLat,
-      minLng: minLng - padLng,
-      maxLng: maxLng + padLng,
-    },
+    bounds: computeDealeyPlazaBounds(witnesses),
   };
 }
 

@@ -471,15 +471,17 @@ export function DealeyPlazaMap({ data }: Props) {
               previewWitnessIds != null && !previewWitnessIds.has(w.witnessId);
             const isDimmed = !isVisible || isPreviewMuted;
             const isActive = activeWitnessId === w.witnessId;
+            const isAccessible = isVisible && !isPreviewMuted;
             return (
               <g
                 key={w.witnessId}
                 transform={`translate(${x}, ${y})`}
-                role="button"
-                tabIndex={isVisible ? 0 : -1}
-                aria-label={`${w.name} — ${w.positionDescription}`}
-                aria-disabled={!isVisible}
-                aria-describedby={`dp-pin-desc-${w.witnessId}`}
+                role={isAccessible ? "button" : undefined}
+                tabIndex={isAccessible ? 0 : -1}
+                aria-label={isAccessible ? `${w.name}: ${w.positionDescription}` : undefined}
+                aria-disabled={isAccessible ? undefined : true}
+                aria-hidden={isAccessible ? undefined : true}
+                aria-describedby={isAccessible ? `dp-pin-desc-${w.witnessId}` : undefined}
                 onClick={() => {
                   if (isVisible) selectWitness(w);
                 }}
@@ -706,7 +708,8 @@ function originDisplayLabel(origin: string | null): string {
 }
 
 function shotCountLabel(value: number | null): string {
-  return typeof value === "number" ? `${value} shots` : "Shots not specified";
+  if (typeof value !== "number") return "Shots not specified";
+  return value === 1 ? "1 shot" : `${value} shots`;
 }
 
 function testimonyLabel(witness: DealeyPlazaWitness): string {

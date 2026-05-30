@@ -1351,10 +1351,13 @@ a.surface-card:focus-visible,
   cursor: pointer;
 }
 .dp-witness-row:hover,
-.dp-witness-row:focus-visible,
 .dp-witness-row-active {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
-  outline: none;
+}
+.dp-witness-row:focus-visible {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .dp-witness-row-selected {
   box-shadow: inset 3px 0 0 var(--accent);

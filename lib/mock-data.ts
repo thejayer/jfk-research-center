@@ -52,6 +52,7 @@ import type {
   DealeyPlazaResponse,
   DealeyPlazaWitness,
 } from "./api-types";
+import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
 import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
 
 // ----------------------------------------------------------------------------
@@ -2793,26 +2794,9 @@ export function buildDealeyPlazaResponse(): DealeyPlazaResponse {
       role,
     }),
   );
-  let minLat = Infinity;
-  let maxLat = -Infinity;
-  let minLng = Infinity;
-  let maxLng = -Infinity;
-  for (const witness of witnesses) {
-    if (witness.positionLat < minLat) minLat = witness.positionLat;
-    if (witness.positionLat > maxLat) maxLat = witness.positionLat;
-    if (witness.positionLng < minLng) minLng = witness.positionLng;
-    if (witness.positionLng > maxLng) maxLng = witness.positionLng;
-  }
-  const padLat = (maxLat - minLat) * 0.08 || 0.0005;
-  const padLng = (maxLng - minLng) * 0.08 || 0.0005;
   return {
     witnesses,
-    bounds: {
-      minLat: minLat - padLat,
-      maxLat: maxLat + padLat,
-      minLng: minLng - padLng,
-      maxLng: maxLng + padLng,
-    },
+    bounds: computeDealeyPlazaBounds(witnesses),
   };
 }
 
