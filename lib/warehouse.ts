@@ -84,6 +84,7 @@ import {
   buildBibliographyIndex,
   buildCaseTimelineIndex,
   buildCompareResponse,
+  buildDealeyPlazaResponse,
   buildEntityResponse,
   buildEstablishedFactsIndex,
   buildHomeResponse,
@@ -2604,6 +2605,8 @@ export async function fetchPhysicalEvidenceItem(
 // ---------------------------------------------------------------------------
 
 export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> {
+  if (useMockData()) return buildDealeyPlazaResponse();
+
   const rows = await query<{
     witness_id: string;
     name: string;
