@@ -45,14 +45,25 @@ const ORIGINS: Array<{ key: string; label: string }> = [
   { key: "Could not determine", label: "Undetermined" },
 ];
 
+type SortKey = "name" | "area" | "origin";
+
+const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+  { key: "name", label: "Name" },
+  { key: "area", label: "Map area" },
+  { key: "origin", label: "Perceived origin" },
+];
+
 const INITIAL_VIEWBOX = { x: 0, y: 0, w: VIEW_W, h: VIEW_H };
 const MIN_W = VIEW_W / 8; // max zoom-in: 8×
 const MAX_W = VIEW_W; // max zoom-out: 1× (no zooming past the starting extent)
 
 export function DealeyPlazaMap({ data }: Props) {
-  const [selected, setSelected] = useState<DealeyPlazaWitness | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeWitnessId, setActiveWitnessId] = useState<string | null>(null);
+  const [previewOrigin, setPreviewOrigin] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
   const [activeOrigins, setActiveOrigins] = useState<Set<string>>(
-    () => new Set(ORIGINS.map((o) => o.key)),
+    () => allOriginSet(),
   );
   const [viewBox, setViewBox] = useState(INITIAL_VIEWBOX);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -184,22 +195,67 @@ export function DealeyPlazaMap({ data }: Props) {
     };
   }, [data.bounds]);
 
-  const visible = data.witnesses.filter(
-    (w) =>
-      !w.shotOriginPerceived ||
-      activeOrigins.has(w.shotOriginPerceived) ||
-      // Always include witnesses with a non-canonical origin string so
-      // toggling Undetermined doesn't silently drop them.
-      !ORIGINS.some((o) => o.key === w.shotOriginPerceived),
+  const originCounts = useMemo(() => {
+    const counts = new Map<string, number>(ORIGINS.map((origin) => [origin.key, 0]));
+    for (const witness of data.witnesses) {
+      const key = originFilterKey(witness.shotOriginPerceived);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return counts;
+  }, [data.witnesses]);
+
+  const visibleWitnesses = useMemo(
+    () =>
+      data.witnesses
+        .filter((witness) => activeOrigins.has(originFilterKey(witness.shotOriginPerceived)))
+        .sort((a, b) => compareWitnesses(a, b, sortKey)),
+    [activeOrigins, data.witnesses, sortKey],
+  );
+
+  const visibleWitnessIds = useMemo(
+    () => new Set(visibleWitnesses.map((witness) => witness.witnessId)),
+    [visibleWitnesses],
+  );
+
+  const previewWitnessIds = useMemo(() => {
+    if (!previewOrigin) return null;
+    return new Set(
+      data.witnesses
+        .filter((witness) => originFilterKey(witness.shotOriginPerceived) === previewOrigin)
+        .map((witness) => witness.witnessId),
+    );
+  }, [data.witnesses, previewOrigin]);
+
+  const selected = useMemo(
+    () => data.witnesses.find((witness) => witness.witnessId === selectedId) ?? null,
+    [data.witnesses, selectedId],
+  );
+
+  const activeSummary = filterSummary(
+    visibleWitnesses.length,
+    data.witnesses.length,
+    activeOrigins,
   );
 
   const toggleOrigin = (key: string) => {
     setActiveOrigins((s) => {
+      if (s.size === ORIGINS.length) return new Set([key]);
+      if (s.size === 1 && s.has(key)) return allOriginSet();
       const next = new Set(s);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+  };
+
+  const showAllOrigins = () => {
+    setActiveOrigins(allOriginSet());
+    setPreviewOrigin(null);
+  };
+
+  const selectWitness = (witness: DealeyPlazaWitness) => {
+    setSelectedId(witness.witnessId);
+    setActiveWitnessId(witness.witnessId);
   };
 
   const a = (lat: number, lng: number) => project(lat, lng);
@@ -212,8 +268,9 @@ export function DealeyPlazaMap({ data }: Props) {
 
   return (
     <div className="dp-wrap">
-      <div className="dp-legend">
-        <span className="dp-legend-label">Filter by perceived shot origin:</span>
+      <div className="dp-toolbar">
+        <div className="dp-filter-group" role="group" aria-label="Perceived shot-origin filters">
+        <span className="dp-legend-label">Perceived shot origin</span>
         {ORIGINS.map((o) => {
           const active = activeOrigins.has(o.key);
           return (
@@ -221,18 +278,37 @@ export function DealeyPlazaMap({ data }: Props) {
               key={o.key}
               type="button"
               onClick={() => toggleOrigin(o.key)}
+              onFocus={() => setPreviewOrigin(o.key)}
+              onBlur={() => setPreviewOrigin(null)}
+              onPointerEnter={() => setPreviewOrigin(o.key)}
+              onPointerLeave={() => setPreviewOrigin(null)}
               className={`dp-chip ${active ? "dp-chip-active" : ""}`}
               aria-pressed={active}
             >
-              {o.label}
+              <span
+                className="dp-origin-swatch"
+                style={{ background: pinTone(o.key) }}
+                aria-hidden="true"
+              />
+              <span>{o.label}</span>
+              <span className="dp-chip-count">{originCounts.get(o.key) ?? 0}</span>
             </button>
           );
         })}
+        </div>
+        <div className="dp-toolbar-actions">
+          <button
+            type="button"
+            className="dp-chip"
+            onClick={showAllOrigins}
+            disabled={activeOrigins.size === ORIGINS.length}
+          >
+            Show all
+          </button>
         <div
           className="dp-zoom"
           role="group"
           aria-label="Zoom map"
-          style={{ marginLeft: "auto", display: "flex", gap: 4 }}
         >
           <button
             type="button"
@@ -266,9 +342,15 @@ export function DealeyPlazaMap({ data }: Props) {
           </button>
         </div>
       </div>
+      </div>
+
+      <div className="dp-active-summary" aria-live="polite">
+        {activeSummary}
+      </div>
 
       <div className="dp-stage">
         <svg
+          id="dealey-plaza-map"
           ref={svgRef}
           viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`}
           role="group"
@@ -380,33 +462,55 @@ export function DealeyPlazaMap({ data }: Props) {
           </text>
 
           {/* Witness pins */}
-          {visible.map((w) => {
+          {data.witnesses.map((w) => {
             const { x, y } = project(w.positionLat, w.positionLng);
             const tone = pinTone(w.shotOriginPerceived);
-            const isSelected = selected?.witnessId === w.witnessId;
+            const isSelected = selectedId === w.witnessId;
+            const isVisible = visibleWitnessIds.has(w.witnessId);
+            const isPreviewMuted =
+              previewWitnessIds != null && !previewWitnessIds.has(w.witnessId);
+            const isDimmed = !isVisible || isPreviewMuted;
+            const isActive = activeWitnessId === w.witnessId;
+            const isAccessible = isVisible && !isPreviewMuted;
             return (
               <g
                 key={w.witnessId}
                 transform={`translate(${x}, ${y})`}
-                role="button"
-                tabIndex={0}
-                aria-label={`${w.name} — ${w.positionDescription}`}
-                onClick={() => setSelected(w)}
+                role={isAccessible ? "button" : undefined}
+                tabIndex={isAccessible ? 0 : -1}
+                aria-label={isAccessible ? `${w.name}: ${w.positionDescription}` : undefined}
+                aria-disabled={isAccessible ? undefined : true}
+                aria-hidden={isAccessible ? undefined : true}
+                aria-describedby={isAccessible ? `dp-pin-desc-${w.witnessId}` : undefined}
+                onClick={() => {
+                  if (isVisible) selectWitness(w);
+                }}
+                onFocus={() => {
+                  if (isVisible) setActiveWitnessId(w.witnessId);
+                }}
+                onBlur={() => setActiveWitnessId(null)}
+                onPointerEnter={() => {
+                  if (isVisible) setActiveWitnessId(w.witnessId);
+                }}
+                onPointerLeave={() => setActiveWitnessId(null)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
+                  if (isVisible && (e.key === "Enter" || e.key === " ")) {
                     e.preventDefault();
-                    setSelected(w);
+                    selectWitness(w);
                   }
                 }}
-                className="dp-pin"
+                className={`dp-pin ${isSelected ? "dp-pin-selected" : ""} ${isActive ? "dp-pin-active" : ""} ${isDimmed ? "dp-pin-dimmed" : ""}`}
               >
+                <desc id={`dp-pin-desc-${w.witnessId}`}>
+                  Perceived shot origin: {originDisplayLabel(w.shotOriginPerceived)}.
+                </desc>
                 <circle
-                  r={isSelected ? 9 : 6}
+                  r={isSelected || isActive ? 9 : 6}
                   fill={tone}
                   stroke="var(--bg)"
                   strokeWidth={2}
                 />
-                {isSelected && (
+                {(isSelected || isActive) && (
                   <circle
                     r={14}
                     fill="none"
@@ -421,6 +525,84 @@ export function DealeyPlazaMap({ data }: Props) {
         </svg>
       </div>
 
+      {selected && (
+        <aside
+          className="dp-panel"
+          role="region"
+          aria-label={`Witness statement: ${selected.name}`}
+        >
+          <WitnessDetailCard witness={selected} onClose={() => setSelectedId(null)} />
+        </aside>
+      )}
+
+      <section className="dp-witness-list" aria-labelledby="dp-witness-list-title">
+        <div className="dp-witness-list-head">
+          <div>
+            <h2 id="dp-witness-list-title" className="dp-witness-list-title">
+              Witness index
+            </h2>
+            <p className="dp-witness-list-copy">
+              Browse the same plotted witnesses without relying on the schematic.
+            </p>
+          </div>
+          <label className="dp-sort-label">
+            <span>Sort</span>
+            <select
+              value={sortKey}
+              onChange={(event) => setSortKey(event.target.value as SortKey)}
+              className="dp-sort-select"
+            >
+              {SORT_OPTIONS.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        {visibleWitnesses.length > 0 ? (
+          <div className="dp-witness-rows" role="list">
+            {visibleWitnesses.map((witness) => {
+              const isSelected = selectedId === witness.witnessId;
+              const isActive = activeWitnessId === witness.witnessId;
+              const isPreviewed =
+                previewWitnessIds != null && previewWitnessIds.has(witness.witnessId);
+              return (
+                <div key={witness.witnessId} role="listitem">
+                  <button
+                    type="button"
+                    className={`dp-witness-row ${isSelected ? "dp-witness-row-selected" : ""} ${isActive || isPreviewed ? "dp-witness-row-active" : ""}`}
+                    onClick={() => selectWitness(witness)}
+                    onFocus={() => setActiveWitnessId(witness.witnessId)}
+                    onBlur={() => setActiveWitnessId(null)}
+                    onPointerEnter={() => setActiveWitnessId(witness.witnessId)}
+                    onPointerLeave={() => setActiveWitnessId(null)}
+                    aria-pressed={isSelected}
+                  >
+                    <span className="dp-witness-row-main">
+                      <span className="dp-witness-row-name">{witness.name}</span>
+                      <span className="dp-witness-row-position">
+                        {witness.positionDescription}
+                      </span>
+                    </span>
+                    <span className="dp-witness-row-meta">
+                      <span>{originDisplayLabel(witness.shotOriginPerceived)}</span>
+                      <span>{shotCountLabel(witness.heardShots)}</span>
+                      <span>{testimonyLabel(witness)}</span>
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="dp-witness-empty">
+            No witnesses match the active origin filters. Use Show all to restore the
+            full index.
+          </div>
+        )}
+      </section>
+
       <div className="dp-disclaimer">
         Witness positions are plotted from each witness&rsquo;s own
         statement. The map shows where they said they were; it does not
@@ -429,57 +611,121 @@ export function DealeyPlazaMap({ data }: Props) {
         any single hypothesis.
       </div>
 
-      {selected && (
-        <aside
-          className="dp-panel"
-          role="region"
-          aria-label={`Witness statement: ${selected.name}`}
-        >
-          <button
-            type="button"
-            className="dp-panel-close"
-            onClick={() => setSelected(null)}
-            aria-label="Close witness panel"
-          >
-            ✕
-          </button>
-          <div className="dp-panel-eyebrow">Witness</div>
-          <h3 className="dp-panel-name">{selected.name}</h3>
-          {selected.role && (
-            <div className="dp-panel-role">{selected.role}</div>
-          )}
-          <div className="dp-panel-position">
-            {selected.positionDescription}
-          </div>
-          <p className="dp-panel-summary">{selected.statementSummary}</p>
-          <dl className="dp-panel-meta">
-            {typeof selected.heardShots === "number" && (
-              <>
-                <dt>Shots reported</dt>
-                <dd>{selected.heardShots}</dd>
-              </>
-            )}
-            {selected.shotOriginPerceived && (
-              <>
-                <dt>Perceived origin</dt>
-                <dd>{selected.shotOriginPerceived}</dd>
-              </>
-            )}
-            {typeof selected.wcTestimonyVolume === "number" &&
-              typeof selected.wcTestimonyPage === "number" && (
-                <>
-                  <dt>WC testimony</dt>
-                  <dd>
-                    Vol. {selected.wcTestimonyVolume}, p.{" "}
-                    {selected.wcTestimonyPage}
-                  </dd>
-                </>
-              )}
-          </dl>
-        </aside>
-      )}
     </div>
   );
+}
+
+function WitnessDetailCard({
+  witness,
+  onClose,
+}: {
+  witness: DealeyPlazaWitness;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <button
+        type="button"
+        className="dp-panel-close"
+        onClick={onClose}
+        aria-label="Close witness panel"
+      >
+        x
+      </button>
+      <div className="dp-panel-eyebrow">Witness detail</div>
+      <h3 className="dp-panel-name">{witness.name}</h3>
+      {witness.role && <div className="dp-panel-role">{witness.role}</div>}
+      <div className="dp-panel-position">{witness.positionDescription}</div>
+      <p className="dp-panel-summary">{witness.statementSummary}</p>
+      <dl className="dp-panel-meta">
+        <dt>Perceived origin</dt>
+        <dd>{originDisplayLabel(witness.shotOriginPerceived)}</dd>
+        <dt>Shots reported</dt>
+        <dd>{shotCountLabel(witness.heardShots)}</dd>
+        <dt>Position confidence</dt>
+        <dd>Approximate; plotted from the witness statement.</dd>
+        <dt>Source reference</dt>
+        <dd>{sourceReference(witness)}</dd>
+      </dl>
+    </>
+  );
+}
+
+function allOriginSet(): Set<string> {
+  return new Set(ORIGINS.map((origin) => origin.key));
+}
+
+function compareWitnesses(
+  a: DealeyPlazaWitness,
+  b: DealeyPlazaWitness,
+  sortKey: SortKey,
+): number {
+  if (sortKey === "area") {
+    return (
+      a.positionDescription.localeCompare(b.positionDescription) ||
+      a.name.localeCompare(b.name)
+    );
+  }
+  if (sortKey === "origin") {
+    return (
+      originDisplayLabel(a.shotOriginPerceived).localeCompare(
+        originDisplayLabel(b.shotOriginPerceived),
+      ) || a.name.localeCompare(b.name)
+    );
+  }
+  return a.name.localeCompare(b.name);
+}
+
+function filterSummary(
+  visibleCount: number,
+  totalCount: number,
+  activeOrigins: Set<string>,
+): string {
+  if (visibleCount === totalCount) {
+    return `Showing all ${totalCount} witnesses.`;
+  }
+  const labels = ORIGINS.filter((origin) => activeOrigins.has(origin.key)).map(
+    (origin) => origin.label,
+  );
+  if (labels.length === 1) {
+    return `Showing ${visibleCount} witnesses who perceived shots from ${labels[0]}.`;
+  }
+  if (labels.length === 0) {
+    return "No perceived-origin filters are active.";
+  }
+  return `Showing ${visibleCount} witnesses across ${labels.length} selected origin groups.`;
+}
+
+function originFilterKey(origin: string | null): string {
+  return origin && ORIGINS.some((item) => item.key === origin)
+    ? origin
+    : "Could not determine";
+}
+
+function originDisplayLabel(origin: string | null): string {
+  const key = originFilterKey(origin);
+  return ORIGINS.find((item) => item.key === key)?.label ?? "Undetermined";
+}
+
+function shotCountLabel(value: number | null): string {
+  if (typeof value !== "number") return "Shots not specified";
+  return value === 1 ? "1 shot" : `${value} shots`;
+}
+
+function testimonyLabel(witness: DealeyPlazaWitness): string {
+  if (
+    typeof witness.wcTestimonyVolume === "number" &&
+    typeof witness.wcTestimonyPage === "number"
+  ) {
+    return `WC Vol. ${witness.wcTestimonyVolume}, p. ${witness.wcTestimonyPage}`;
+  }
+  return "Source reference pending";
+}
+
+function sourceReference(witness: DealeyPlazaWitness): string {
+  const testimony = testimonyLabel(witness);
+  if (witness.sourceNaids.length === 0) return testimony;
+  return `${testimony}; NAID ${witness.sourceNaids.join(", ")}`;
 }
 
 function pinTone(origin: string | null): string {

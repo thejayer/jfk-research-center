@@ -16,7 +16,16 @@ export default async function DealeyPlazaPage() {
 
   return (
     <div className="container" style={{ paddingTop: 32, paddingBottom: 96 }}>
-      <header style={{ maxWidth: "72ch", marginBottom: 28 }}>
+      <header
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))",
+          gap: 20,
+          alignItems: "start",
+          marginBottom: 28,
+        }}
+      >
+        <div style={{ maxWidth: "72ch" }}>
         <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
           Dealey Plaza
         </div>
@@ -36,13 +45,10 @@ export default async function DealeyPlazaPage() {
           className="muted"
           style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
         >
-          A schematic of Dealey Plaza with{" "}
-          <strong>{data.witnesses.length}</strong> witnesses plotted at the
-          stand point each described in their own statement. Pin colors
-          encode where each witness perceived the shots came from. Use
-          the legend chips above the map to filter; click any pin to
-          read the statement summary, the number of shots reported, and
-          the Warren Commission testimony reference where applicable.
+          A neutral research interface for comparing{" "}
+          <strong>{data.witnesses.length}</strong> witness statements by
+          stated position, perceived shot origin, reported shots, and source
+          reference.
         </p>
         <div
           style={{
@@ -53,7 +59,7 @@ export default async function DealeyPlazaPage() {
           }}
         >
           <Link
-            href="/dealey-plaza/trajectory"
+            href="/topic/dealey-plaza"
             style={{
               padding: "9px 14px",
               background: "var(--text)",
@@ -62,8 +68,82 @@ export default async function DealeyPlazaPage() {
               fontSize: "0.9rem",
             }}
           >
-            Open trajectory sandbox
+            Open topic dossier
           </Link>
+          <Link
+            href="/dealey-plaza/trajectory"
+            style={{
+              padding: "9px 14px",
+              background: "var(--surface)",
+              color: "var(--text)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-sm)",
+              fontSize: "0.9rem",
+            }}
+          >
+            Compare trajectories
+          </Link>
+        </div>
+        </div>
+        <div style={{ display: "grid", gap: 12 }}>
+          <section
+            aria-labelledby="dealey-map-reading"
+            style={{
+              padding: 18,
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-md)",
+              background: "var(--surface)",
+            }}
+          >
+            <h2
+              id="dealey-map-reading"
+              style={{
+                fontFamily: "var(--font-serif)",
+                fontSize: "1.05rem",
+                margin: 0,
+              }}
+            >
+              Reading the map
+            </h2>
+            <ul
+              style={{
+                margin: "10px 0 0",
+                paddingLeft: 18,
+                color: "var(--text-muted)",
+                lineHeight: 1.55,
+                fontSize: "0.92rem",
+              }}
+            >
+              <li>Pins represent witness-stated positions, not verified coordinates.</li>
+              <li>Colors group each witness by perceived shot origin.</li>
+              <li>The witness index mirrors the map for scan-and-compare research.</li>
+            </ul>
+          </section>
+          <section
+            aria-label="Method note"
+            style={{
+              padding: 18,
+              border: "1px dashed var(--border-strong)",
+              borderRadius: "var(--radius-md)",
+              background: "color-mix(in srgb, var(--surface) 70%, transparent)",
+            }}
+          >
+            <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
+              Method note
+            </div>
+            <p
+              style={{
+                margin: "8px 0 0",
+                lineHeight: 1.6,
+                fontSize: "0.92rem",
+                color: "var(--text)",
+              }}
+            >
+              Positions are based on each witness&apos;s own statement. The
+              schematic is not survey-grade, and color does not privilege any
+              hypothesis about shot origin.
+            </p>
+          </section>
         </div>
       </header>
 
