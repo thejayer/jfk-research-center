@@ -899,6 +899,29 @@ a.surface-card:focus-visible,
   opacity: 1;
 }
 
+.timeline-skip-link {
+  position: fixed;
+  top: 10px;
+  left: 16px;
+  z-index: 100;
+  transform: translateY(-150%);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: var(--shadow-md);
+  transition: transform 160ms ease;
+}
+.timeline-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--bg);
+  outline-offset: 2px;
+}
+
 .chunk-cite-popover {
   display: block;
   position: absolute;
