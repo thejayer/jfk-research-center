@@ -5,10 +5,12 @@ import { useEffect, useState, type ReactNode } from "react";
 export function DecadeSection({
   decade,
   totalEvents,
+  sourceBackedEvents = 0,
   children,
 }: {
   decade: string;
   totalEvents: number;
+  sourceBackedEvents?: number;
   children: ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -30,7 +32,7 @@ export function DecadeSection({
   }, [decade]);
 
   const onHeaderClick = isMobile
-    ? () => setCollapsed((c) => !c)
+    ? () => setCollapsed((collapsedState) => !collapsedState)
     : undefined;
 
   return (
@@ -45,10 +47,10 @@ export function DecadeSection({
         tabIndex={isMobile ? 0 : undefined}
         onKeyDown={
           isMobile
-            ? (e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setCollapsed((c) => !c);
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setCollapsed((collapsedState) => !collapsedState);
                 }
               }
             : undefined
@@ -69,16 +71,28 @@ export function DecadeSection({
         }}
       >
         <span className="num">{decade}</span>
-        {isMobile && (
+        {isMobile ? (
           <span
             className="num muted"
             style={{ fontSize: "0.85rem", fontFamily: "var(--font-mono)" }}
           >
-            {collapsed ? `+ ${totalEvents}` : "−"}
+            {collapsed ? `+ ${totalEvents}` : "-"}
+          </span>
+        ) : (
+          <span
+            className="num muted"
+            style={{ fontSize: "0.78rem", fontFamily: "var(--font-mono)" }}
+          >
+            {countLabel(totalEvents, "event")} /{" "}
+            {countLabel(sourceBackedEvents, "source-backed event")}
           </span>
         )}
       </h2>
       {!collapsed && children}
     </section>
   );
+}
+
+function countLabel(value: number, noun: string): string {
+  return `${value.toLocaleString()} ${value === 1 ? noun : `${noun}s`}`;
 }

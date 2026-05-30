@@ -24,24 +24,41 @@ export function CategoryFilterChips({
   const [active, setActive] = useState<Set<CaseTimelineCategory>>(
     () => getInitialActive(initialCategory),
   );
+  const allValues = CATEGORIES.map((category) => category.value);
+  const allActive = active.size === CATEGORIES.length;
+  const totalEvents = CATEGORIES.reduce(
+    (total, category) => total + (counts[category.value] ?? 0),
+    0,
+  );
 
   useEffect(() => {
     setActive(getInitialActive(initialCategory));
   }, [initialCategory]);
 
-  const toggle = (c: CaseTimelineCategory) => {
+  /**
+   * Toggle one category filter with setActive while preserving a non-empty set.
+   *
+   * @param category - Timeline category to add or remove from the active set.
+   * If removing it would hide every lane, the control falls back to allValues
+   * so the reading list never renders as an empty page.
+   */
+  const toggle = (category: CaseTimelineCategory) => {
     setActive((prev) => {
       const next = new Set(prev);
-      if (next.has(c)) next.delete(c);
-      else next.add(c);
-      return next;
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next.size > 0 ? next : new Set(allValues);
     });
   };
 
-  const hiddenCss = CATEGORIES.filter((c) => !active.has(c.value))
+  const showAll = () => {
+    setActive(new Set(allValues));
+  };
+
+  const hiddenCss = CATEGORIES.filter((category) => !active.has(category.value))
     .map(
-      (c) =>
-        `[data-timeline-event][data-category="${c.value}"]{display:none !important;}`,
+      (category) =>
+        `[data-timeline-event][data-category="${category.value}"]{display:none !important;}`,
     )
     .join("");
 
@@ -50,37 +67,52 @@ export function CategoryFilterChips({
       role="group"
       aria-label="Filter timeline events by category"
       style={{
-        display: "flex",
-        flexWrap: "wrap",
+        display: "grid",
         gap: 8,
         marginBottom: 24,
       }}
     >
-      {CATEGORIES.map((c) => {
-        const on = active.has(c.value);
-        return (
-          <button
-            key={c.value}
-            type="button"
-            onClick={() => toggle(c.value)}
-            aria-pressed={on}
-            style={{
-              padding: "6px 12px",
-              border: "1px solid var(--border-strong)",
-              borderRadius: 999,
-              fontSize: "0.78rem",
-              fontFamily: "inherit",
-              cursor: "pointer",
-              background: on ? "var(--text)" : "transparent",
-              color: on ? "var(--bg)" : "var(--text-muted)",
-              letterSpacing: "0.04em",
-              transition: "background 120ms, color 120ms",
-            }}
-          >
-            {c.label} · {counts[c.value] ?? 0}
-          </button>
-        );
-      })}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+          flexWrap: "wrap",
+        }}
+      >
+        <div className="eyebrow" style={{ letterSpacing: "0.1em" }}>
+          Category focus
+        </div>
+        <div className="muted" style={{ fontSize: "0.78rem" }}>
+          Select one or more lanes
+        </div>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        <button
+          type="button"
+          onClick={showAll}
+          aria-pressed={allActive}
+          style={chipStyle(allActive)}
+        >
+          All categories / {totalEvents.toLocaleString()}
+        </button>
+        {CATEGORIES.map((category) => {
+          const on = active.has(category.value);
+          return (
+            <button
+              key={category.value}
+              type="button"
+              onClick={() => toggle(category.value)}
+              aria-pressed={on}
+              style={chipStyle(on)}
+            >
+              {category.label} /{" "}
+              {(counts[category.value] ?? 0).toLocaleString()}
+            </button>
+          );
+        })}
+      </div>
       {hiddenCss && <style>{hiddenCss}</style>}
     </div>
   );
@@ -90,5 +122,20 @@ function getInitialActive(initialCategory: CaseTimelineCategory | undefined) {
   if (initialCategory) {
     return new Set<CaseTimelineCategory>([initialCategory]);
   }
-  return new Set(CATEGORIES.map((c) => c.value));
+  return new Set(CATEGORIES.map((category) => category.value));
+}
+
+function chipStyle(active: boolean) {
+  return {
+    padding: "6px 12px",
+    border: "1px solid var(--border-strong)",
+    borderRadius: 999,
+    fontSize: "0.78rem",
+    fontFamily: "inherit",
+    cursor: "pointer",
+    background: active ? "var(--text)" : "transparent",
+    color: active ? "var(--bg)" : "var(--text-muted)",
+    letterSpacing: "0.04em",
+    transition: "background 120ms, color 120ms",
+  } as const;
 }
