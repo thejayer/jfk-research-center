@@ -85,6 +85,9 @@ describe("timeline source bridge", () => {
     expect(timelineEventPacketHref({ id: "case-motorcade" })).toBe(
       "/timeline/event/case-motorcade",
     );
+    expect(timelineEventPacketHref({ id: "frame 313 & beyond" })).toBe(
+      "/timeline/event/frame%20313%20%26%20beyond",
+    );
   });
 
   it("finds a source packet event with chronological neighbors", () => {
@@ -95,6 +98,12 @@ describe("timeline source bridge", () => {
     expect(packet?.nextEvent?.id).toBe("unrelated");
     expect(packet?.index).toBe(2);
     expect(packet?.total).toBe(3);
+  });
+
+  it("trims source packet ids before lookup", () => {
+    expect(findTimelineEventPacket(events, "  earlier  ")?.event.id).toBe(
+      "earlier",
+    );
   });
 
   it("returns null for a missing or blank source packet id", () => {

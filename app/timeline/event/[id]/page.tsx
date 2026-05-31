@@ -127,19 +127,24 @@ export default async function TimelineEventPage({ params }: Props) {
           </div>
         </div>
         <aside style={summaryCardStyle} aria-label="Event packet summary">
-          <PacketStat label="Chronology position" value={`${packet.index} of ${packet.total}`} />
-          <PacketStat
-            label="Primary documents"
-            value={event.documentLinks.length.toLocaleString()}
-          />
-          <PacketStat
-            label="External sources"
-            value={externalSources.length.toLocaleString()}
-          />
-          <PacketStat
-            label="Relationship tags"
-            value={(event.relatedEntityIds.length + event.relatedTopicIds.length).toLocaleString()}
-          />
+          <dl style={summaryStatListStyle}>
+            <PacketStat
+              label="Chronology position"
+              value={`${packet.index} of ${packet.total}`}
+            />
+            <PacketStat
+              label="Primary documents"
+              value={event.documentLinks.length.toLocaleString()}
+            />
+            <PacketStat
+              label="External sources"
+              value={externalSources.length.toLocaleString()}
+            />
+            <PacketStat
+              label="Relationship tags"
+              value={(event.relatedEntityIds.length + event.relatedTopicIds.length).toLocaleString()}
+            />
+          </dl>
         </aside>
       </header>
 
@@ -524,6 +529,10 @@ const summaryCardStyle: CSSProperties = {
   borderRadius: "var(--radius-md)",
   background: "var(--surface)",
   padding: 16,
+};
+
+const summaryStatListStyle: CSSProperties = {
+  margin: 0,
   display: "grid",
   gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
   gap: 10,
