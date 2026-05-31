@@ -6,6 +6,14 @@ import type {
 
 type DocumentIdentity = Pick<DocumentDetail, "id" | "naid">;
 
+export type TimelineEventPacket = {
+  event: CaseTimelineEvent;
+  previousEvent: CaseTimelineEvent | null;
+  nextEvent: CaseTimelineEvent | null;
+  index: number;
+  total: number;
+};
+
 /**
  * Builds a list-view timeline URL for an event anchor.
  *
@@ -14,6 +22,45 @@ type DocumentIdentity = Pick<DocumentDetail, "id" | "naid">;
  */
 export function timelineEventHref(event: Pick<CaseTimelineEvent, "id">): string {
   return `/timeline?view=list#${encodeURIComponent(event.id)}`;
+}
+
+/**
+ * Builds the canonical source-packet URL for a timeline event.
+ *
+ * @param event Timeline event identity; event.id is encoded as a route segment.
+ * @returns Internal source packet href for the event.
+ */
+export function timelineEventPacketHref(
+  event: Pick<CaseTimelineEvent, "id">,
+): string {
+  return `/timeline/event/${encodeURIComponent(event.id)}`;
+}
+
+/**
+ * Finds one event and its chronological neighbors for a source packet.
+ *
+ * @param events Candidate case timeline events.
+ * @param eventId Timeline event id from the route.
+ * @returns Packet context with one-based index and total, or null when missing.
+ */
+export function findTimelineEventPacket(
+  events: readonly CaseTimelineEvent[],
+  eventId: string,
+): TimelineEventPacket | null {
+  const normalizedId = eventId.trim();
+  if (!normalizedId) return null;
+
+  const sorted = [...events].sort(compareTimelineEvents);
+  const index = sorted.findIndex((event) => event.id === normalizedId);
+  if (index < 0) return null;
+
+  return {
+    event: sorted[index]!,
+    previousEvent: sorted[index - 1] ?? null,
+    nextEvent: sorted[index + 1] ?? null,
+    index: index + 1,
+    total: sorted.length,
+  };
 }
 
 /**

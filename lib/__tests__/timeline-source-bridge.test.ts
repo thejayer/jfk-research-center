@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CaseTimelineEvent } from "../api-types";
 import {
+  findTimelineEventPacket,
   findTimelineDocumentLink,
   findTimelineEventsForDocument,
   timelineEventHref,
+  timelineEventPacketHref,
 } from "../timeline-source-bridge";
 
 const events: CaseTimelineEvent[] = [
@@ -77,5 +79,35 @@ describe("timeline source bridge", () => {
     expect(timelineEventHref({ id: "case-motorcade" })).toBe(
       "/timeline?view=list#case-motorcade",
     );
+  });
+
+  it("builds a stable source packet href", () => {
+    expect(timelineEventPacketHref({ id: "case-motorcade" })).toBe(
+      "/timeline/event/case-motorcade",
+    );
+    expect(timelineEventPacketHref({ id: "frame 313 & beyond" })).toBe(
+      "/timeline/event/frame%20313%20%26%20beyond",
+    );
+  });
+
+  it("finds a source packet event with chronological neighbors", () => {
+    const packet = findTimelineEventPacket(events, "later");
+
+    expect(packet?.event.id).toBe("later");
+    expect(packet?.previousEvent?.id).toBe("earlier");
+    expect(packet?.nextEvent?.id).toBe("unrelated");
+    expect(packet?.index).toBe(2);
+    expect(packet?.total).toBe(3);
+  });
+
+  it("trims source packet ids before lookup", () => {
+    expect(findTimelineEventPacket(events, "  earlier  ")?.event.id).toBe(
+      "earlier",
+    );
+  });
+
+  it("returns null for a missing or blank source packet id", () => {
+    expect(findTimelineEventPacket(events, "missing")).toBeNull();
+    expect(findTimelineEventPacket(events, "   ")).toBeNull();
   });
 });
