@@ -7,6 +7,7 @@ import { normalizeHttpUrl } from "@/lib/safe-url";
 import { SaveResearchButton } from "@/components/research/save-research-button";
 import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
 import type { SourceReliabilityKind } from "@/lib/source-reliability";
+import { timelineEventPacketHref } from "@/lib/timeline-source-bridge";
 import { TimelinePermalink } from "./timeline-permalink";
 
 const CATEGORY_LABEL: Record<CaseTimelineCategory, string> = {
@@ -95,6 +96,17 @@ export function EventCard({
           </span>
         )}
         {showPermalink && <TimelinePermalink eventId={e.id} title={e.title} />}
+        <Link
+          href={timelineEventPacketHref(e)}
+          style={{
+            color: "var(--text)",
+            fontWeight: 700,
+            textDecoration: "underline",
+            textUnderlineOffset: 3,
+          }}
+        >
+          source packet
+        </Link>
         <SaveResearchButton
           compact
           item={{

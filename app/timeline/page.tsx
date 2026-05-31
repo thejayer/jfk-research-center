@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { CaseTimelineCategory, CaseTimelineEvent } from "@/lib/api-types";
 import { fetchCaseTimeline } from "@/lib/api-client";
 import { formatDate, formatNumber } from "@/lib/format";
+import { timelineEventPacketHref } from "@/lib/timeline-source-bridge";
 import { DallasView } from "@/components/timeline/dallas-view";
 import { ListView } from "@/components/timeline/list-view";
 import { ZoomableTimeline } from "@/components/timeline/zoomable-timeline";
@@ -542,7 +543,7 @@ function SourceEventCard({ event }: { event: CaseTimelineEvent }) {
         {countLabel(event.sourceExternal.length, "external source")}
       </div>
       <Link
-        href={`/timeline?view=list#${event.id}`}
+        href={timelineEventPacketHref(event)}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -552,7 +553,7 @@ function SourceEventCard({ event }: { event: CaseTimelineEvent }) {
           fontWeight: 600,
         }}
       >
-        Open event
+        Open source packet
         <ArrowRightIcon />
       </Link>
     </article>

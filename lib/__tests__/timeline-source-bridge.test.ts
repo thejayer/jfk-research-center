@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CaseTimelineEvent } from "../api-types";
 import {
+  findTimelineEventPacket,
   findTimelineDocumentLink,
   findTimelineEventsForDocument,
   timelineEventHref,
+  timelineEventPacketHref,
 } from "../timeline-source-bridge";
 
 const events: CaseTimelineEvent[] = [
@@ -77,5 +79,26 @@ describe("timeline source bridge", () => {
     expect(timelineEventHref({ id: "case-motorcade" })).toBe(
       "/timeline?view=list#case-motorcade",
     );
+  });
+
+  it("builds a stable source packet href", () => {
+    expect(timelineEventPacketHref({ id: "case-motorcade" })).toBe(
+      "/timeline/event/case-motorcade",
+    );
+  });
+
+  it("finds a source packet event with chronological neighbors", () => {
+    const packet = findTimelineEventPacket(events, "later");
+
+    expect(packet?.event.id).toBe("later");
+    expect(packet?.previousEvent?.id).toBe("earlier");
+    expect(packet?.nextEvent?.id).toBe("unrelated");
+    expect(packet?.index).toBe(2);
+    expect(packet?.total).toBe(3);
+  });
+
+  it("returns null for a missing or blank source packet id", () => {
+    expect(findTimelineEventPacket(events, "missing")).toBeNull();
+    expect(findTimelineEventPacket(events, "   ")).toBeNull();
   });
 });
