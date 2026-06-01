@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchPhysicalEvidenceIndex } from "@/lib/api-client";
 import type { PhysicalEvidenceCategory } from "@/lib/api-types";
-import { SectionHeading } from "@/components/ui/section-heading";
-import { Badge } from "@/components/ui/badge";
+import { formatNumber } from "@/lib/format";
+import styles from "@/components/evidence/evidence-workspace.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -34,207 +34,97 @@ export default async function EvidenceIndexPage() {
   }
 
   return (
-    <div className="container" style={{ paddingTop: 40, paddingBottom: 96 }}>
-      <header
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit, minmax(min(100%, 260px), 1fr))",
-          gap: 24,
-          alignItems: "stretch",
-          marginBottom: 34,
-        }}
-      >
-        <div style={{ maxWidth: "68ch" }}>
-          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-            Physical evidence
-          </div>
-          <h1
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "2.2rem",
-              letterSpacing: 0,
-              marginTop: 8,
-              marginBottom: 18,
-              lineHeight: 1.1,
-            }}
-          >
-            The physical record
-          </h1>
-          <p
-            className="muted"
-            style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
-          >
+    <div className={`container ${styles.indexPage}`}>
+      <header className={styles.indexHeader}>
+        <div className={styles.heroCopy}>
+          <div className="eyebrow">Physical evidence</div>
+          <h1 className={styles.title}>The physical record</h1>
+          <p className={styles.intro}>
             The documentary side of this collection, including cables,
             memoranda, and interview reports, is only one half of the case
-            record. Below is the physical evidentiary side: the bullets, the
-            rifle, the photographs, the clothing, and the scene itself,
-            cataloged with the archival references used by the Warren
-            Commission, the HSCA, and the ARRB. Descriptions are neutral; the
-            entries link to the exhibits and testimony that examine them.
+            record. Below is the physical evidentiary side: bullets, firearms,
+            photographs, clothing, medical material, and the scene itself,
+            cataloged with the archival references used by official inquiries.
           </p>
         </div>
-        <aside
-          aria-label="Evidence profile"
-          style={{
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-md)",
-            background: "var(--surface)",
-            padding: 18,
-            display: "grid",
-            gap: 14,
-            alignContent: "start",
-          }}
-        >
-          <div className="eyebrow" style={{ color: "var(--text-muted)" }}>
-            Evidence profile
+
+        <aside className={styles.profileCard} aria-label="Evidence profile">
+          <div className="eyebrow">Evidence profile</div>
+          <div className={styles.profileStats}>
+            <StatCard label="Items" value={totalItems} />
+            <StatCard label="Categories" value={data.categories.length} />
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: 10,
-            }}
-          >
-            {[
-              ["Items", totalItems],
-              ["Categories", data.categories.length],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                style={{
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: "10px 8px",
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  className="num"
-                  style={{ fontSize: "1.25rem", color: "var(--text)" }}
-                >
-                  {value}
-                </div>
-                <div
-                  className="muted"
-                  style={{
-                    fontSize: "0.68rem",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    marginTop: 2,
-                  }}
-                >
-                  {label}
-                </div>
-              </div>
-            ))}
-          </div>
-          <p className="muted" style={{ margin: 0, lineHeight: 1.55 }}>
+          <p className={styles.profileNote}>
             Categories keep object evidence separate from document evidence
             while still linking each item back to the archival record.
           </p>
         </aside>
       </header>
 
-      <nav
-        aria-label="Evidence categories"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
-          gap: 8,
-          marginBottom: 36,
-        }}
-      >
-        {data.categories.map((c) => (
+      <nav className={styles.categoryNav} aria-label="Evidence categories">
+        {data.categories.map((category) => (
           <a
-            key={c.category}
-            href={`#cat-${c.category}`}
-            className="surface-card"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              padding: "10px 12px",
-              fontSize: "0.82rem",
-              color: "var(--text)",
-              textDecoration: "none",
-            }}
+            key={category.category}
+            href={`#cat-${category.category}`}
+            className={`${styles.categoryLink} ${categoryClass(category.category)}`}
           >
-            <span>{CATEGORY_LABELS[c.category]}</span>
-            <span className="muted num">{c.count}</span>
+            <span className={styles.categoryLabel}>
+              <span className={styles.swatch} aria-hidden />
+              {CATEGORY_LABELS[category.category]}
+            </span>
+            <span className={styles.categoryCount}>{category.count}</span>
           </a>
         ))}
       </nav>
 
       <section
         id="comparison"
+        className={styles.section}
         aria-label="Evidence comparison"
-        style={{
-          marginBottom: 46,
-          paddingTop: 4,
-          scrollMarginTop: "calc(var(--header-height, 64px) + 24px)",
-        }}
       >
-        <SectionHeading
+        <EvidenceSectionHeading
+          index="00"
           eyebrow="Compare"
           title="Evidence comparison"
           description="Scan item type, record depth, and image availability before opening a detail page."
         />
-        <div className="responsive-table-wrap">
-          <table
-            style={{
-              minWidth: 760,
-              fontSize: "0.88rem",
-            }}
-          >
+        <div className={styles.tableWrap}>
+          <table className={styles.comparisonTable}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+              <tr>
                 {["Item", "Category", "Image", "Path"].map((heading) => (
-                  <th
-                    key={heading}
-                    style={{
-                      textAlign: "left",
-                      padding: "11px 14px",
-                      color: "var(--text-muted)",
-                      fontSize: "0.72rem",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                    }}
-                  >
-                    {heading}
-                  </th>
+                  <th key={heading}>{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {data.items.slice(0, 8).map((item) => (
-                <tr key={item.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ padding: "13px 14px", color: "var(--text)" }}>
-                    <Link href={item.href} style={{ color: "var(--text)", fontWeight: 600 }}>
+                <tr key={item.id}>
+                  <td>
+                    <Link href={item.href} className={styles.tableItem}>
                       {item.shortName}
                     </Link>
-                    <div className="muted num" style={{ fontSize: "0.76rem", marginTop: 2 }}>
-                      {item.id}
-                    </div>
+                    <div className={styles.itemId}>{item.id}</div>
                   </td>
-                  <td style={{ padding: "13px 14px" }}>
-                    {CATEGORY_LABELS[item.category]}
-                  </td>
-                  <td style={{ padding: "13px 14px" }}>
-                    {item.imageUrl ? "Image available" : "No image indexed"}
-                  </td>
-                  <td style={{ padding: "13px 14px" }}>
-                    <Link
-                      href={item.href}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 6,
-                        color: "var(--text)",
-                        fontWeight: 600,
-                      }}
+                  <td>
+                    <span
+                      className={`${styles.categoryTag} ${categoryClass(item.category)}`}
                     >
+                      <span className={styles.swatch} aria-hidden />
+                      {CATEGORY_LABELS[item.category]}
+                    </span>
+                  </td>
+                  <td>
+                    <span
+                      className={`${styles.imageStatus} ${
+                        item.imageUrl ? styles.imageStatusAvailable : ""
+                      }`}
+                    >
+                      {item.imageUrl ? "Image available" : "No image indexed"}
+                    </span>
+                  </td>
+                  <td>
+                    <Link href={item.href} className={styles.openLink}>
                       Open item
                       <ArrowRightIcon />
                     </Link>
@@ -246,68 +136,46 @@ export default async function EvidenceIndexPage() {
         </div>
       </section>
 
-      {data.categories.map((c) => {
-        const items = itemsByCategory.get(c.category) ?? [];
+      {data.categories.map((category, index) => {
+        const items = itemsByCategory.get(category.category) ?? [];
         return (
           <section
-            key={c.category}
-            id={`cat-${c.category}`}
-            style={{ marginBottom: 48 }}
-            aria-label={CATEGORY_LABELS[c.category]}
+            key={category.category}
+            id={`cat-${category.category}`}
+            className={styles.section}
+            aria-label={`${CATEGORY_LABELS[category.category]} evidence`}
           >
-            <SectionHeading
-              eyebrow={CATEGORY_LABELS[c.category]}
-              title={`${CATEGORY_LABELS[c.category]} evidence`}
-              description={`${c.count} cataloged items in this evidence category.`}
+            <EvidenceSectionHeading
+              index={String(index + 1).padStart(2, "0")}
+              eyebrow={CATEGORY_LABELS[category.category]}
+              title={`${CATEGORY_LABELS[category.category]} evidence`}
+              description={`${formatNumber(category.count)} cataloged items in this evidence category.`}
             />
-            <ul
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                gap: 14,
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-              }}
-            >
-              {items.map((it) => (
-                <li key={it.id}>
+            <ul className={styles.itemGrid}>
+              {items.map((item) => (
+                <li key={item.id}>
                   <Link
-                    href={it.href}
-                    className="surface-card"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                      padding: "16px 18px",
-                      color: "var(--text)",
-                      height: "100%",
-                      textDecoration: "none",
-                    }}
+                    href={item.href}
+                    className={`${styles.itemCard} ${categoryClass(item.category)}`}
                   >
-                    <Badge tone="muted" size="sm" style={{ alignSelf: "start" }}>
-                      {CATEGORY_LABELS[it.category]}
-                    </Badge>
-                    <div
-                      style={{
-                        fontFamily: "var(--font-serif)",
-                        fontSize: "1.1rem",
-                        letterSpacing: 0,
-                        lineHeight: 1.25,
-                      }}
-                    >
-                      {it.shortName}
+                    <div className={styles.itemCardTop}>
+                      <span className={styles.categoryBadge}>
+                        <span className={styles.swatch} aria-hidden />
+                        {CATEGORY_LABELS[item.category]}
+                      </span>
+                      <span className={styles.itemId}>{item.id}</span>
                     </div>
-                    <p
-                      className="muted"
-                      style={{
-                        fontSize: "0.88rem",
-                        lineHeight: 1.55,
-                        flex: 1,
-                      }}
-                    >
-                      {it.shortDescription}
+                    <div className={styles.cardTitle}>{item.shortName}</div>
+                    <p className={styles.cardDescription}>
+                      {item.shortDescription}
                     </p>
+                    <div className={styles.cardFoot}>
+                      <span>{item.imageUrl ? "image indexed" : "metadata only"}</span>
+                      <span className={styles.cardOpen}>
+                        Open item
+                        <ArrowRightIcon />
+                      </span>
+                    </div>
                   </Link>
                 </li>
               ))}
@@ -317,6 +185,50 @@ export default async function EvidenceIndexPage() {
       })}
     </div>
   );
+}
+
+function EvidenceSectionHeading({
+  index,
+  eyebrow,
+  title,
+  description,
+}: {
+  index: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className={styles.sectionHead}>
+      <div className={styles.sectionIndex}>{index}</div>
+      <div>
+        <div className="eyebrow">{eyebrow}</div>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+        <p className={styles.sectionDescription}>{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className={styles.statCard}>
+      <div className={`num ${styles.statValue}`}>{formatNumber(value)}</div>
+      <div className={styles.statLabel}>{label}</div>
+    </div>
+  );
+}
+
+function categoryClass(category: PhysicalEvidenceCategory): string {
+  return {
+    ballistic: styles.categoryBallistic,
+    firearm: styles.categoryFirearm,
+    photographic: styles.categoryPhotographic,
+    medical: styles.categoryMedical,
+    documentary: styles.categoryDocumentary,
+    clothing: styles.categoryClothing,
+    environmental: styles.categoryEnvironmental,
+  }[category];
 }
 
 function ArrowRightIcon() {
