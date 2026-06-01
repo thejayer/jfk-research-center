@@ -21,6 +21,7 @@ import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 import { MediaAssetCard } from "@/components/media/media-asset-card";
+import styles from "@/components/search/search-workspace.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +57,7 @@ export default async function SearchPage({
   const trimmedQuery = q.trim();
 
   return (
-    <div>
+    <div className={styles.page}>
       {trimmedQuery && (
         <ResearchHistoryTracker
           item={{
@@ -71,79 +72,43 @@ export default async function SearchPage({
           }}
         />
       )}
-      {/* Sticky search band */}
-      <div
-        style={{
-          position: "sticky",
-          top: "var(--header-height)",
-          zIndex: 30,
-          background: "color-mix(in srgb, var(--surface) 92%, transparent)",
-          backdropFilter: "saturate(1.15) blur(10px)",
-          WebkitBackdropFilter: "saturate(1.15) blur(10px)",
-          borderBottom: "1px solid var(--border)",
-          boxShadow: "var(--shadow-sticky-band)",
-        }}
-      >
-        <div
-          className="container"
-          style={{
-            paddingTop: 16,
-            paddingBottom: 16,
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-          }}
-        >
+      <div className="container">
+        <SearchHero
+          q={q}
+          mode={mode}
+          group={group}
+          total={response.total}
+          manifest={manifest}
+        />
+      </div>
+
+      <div className={styles.commandBand}>
+        <div className={`container ${styles.commandInner}`}>
           <SearchBar autoFocus />
           <ModeTabs q={q} mode={mode} filters={filters} total={response.total} />
         </div>
       </div>
 
-      <div className="container" style={{ paddingTop: 16 }}>
+      <div className={`container ${styles.scopeWrap}`}>
         <ScopeBanner manifest={manifest} />
       </div>
 
       <div
-        className="container"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 32,
-          marginTop: 28,
-          marginBottom: 80,
-        }}
+        className={`container ${styles.workspace}`}
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1fr)",
-            gap: 28,
-          }}
-        >
           <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr)",
-              gap: 28,
-            }}
-            className="search-layout"
+            className={styles.layout}
           >
-            <div className="search-aside">
+            <div className={styles.sidebarSlot}>
               <SearchSidebar>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: 18,
-                  }}
-                >
+                <div className={styles.sidebarStack}>
                   <SearchFilters filters={response.filters} />
                   <SavedSearches />
                 </div>
               </SearchSidebar>
             </div>
 
-            <div className="search-main">
+            <div className={styles.main}>
               <ActiveTopicChip topicLabels={response.filters.topicLabels} />
               <ResultHeading q={q} mode={mode} total={response.total} manifest={manifest} />
               {(q || hasSelectedFilters(filters)) && (
@@ -178,7 +143,7 @@ export default async function SearchPage({
                 />
               ) : mode === "document" ? (
                 <div>
-                  <div style={{ display: "grid", gap: 14 }}>
+                  <div className={styles.resultList}>
                     {response.results.map((r) =>
                       r.kind === "document" ? (
                         <SearchResultCard
@@ -204,9 +169,7 @@ export default async function SearchPage({
                   )}
                 </div>
               ) : (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 14 }}
-                >
+                <div className={styles.mentionList}>
                   {response.results.map((r) =>
                     r.kind === "mention" ? (
                       <MentionSnippet
@@ -230,30 +193,7 @@ export default async function SearchPage({
               )}
             </div>
           </div>
-        </div>
       </div>
-
-      {/* Inline layout styles: grid becomes two columns at >=920px */}
-      <style>{`
-        @media (min-width: 920px) {
-          .search-layout {
-            grid-template-columns: 280px minmax(0, 1fr) !important;
-            gap: 36px !important;
-            align-items: start;
-          }
-          .search-aside {
-            position: sticky;
-            top: calc(var(--header-height) + 104px);
-          }
-        }
-        @media (max-width: 540px) {
-          [data-search-result-total="true"] {
-            flex-basis: 100%;
-            margin-left: 0 !important;
-            padding-top: 4px !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
@@ -295,6 +235,104 @@ function buildSearchGroupCounts(
     topics: Object.keys(response.filters.topicCounts).length,
     media: mediaCount,
   };
+}
+
+function SearchHero({
+  q,
+  mode,
+  group,
+  total,
+  manifest,
+}: {
+  q: string;
+  mode: import("@/lib/search").SearchMode;
+  group: SearchGroup;
+  total: number;
+  manifest: import("@/lib/api-types").CorpusManifest;
+}) {
+  const query = q.trim();
+  const quickLinks = [
+    ["Oswald", "/search?q=Oswald"],
+    ["Mexico City", "/search?q=Mexico+City"],
+    ["CE 399", "/search?q=CE+399"],
+    ["104-10301-10004", "/search?q=104-10301-10004"],
+  ] as const;
+
+  return (
+    <section className={styles.hero} aria-label="Search workspace">
+      <div className={styles.heroGrid}>
+        <div className={styles.heroContent}>
+          <div className={styles.heroKicker}>
+            <span className={styles.heroRule} />
+            <span className="eyebrow">Archive search</span>
+          </div>
+          <h1 className={styles.heroTitle}>
+            {query ? (
+              <>
+                Search results for <mark>{query}</mark>
+              </>
+            ) : (
+              "Search the JFK record."
+            )}
+          </h1>
+          <p className={styles.heroLead}>
+            Use document, passage, semantic, entity, topic, media, timeline,
+            and open-question lanes without losing the query or active filters.
+          </p>
+          <div className={styles.heroActions} aria-label="Suggested searches">
+            <span className="muted">Try</span>
+            {quickLinks.map(([label, href]) => (
+              <Link key={href} href={href} className={styles.quickLink}>
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <aside className={styles.scopeCard} aria-label="Search scope">
+          <div className={styles.scopeCardHeader}>
+            <div className="eyebrow">Current lane</div>
+            <div className={styles.scopeCardTitle}>
+              {formatGroupLabel(group)} / {formatModeLabel(mode)}
+            </div>
+          </div>
+          <dl className={styles.scopeStats}>
+            <SearchStat label="Matches in lane" value={formatNumber(total)} />
+            <SearchStat
+              label="Indexed records"
+              value={formatNumber(manifest.totalRecords)}
+            />
+            <SearchStat
+              label="OCR passages"
+              value={formatNumber(manifest.ocrPassages)}
+            />
+            <SearchStat
+              label="Indexed releases"
+              value={manifest.releasesIndexed.join(", ")}
+              compact
+            />
+          </dl>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function SearchStat({
+  label,
+  value,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`${styles.scopeStat} ${compact ? styles.scopeStatCompact : ""}`}>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="num">{value}</dd>
+    </div>
+  );
 }
 
 function SearchGroupTabs({
@@ -355,12 +393,7 @@ function SearchGroupTabs({
   return (
     <nav
       aria-label="Search result groups"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 150px), 1fr))",
-        gap: 8,
-        marginBottom: 16,
-      }}
+      className={styles.groupTabs}
     >
       {groups.map((item) => {
         const active = group === item.value;
@@ -369,28 +402,10 @@ function SearchGroupTabs({
             key={item.value}
             href={buildSearchUrl(q, mode, filters, 1, item.value)}
             aria-current={active ? "page" : undefined}
-            style={{
-              border: "1px solid",
-              borderColor: active ? "var(--text)" : "var(--border)",
-              borderRadius: "var(--radius-md)",
-              background: active ? "var(--text)" : "var(--surface)",
-              color: active ? "var(--bg)" : "var(--text)",
-              padding: "10px 12px",
-              textDecoration: "none",
-              minHeight: 76,
-              display: "grid",
-              gap: 4,
-            }}
+            className={`${styles.groupTab} ${active ? styles.groupTabActive : ""}`}
           >
-            <span
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 8,
-                alignItems: "baseline",
-              }}
-            >
-              <span style={{ fontWeight: 650, fontSize: "0.9rem" }}>
+            <span className={styles.groupTabHead}>
+              <span className={styles.groupTabLabel}>
                 {item.label}
               </span>
               {typeof item.count === "number" && (
@@ -399,13 +414,7 @@ function SearchGroupTabs({
                 </span>
               )}
             </span>
-            <span
-              style={{
-                color: active ? "color-mix(in srgb, var(--bg) 72%, transparent)" : "var(--text-muted)",
-                fontSize: "0.74rem",
-                lineHeight: 1.35,
-              }}
-            >
+            <span className={styles.groupTabDetail}>
               {item.detail}
             </span>
           </Link>
@@ -517,57 +526,26 @@ function SearchGroupedPanel({
   return (
     <section
       aria-label={`${formatGroupLabel(group)} search routes`}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: 20,
-      }}
+      className={styles.panel}
     >
       <div className="eyebrow" style={{ marginBottom: 8 }}>
         {formatGroupLabel(group)}
       </div>
       <h2
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "1.45rem",
-          letterSpacing: 0,
-          marginBottom: 14,
-        }}
+        className={styles.panelTitle}
       >
         {group === "timeline"
           ? "Move from search into chronology."
           : "Move from search into unresolved threads."}
       </h2>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
-          gap: 10,
-        }}
-      >
+      <div className={styles.routeGrid}>
         {cards.map((card) => (
           <Link
             key={card.href}
             href={card.href}
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-md)",
-              padding: "14px 16px",
-              color: "var(--text)",
-              textDecoration: "none",
-              display: "grid",
-              gap: 7,
-            }}
+            className={styles.routeCard}
           >
-            <span
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontSize: "1.08rem",
-                lineHeight: 1.25,
-                letterSpacing: 0,
-              }}
-            >
+            <span className={styles.routeTitle}>
               {card.title}
             </span>
             <span className="muted" style={{ fontSize: "0.82rem", lineHeight: 1.45 }}>
@@ -606,23 +584,13 @@ function FacetGroupPanel({
   return (
     <section
       aria-label={eyebrow}
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: 20,
-      }}
+      className={styles.panel}
     >
       <div className="eyebrow" style={{ marginBottom: 8 }}>
         {eyebrow}
       </div>
       <h2
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "1.45rem",
-          letterSpacing: 0,
-          marginBottom: 16,
-        }}
+        className={styles.panelTitle}
       >
         {title}
       </h2>
@@ -632,42 +600,19 @@ function FacetGroupPanel({
         </p>
       ) : (
         <ol
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
-            gap: 10,
-          }}
+          className={styles.facetGrid}
+          style={{ listStyle: "none", margin: 0, padding: 0 }}
         >
           {items.slice(0, 18).map((item) => (
             <li key={item.id}>
               <Link
                 href={item.href}
-                style={{
-                  minHeight: 118,
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-md)",
-                  padding: "13px 14px",
-                  color: "var(--text)",
-                  textDecoration: "none",
-                  display: "grid",
-                  gridTemplateRows: "auto 1fr auto",
-                  gap: 8,
-                }}
+                className={styles.facetCard}
               >
                 <span className="muted num" style={{ fontSize: "0.76rem" }}>
                   {formatNumber(item.count)} matching records
                 </span>
-                <span
-                  style={{
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "1.08rem",
-                    lineHeight: 1.25,
-                    letterSpacing: 0,
-                  }}
-                >
+                <span className={styles.facetTitle}>
                   {item.label}
                 </span>
                 <span style={{ fontSize: "0.82rem", fontWeight: 600 }}>
@@ -694,32 +639,13 @@ function MediaGroupPanel({
   return (
     <section
       aria-label="Official media search results"
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: 20,
-      }}
+      className={styles.panel}
     >
       <div className="eyebrow" style={{ marginBottom: 8 }}>
         Official media
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "end",
-          justifyContent: "space-between",
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <h2
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "1.45rem",
-            letterSpacing: 0,
-          }}
-        >
+      <div className={styles.mediaHeader}>
+        <h2 className={styles.panelTitle} style={{ marginBottom: 0 }}>
           {query
             ? `JFK Library media matching ${query}`
             : "JFK Library media matching current filters"}
@@ -736,13 +662,7 @@ function MediaGroupPanel({
           No official media records match this query and filter combination yet.
         </p>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-            gap: 14,
-          }}
-        >
+        <div className={styles.mediaGrid}>
           {mediaResults.slice(0, 18).map((asset) => (
             <MediaAssetCard key={asset.id} asset={asset} compact />
           ))}
@@ -826,20 +746,12 @@ function SearchTriageStrip({
   return (
     <section
       aria-label="Search result triage"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 160px), 1fr))",
-        gap: 8,
-        marginBottom: 16,
-      }}
+      className={styles.triage}
     >
       {items.map((item) => (
         <div
           key={item.label}
-          className="surface-card"
-          style={{
-            padding: "10px 12px",
-          }}
+          className={`surface-card ${styles.triageCard}`}
         >
           <div className="eyebrow" style={{ fontSize: "0.62rem", marginBottom: 4 }}>
             {item.label}
@@ -868,17 +780,7 @@ function ModeTabs({
     <div
       role="tablist"
       aria-label="Search mode"
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: 4,
-        alignItems: "center",
-        padding: 4,
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface-2)",
-        width: "100%",
-      }}
+      className={styles.modeTabs}
     >
       <TabLink
         label="Documents"
@@ -897,14 +799,8 @@ function ModeTabs({
       />
       {q && (
         <span
-          className="muted"
+          className={`muted ${styles.modeTotal}`}
           data-search-result-total="true"
-          style={{
-            marginLeft: "auto",
-            padding: "0 10px",
-            fontSize: "0.82rem",
-            whiteSpace: "nowrap",
-          }}
         >
           {formatNumber(total)} results
         </span>
@@ -927,16 +823,7 @@ function TabLink({
       href={href}
       role="tab"
       aria-selected={active}
-      style={{
-        padding: "6px 12px",
-        borderRadius: "var(--radius-sm)",
-        fontSize: "0.88rem",
-        color: active ? "var(--bg)" : "var(--text-muted)",
-        border: "1px solid",
-        borderColor: active ? "var(--text)" : "transparent",
-        background: active ? "var(--text)" : "transparent",
-        transition: "background var(--motion), color var(--motion), border-color var(--motion)",
-      }}
+      className={`${styles.modeTab} ${active ? styles.modeTabActive : ""}`}
     >
       {label}
     </Link>
@@ -956,39 +843,17 @@ function ResultHeading({
 }) {
   if (!q) {
     return (
-      <div
-        style={{
-          marginBottom: 24,
-          padding: "22px 0 18px",
-          borderBottom: "1px solid var(--border)",
-        }}
-      >
+      <div className={styles.emptyHeadingBlock}>
         <div
           className="eyebrow"
           style={{ marginBottom: 6 }}
         >
           Ready to search
         </div>
-        <h1
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "1.7rem",
-            letterSpacing: 0,
-            lineHeight: 1.2,
-            maxWidth: "22ch",
-          }}
-        >
+        <h1 className={styles.emptyTitle}>
           Search the release by person, agency, phrase, date, or record number.
         </h1>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: 12,
-            marginTop: 18,
-            maxWidth: 680,
-          }}
-        >
+        <div className={styles.archiveStatGrid}>
           <ArchiveStat label="OCR records" value={manifest.recordsWithOcr} />
           <ArchiveStat label="OCR passages" value={manifest.ocrPassages} />
           <ArchiveStat
@@ -1001,12 +866,7 @@ function ResultHeading({
   }
 
   return (
-    <div
-      style={{
-        marginBottom: 18,
-        paddingBottom: 4,
-      }}
-    >
+    <div className={styles.headingBlock}>
       <div
         className="eyebrow"
         style={{ marginBottom: 6 }}
@@ -1018,25 +878,11 @@ function ResultHeading({
             : "Mention matches"}{" "}
         | {formatNumber(total)}
       </div>
-      <h1
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "1.6rem",
-          letterSpacing: 0,
-          lineHeight: 1.2,
-        }}
-      >
+      <h1 className={styles.resultTitle}>
         Results for{" "}
-        <span
-          style={{
-            background: "var(--accent-soft)",
-            color: "var(--accent)",
-            padding: "0 6px",
-            borderRadius: 4,
-          }}
-        >
+        <mark>
           {q}
-        </span>
+        </mark>
       </h1>
     </div>
   );
@@ -1044,20 +890,9 @@ function ResultHeading({
 
 function ArchiveStat({ label, value }: { label: string; value: number }) {
   return (
-    <div
-      style={{
-        borderLeft: "2px solid var(--accent)",
-        paddingLeft: 12,
-      }}
-    >
+    <div className={styles.archiveStat}>
       <div
-        className="num"
-        style={{
-          color: "var(--text)",
-          fontSize: "1.05rem",
-          fontWeight: 600,
-          fontVariantNumeric: "tabular-nums",
-        }}
+        className={`num ${styles.archiveStatValue}`}
       >
         {formatNumber(value)}
       </div>
@@ -1097,16 +932,7 @@ function SearchEmptyPanel({
   return (
     <section
       aria-label="No search results"
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 0.95fr) minmax(260px, 0.7fr)",
-        gap: 22,
-        alignItems: "stretch",
-        padding: 24,
-        border: "1px dashed var(--border-strong)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-      }}
+      className={styles.emptyPanel}
     >
       <div style={{ minWidth: 0 }}>
         <div className="eyebrow" style={{ marginBottom: 10 }}>
@@ -1153,42 +979,20 @@ function SearchEmptyPanel({
 
       <aside
         aria-label="Suggested searches"
-        style={{
-          borderLeft: "1px solid var(--border)",
-          paddingLeft: 22,
-          minWidth: 0,
-        }}
+        className={styles.emptyAside}
       >
         <div className="eyebrow" style={{ marginBottom: 12 }}>
           Try next
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div className={styles.suggestionList}>
           {suggestions.map((item) => (
             <Link
               key={`${item.label}-${item.href}`}
               href={item.href}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1fr) auto",
-                gap: 12,
-                alignItems: "center",
-                padding: "11px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-sm)",
-                color: "var(--text)",
-                textDecoration: "none",
-              }}
+              className={styles.suggestionCard}
             >
               <span style={{ minWidth: 0 }}>
-                <span
-                  style={{
-                    display: "block",
-                    fontFamily: "var(--font-serif)",
-                    fontSize: "1rem",
-                    lineHeight: 1.25,
-                    letterSpacing: 0,
-                  }}
-                >
+                <span className={styles.suggestionTitle}>
                   {item.label}
                 </span>
                 <span
@@ -1208,20 +1012,6 @@ function SearchEmptyPanel({
           ))}
         </div>
       </aside>
-
-      <style>{`
-        @media (max-width: 780px) {
-          [aria-label="No search results"] {
-            grid-template-columns: 1fr !important;
-          }
-          [aria-label="Suggested searches"] {
-            border-left: 0 !important;
-            border-top: 1px solid var(--border);
-            padding-left: 0 !important;
-            padding-top: 18px;
-          }
-        }
-      `}</style>
     </section>
   );
 }

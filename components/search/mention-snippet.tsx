@@ -4,6 +4,7 @@ import { Badge, ConfidenceBadge } from "@/components/ui/badge";
 import { highlightHTML } from "@/lib/format";
 import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
 import { sourceReliabilityForMentionSource } from "@/lib/source-reliability";
+import styles from "./search-workspace.module.css";
 
 export function MentionSnippet({
   mention,
@@ -23,46 +24,20 @@ export function MentionSnippet({
     <article
       data-search-result="true"
       tabIndex={-1}
-      className={layout === "compact" ? undefined : "search-result-focusable"}
-      style={{
-        borderWidth: layout === "compact" ? "0 0 0 3px" : "1px 1px 1px 3px",
-        borderStyle: "solid",
-        borderColor: layout === "compact" ? "var(--accent)" : undefined,
-        borderLeftColor: "var(--accent)",
-        borderRadius: layout === "compact" ? 0 : "var(--radius-md)",
-        background: layout === "compact" ? "transparent" : "var(--surface)",
-        paddingLeft: layout === "compact" ? 14 : 20,
-        paddingRight: layout === "compact" ? 0 : 20,
-        paddingTop: layout === "compact" ? 4 : 18,
-        paddingBottom: layout === "compact" ? 6 : 18,
-        scrollMarginTop: 120,
-      }}
+      className={
+        layout === "compact"
+          ? styles.mentionCompact
+          : `search-result-focusable ${styles.mentionCard}`
+      }
     >
       <p
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: layout === "compact" ? "1.02rem" : "1.08rem",
-          lineHeight: 1.55,
-          color: "var(--text)",
-          maxWidth: "68ch",
-          margin: 0,
-        }}
+        className={styles.mentionText}
         dangerouslySetInnerHTML={{
           __html: `“${highlightHTML(mention.excerpt, terms)}”`,
         }}
       />
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "center",
-          marginTop: 10,
-          fontSize: "0.82rem",
-          color: "var(--text-muted)",
-        }}
-      >
+      <div className={styles.mentionMeta}>
         <Link
           href={mention.documentHref}
           style={{ color: "var(--text)", fontWeight: 500 }}

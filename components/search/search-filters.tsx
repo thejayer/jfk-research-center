@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SearchFilters as FacetData } from "@/lib/api-types";
 import { YearRangeFacet } from "./year-range-facet";
+import styles from "./search-workspace.module.css";
 
 type FilterKey = "agency" | "entity" | "topic" | "confidence";
 type GroupKey = FilterKey | "eventDate";
@@ -63,22 +64,9 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
   return (
     <aside
       aria-label="Search filters"
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: "4px 16px 8px",
-        boxShadow: "var(--shadow-sm)",
-      }}
+      className={styles.searchFilters}
     >
-      <div
-        style={{
-          padding: "12px 0",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      <div className={styles.filterHeader}>
         <span
           className="eyebrow"
           style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}
@@ -209,82 +197,45 @@ function FilterGroup({
 }) {
 
   return (
-    <div style={{ borderTop: "1px solid var(--border)" }}>
+    <div className={styles.filterGroup}>
       <button
         type="button"
         onClick={onToggleOpen}
         aria-expanded={open}
-        style={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 0",
-          color: "var(--text)",
-          fontSize: "0.9rem",
-          fontWeight: 500,
-        }}
+        className={styles.filterToggle}
       >
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <span className={styles.filterToggleLabel}>
           {label}
           {activeCount > 0 && (
-            <span
-              style={{
-                fontSize: "0.72rem",
-                padding: "2px 7px",
-                borderRadius: 999,
-                background: "var(--accent-soft)",
-                color: "var(--accent)",
-                fontWeight: 500,
-              }}
-            >
+            <span className={styles.filterCount}>
               {activeCount}
             </span>
           )}
         </span>
         <span
           aria-hidden
-          style={{
-            color: "var(--text-muted)",
-            transform: `rotate(${open ? 90 : 0}deg)`,
-            transition: "transform var(--motion)",
-            fontSize: "0.8rem",
-          }}
+          className={`${styles.filterChevron} ${
+            open ? styles.filterChevronOpen : ""
+          }`}
         >
           ▸
         </span>
       </button>
       {open && (
-        <div
-          style={{
-            paddingBottom: 14,
-            display: "flex",
-            flexDirection: "column",
-            gap: 6,
-          }}
-        >
+        <div className={styles.filterBody}>
           {activeCount > 0 && (
             <button
               type="button"
               onClick={onClear}
-              style={{
-                alignSelf: "flex-start",
-                fontSize: "0.74rem",
-                color: "var(--text-muted)",
-                padding: "2px 0",
-              }}
+              className={styles.clearInline}
             >
               Clear
             </button>
           )}
           <div
-            style={{
-              maxHeight: values.length > 14 ? 280 : undefined,
-              overflowY: values.length > 14 ? "auto" : undefined,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
+            className={`${styles.filterScroll} ${
+              values.length > 14 ? styles.filterScrollLong : ""
+            }`}
           >
             {values.map((v) => {
               const active = isActive(v);
@@ -293,15 +244,9 @@ function FilterGroup({
               return (
                 <label
                   key={v}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    fontSize: "0.88rem",
-                    color: active ? "var(--text)" : "var(--text-muted)",
-                    cursor: "pointer",
-                    padding: "2px 0",
-                  }}
+                  className={`${styles.filterLabel} ${
+                    active ? styles.filterLabelActive : ""
+                  }`}
                 >
                   <input
                     type="checkbox"
@@ -310,15 +255,10 @@ function FilterGroup({
                     style={{ accentColor: "var(--accent)" }}
                     aria-label={`${label}: ${display}`}
                   />
-                  <span style={{ flex: 1, minWidth: 0 }}>{display}</span>
+                  <span className={styles.filterName}>{display}</span>
                   {typeof n === "number" && (
                     <span
-                      className="num muted"
-                      style={{
-                        fontSize: "0.78rem",
-                        color: "var(--text-muted)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
+                      className={`num muted ${styles.filterValueCount}`}
                     >
                       {n.toLocaleString()}
                     </span>

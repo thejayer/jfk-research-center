@@ -57,7 +57,10 @@ export function SearchBar({
         paddingLeft: 16,
         paddingRight: 6,
         boxShadow: size === "lg" ? "var(--shadow-md)" : "var(--shadow-sm)",
-        width: "100%",
+        width: "auto",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
       }}
       onFocusCapture={(e) => {
         (e.currentTarget as HTMLFormElement).style.borderColor = "var(--accent)";
@@ -106,6 +109,7 @@ export function SearchBar({
             borderRadius: "50%",
             fontSize: "1rem",
             lineHeight: 1,
+            flexShrink: 0,
           }}
         >
           <span aria-hidden>×</span>
@@ -121,6 +125,7 @@ export function SearchBar({
           borderRadius: "var(--radius-sm)",
           fontWeight: 500,
           fontSize: "0.9rem",
+          flexShrink: 0,
         }}
       >
         Search
