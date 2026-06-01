@@ -4,6 +4,7 @@ import {
   isCostSensitivePath,
   isSemanticSearchDisabled,
   readBigQueryMaximumBytesBilled,
+  readCostRateLimitRule,
 } from "../cost-controls";
 
 describe("cost controls", () => {
@@ -30,6 +31,50 @@ describe("cost controls", () => {
     expect(isSemanticSearchDisabled({ JFK_API_DISABLE_SEMANTIC_SEARCH: "0" })).toBe(
       false,
     );
+  });
+
+  it("reads route-level rate limit rules for cost-sensitive paths", () => {
+    expect(readCostRateLimitRule("/api/search")).toEqual({
+      key: "api-search",
+      maxRequests: 20,
+      windowMs: 60000,
+    });
+    expect(readCostRateLimitRule("/document/104-10338-10005")).toEqual({
+      key: "document",
+      maxRequests: 60,
+      windowMs: 60000,
+    });
+    expect(readCostRateLimitRule("/about")).toBeNull();
+  });
+
+  it("allows cost rate limits to be tuned or disabled with environment values", () => {
+    expect(
+      readCostRateLimitRule("/search", {
+        JFK_COST_RATE_LIMIT_MAX_REQUESTS: "5",
+        JFK_COST_RATE_LIMIT_WINDOW_SECONDS: "30",
+      }),
+    ).toEqual({
+      key: "search",
+      maxRequests: 5,
+      windowMs: 30000,
+    });
+
+    expect(
+      readCostRateLimitRule("/search", {
+        JFK_COST_RATE_LIMIT_DISABLED: "1",
+      }),
+    ).toBeNull();
+
+    expect(
+      readCostRateLimitRule("/search", {
+        JFK_COST_RATE_LIMIT_MAX_REQUESTS: "0",
+        JFK_COST_RATE_LIMIT_WINDOW_SECONDS: "nope",
+      }),
+    ).toEqual({
+      key: "search",
+      maxRequests: 30,
+      windowMs: 60000,
+    });
   });
 
   it("defaults BigQuery jobs to a bounded maximum bytes billed value", () => {

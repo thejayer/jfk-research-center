@@ -121,6 +121,7 @@ type CostEventSource = {
   sourceStatus?: unknown;
   notes?: unknown;
   events?: unknown;
+  billingRows?: unknown;
 };
 
 type BudgetConfigSource = {
@@ -176,10 +177,15 @@ export function buildCostConsoleData(
   budgetConfig: BudgetConfigSource,
   generatedAt = new Date(),
 ): CostConsolePayload {
-  const events = normalizeEvents(source.events);
-  const sourceKind = normalizeSource(source.source, events);
+  const ledgerEvents = normalizeEvents(source.events);
+  const billingEvents = normalizeBillingExportEvents(source.billingRows);
+  const events = sortCostEvents([...ledgerEvents, ...billingEvents]);
+  const sourceKind = normalizeSource(source.source, events, billingEvents.length > 0);
   const sourceStatus = normalizeSourceStatus(source.sourceStatus, sourceKind, events);
   const notes = normalizeStringArray(source.notes);
+  if (billingEvents.length > 0 && notes.length === 0) {
+    notes.push("Cloud Billing export rows are included in actual cost reconciliation.");
+  }
 
   if (events.length === 0) {
     return {
@@ -352,10 +358,17 @@ export function titleCaseKey(value: string): string {
 
 function normalizeEvents(value: unknown): CostConsoleEvent[] {
   if (!Array.isArray(value)) return [];
-  return value
-    .map(normalizeEvent)
-    .filter((event): event is CostConsoleEvent => event != null)
-    .sort((a, b) => a.eventDate.localeCompare(b.eventDate) || a.id.localeCompare(b.id));
+  return sortCostEvents(
+    value
+      .map(normalizeEvent)
+      .filter((event): event is CostConsoleEvent => event != null),
+  );
+}
+
+function sortCostEvents(events: CostConsoleEvent[]): CostConsoleEvent[] {
+  return events.sort((a, b) =>
+    a.eventDate.localeCompare(b.eventDate) || a.id.localeCompare(b.id),
+  );
 }
 
 function normalizeEvent(value: unknown): CostConsoleEvent | null {
@@ -388,6 +401,94 @@ function normalizeEvent(value: unknown): CostConsoleEvent | null {
     byteCount: toInt(input.byteCount),
     billingRows: toInt(input.billingRows),
     note: normalizeString(input.note),
+  };
+}
+
+function normalizeBillingExportEvents(value: unknown): CostConsoleEvent[] {
+  if (!Array.isArray(value)) return [];
+  return sortCostEvents(
+    value
+      .map((row, index) => normalizeBillingExportRow(row, index))
+      .filter((event): event is CostConsoleEvent => event != null),
+  );
+}
+
+function normalizeBillingExportRow(
+  value: unknown,
+  index: number,
+): CostConsoleEvent | null {
+  if (!value || typeof value !== "object") return null;
+  const input = value as Record<string, unknown>;
+  const eventDate = normalizeBillingDate(readField(input, [
+    "eventDate",
+    "date",
+    "usage_start_time",
+    "usageStartTime",
+    "usage.start_time",
+  ]));
+  if (!eventDate) return null;
+
+  const labels = collectBillingLabels(input);
+  const service = normalizeKey(readField(input, [
+    "service.description",
+    "serviceDescription",
+    "service_description",
+    "service",
+  ])) || "billing_export";
+  const operation = normalizeKey(readField(input, [
+    "operation",
+    "sku.description",
+    "skuDescription",
+    "sku_description",
+  ])) || "unspecified";
+  const feature = normalizeKey(
+    normalizeString(readField(input, ["feature", "costFeature", "cost_feature"])) ||
+      readBillingLabel(labels, [
+        "cost_feature",
+        "feature",
+        "app_feature",
+        "jfk_feature",
+      ]),
+  ) || "unattributed_billing";
+  const explicitActualCost = readField(input, [
+    "actualCostUsd",
+    "actual_cost_usd",
+    "netCostUsd",
+    "net_cost_usd",
+  ]);
+  const actualCostUsd = hasNumericValue(explicitActualCost)
+    ? toNumber(explicitActualCost)
+    : toNumber(readField(input, ["cost"])) +
+      sumBillingCredits(readField(input, ["credits"]));
+
+  const id = normalizeString(readField(input, ["id"])) ||
+    `billing-${eventDate}-${service}-${operation}-${index + 1}`;
+
+  return {
+    id,
+    eventDate,
+    feature,
+    service,
+    operation,
+    workflow: normalizeString(readField(input, ["workflow"])) ||
+      readBillingLabel(labels, ["github_workflow", "workflow"]) ||
+      "Cloud Billing export",
+    workflowRunId: normalizeString(readField(input, ["workflowRunId", "workflow_run_id"])) ||
+      readBillingLabel(labels, ["github_run_id", "workflow_run_id", "run_id"]),
+    linearIssue: normalizeString(readField(input, ["linearIssue", "linear_issue"])) ||
+      readBillingLabel(labels, ["linear_issue", "linear", "issue"]),
+    estimatedCostUsd: roundMoney(toNumber(readField(input, [
+      "estimatedCostUsd",
+      "estimated_cost_usd",
+    ]))),
+    actualCostUsd: roundMoney(actualCostUsd),
+    requestCount: toInt(readField(input, ["requestCount", "request_count"])),
+    inputTokens: toInt(readField(input, ["inputTokens", "input_tokens"])),
+    outputTokens: toInt(readField(input, ["outputTokens", "output_tokens"])),
+    rowCount: toInt(readField(input, ["rowCount", "row_count"])),
+    byteCount: toInt(readField(input, ["byteCount", "byte_count"])),
+    billingRows: Math.max(1, toInt(readField(input, ["billingRows", "billing_rows"]))),
+    note: normalizeString(readField(input, ["note"])) || billingExportNote(input),
   };
 }
 
@@ -648,9 +749,14 @@ function statusRank(status: CostBudgetRow["status"]): number {
   return { ok: 1, warning: 2, critical: 3 }[status];
 }
 
-function normalizeSource(value: unknown, events: readonly CostConsoleEvent[]): CostConsoleSource {
+function normalizeSource(
+  value: unknown,
+  events: readonly CostConsoleEvent[],
+  hasBillingRows = false,
+): CostConsoleSource {
   const raw = normalizeString(value);
   if (raw === "manual_seed" || raw === "ledger" || raw === "reconciliation") return raw;
+  if (hasBillingRows) return "reconciliation";
   return events.length ? "manual_seed" : "empty";
 }
 
@@ -672,6 +778,119 @@ function normalizeSourceStatus(
   if (source === "reconciliation") return "reconciled";
   if (source === "ledger") return "estimated_only";
   return "known_direct_costs";
+}
+
+function normalizeBillingDate(value: unknown): string {
+  if (value instanceof Date && Number.isFinite(value.valueOf())) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  const dateOnly = normalizeDateString(value);
+  if (dateOnly) return dateOnly;
+
+  const raw = normalizeString(value);
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.valueOf()) ? "" : parsed.toISOString().slice(0, 10);
+}
+
+function collectBillingLabels(input: Record<string, unknown>): Map<string, string> {
+  const labels = new Map<string, string>();
+  addBillingLabels(labels, readField(input, ["labels"]));
+  addBillingLabels(labels, readField(input, [
+    "project.labels",
+    "projectLabels",
+    "project_labels",
+  ]));
+  addBillingLabels(labels, readField(input, ["system_labels", "systemLabels"]));
+  return labels;
+}
+
+function addBillingLabels(labels: Map<string, string>, value: unknown): void {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (!item || typeof item !== "object") continue;
+      const label = item as Record<string, unknown>;
+      const key = normalizeKey(readField(label, ["key", "name"]));
+      const labelValue = normalizeLabelValue(readField(label, ["value"]));
+      if (key && labelValue) labels.set(key, labelValue);
+    }
+    return;
+  }
+
+  if (!value || typeof value !== "object") return;
+  for (const [key, labelValue] of Object.entries(value)) {
+    const normalizedKey = normalizeKey(key);
+    const normalizedValue = normalizeLabelValue(labelValue);
+    if (normalizedKey && normalizedValue) labels.set(normalizedKey, normalizedValue);
+  }
+}
+
+function readBillingLabel(
+  labels: ReadonlyMap<string, string>,
+  keys: readonly string[],
+): string {
+  for (const key of keys) {
+    const value = labels.get(normalizeKey(key));
+    if (value) return value;
+  }
+  return "";
+}
+
+function readField(input: Record<string, unknown>, paths: readonly string[]): unknown {
+  for (const path of paths) {
+    if (Object.prototype.hasOwnProperty.call(input, path)) {
+      return input[path];
+    }
+
+    const nested = readNestedField(input, path);
+    if (nested !== undefined) return nested;
+  }
+  return undefined;
+}
+
+function readNestedField(input: Record<string, unknown>, path: string): unknown {
+  let current: unknown = input;
+  for (const part of path.split(".")) {
+    if (!current || typeof current !== "object") return undefined;
+    const currentRecord = current as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(currentRecord, part)) return undefined;
+    current = currentRecord[part];
+  }
+  return current;
+}
+
+function hasNumericValue(value: unknown): boolean {
+  if (value == null) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  return Number.isFinite(Number(value));
+}
+
+function sumBillingCredits(value: unknown): number {
+  if (!Array.isArray(value)) return 0;
+  return value.reduce((total, credit) => {
+    if (!credit || typeof credit !== "object") return total;
+    return total + toNumber(readField(credit as Record<string, unknown>, ["amount"]));
+  }, 0);
+}
+
+function billingExportNote(input: Record<string, unknown>): string {
+  const project = normalizeString(readField(input, [
+    "project.id",
+    "projectId",
+    "project_id",
+  ]));
+  const invoiceMonth = normalizeString(readField(input, [
+    "invoice.month",
+    "invoiceMonth",
+    "invoice_month",
+  ]));
+  const costType = normalizeString(readField(input, ["cost_type", "costType"]));
+  return [
+    project ? `Project ${project}` : "",
+    invoiceMonth ? `Invoice ${invoiceMonth}` : "",
+    costType ? `Cost type ${costType}` : "",
+  ].filter(Boolean).join("; ");
 }
 
 function normalizeDateString(value: unknown): string {
@@ -738,8 +957,21 @@ function normalizeStringArray(value: unknown): string[] {
   return Array.from(new Set(value.map(normalizeString).filter(Boolean)));
 }
 
+function normalizeKey(value: unknown): string {
+  return normalizeString(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeLabelValue(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  return "";
 }
 
 function isNonEmptyString(value: string | undefined): value is string {

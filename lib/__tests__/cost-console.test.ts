@@ -93,6 +93,85 @@ describe("cost console", () => {
     expect(data.unattributed).toHaveLength(1);
   });
 
+  it("normalizes Cloud Billing export rows into actual-cost reconciliation events", () => {
+    const data = buildCostConsoleData(
+      {
+        billingRows: [
+          {
+            usage_start_time: "2026-05-26T03:04:05.000Z",
+            service: { description: "BigQuery" },
+            sku: { description: "Analysis" },
+            project: {
+              id: "jfk-vault",
+              labels: [{ key: "feature", value: "document_search" }],
+            },
+            labels: [
+              { key: "linear_issue", value: "COM-212" },
+              { key: "github_workflow", value: "Refresh Cost Console" },
+              { key: "github_run_id", value: "987654321" },
+            ],
+            invoice: { month: "202606" },
+            cost_type: "regular",
+            cost: 10,
+            credits: [{ amount: -2.5 }],
+          },
+        ],
+      },
+      {
+        thresholds: { warningPct: 80, criticalPct: 100 },
+        budgets: [
+          {
+            key: "warehouse",
+            label: "Warehouse",
+            type: "platform",
+            budgetUsd: 20,
+            match: { features: ["document_search"], services: ["bigquery"] },
+          },
+        ],
+      },
+      generatedAt,
+    );
+
+    expect(data.source).toBe("reconciliation");
+    expect(data.sourceStatus).toBe("reconciled");
+    expect(data.notes).toContain(
+      "Cloud Billing export rows are included in actual cost reconciliation.",
+    );
+    expect(data.byFeature).toEqual([
+      expect.objectContaining({
+        feature: "document_search",
+        linearIssue: "COM-212",
+        actualCost: 7.5,
+        delta: 7.5,
+        billingRows: 1,
+      }),
+    ]);
+    expect(data.byService).toEqual([
+      expect.objectContaining({
+        service: "bigquery",
+        actualCost: 7.5,
+      }),
+    ]);
+    expect(data.workflowRuns).toEqual([
+      expect.objectContaining({
+        workflow: "Refresh Cost Console",
+        workflowRunId: "987654321",
+        operation: "analysis",
+        actualCost: 7.5,
+        notes: ["Project jfk-vault; Invoice 202606; Cost type regular"],
+      }),
+    ]);
+    expect(data.budgets).toEqual([
+      expect.objectContaining({
+        key: "warehouse",
+        actualCost: 7.5,
+        spendToDate: 7.5,
+        matchedRows: 1,
+        status: "ok",
+      }),
+    ]);
+  });
+
   it("creates budget rows and alerts from configured thresholds", () => {
     const data = buildCostConsoleData(
       {
