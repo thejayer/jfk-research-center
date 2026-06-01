@@ -1,4 +1,6 @@
 const DEFAULT_BIGQUERY_MAX_BYTES_BILLED = 256 * 1024 * 1024;
+const DEFAULT_COST_RATE_LIMIT_WINDOW_SECONDS = 60;
+const DEFAULT_COST_RATE_LIMIT_MAX_REQUESTS = 60;
 
 const COST_SENSITIVE_PATH_PREFIXES = [
   "/search",
@@ -28,6 +30,21 @@ const BLOCKED_CRAWLER_PATTERNS = [
   /petalbot/i,
 ] as const;
 
+const COST_RATE_LIMIT_RULES = [
+  { prefix: "/api/search", key: "api-search", maxRequests: 20 },
+  { prefix: "/search", key: "search", maxRequests: 30 },
+  { prefix: "/api/compare", key: "api-compare", maxRequests: 30 },
+  { prefix: "/compare", key: "compare", maxRequests: 30 },
+  { prefix: "/api/document", key: "api-document", maxRequests: 60 },
+  { prefix: "/document", key: "document", maxRequests: 60 },
+] as const;
+
+export type CostRateLimitRule = {
+  key: string;
+  maxRequests: number;
+  windowMs: number;
+};
+
 /**
  * Returns true when the pathname can fan out into live warehouse work.
  *
@@ -49,6 +66,37 @@ export function isCostSensitivePath(pathname: string): boolean {
 export function isBlockedCrawlerUserAgent(userAgent: string | null): boolean {
   if (!userAgent) return false;
   return BLOCKED_CRAWLER_PATTERNS.some((pattern) => pattern.test(userAgent));
+}
+
+/**
+ * Reads the route-level cost throttle for a warehouse-backed path.
+ *
+ * @param pathname Request pathname from Next.js routing.
+ * @param env Environment object; defaults to process.env.
+ * @returns A throttle rule for cost-sensitive routes, or null when disabled/not applicable.
+ */
+export function readCostRateLimitRule(
+  pathname: string,
+  env: Record<string, string | undefined> = readProcessEnv(),
+): CostRateLimitRule | null {
+  if (env.JFK_COST_RATE_LIMIT_DISABLED === "1") return null;
+
+  const rule = COST_RATE_LIMIT_RULES.find((item) => pathMatchesPrefix(pathname, item.prefix));
+  if (!rule && !isCostSensitivePath(pathname)) return null;
+
+  const maxRequests =
+    readPositiveInt(env.JFK_COST_RATE_LIMIT_MAX_REQUESTS) ??
+    rule?.maxRequests ??
+    DEFAULT_COST_RATE_LIMIT_MAX_REQUESTS;
+  const windowSeconds =
+    readPositiveInt(env.JFK_COST_RATE_LIMIT_WINDOW_SECONDS) ??
+    DEFAULT_COST_RATE_LIMIT_WINDOW_SECONDS;
+
+  return {
+    key: rule?.key ?? "cost-sensitive",
+    maxRequests,
+    windowMs: windowSeconds * 1000,
+  };
 }
 
 /**
@@ -82,6 +130,16 @@ export function readBigQueryMaximumBytesBilled(
     return String(DEFAULT_BIGQUERY_MAX_BYTES_BILLED);
   }
   return String(Math.floor(parsed));
+}
+
+function pathMatchesPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function readPositiveInt(value: string | undefined): number | null {
+  if (value == null || value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
 }
 
 function readProcessEnv(): Record<string, string | undefined> {
