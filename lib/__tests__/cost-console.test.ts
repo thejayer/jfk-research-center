@@ -172,6 +172,70 @@ describe("cost console", () => {
     ]);
   });
 
+  it("normalizes ledger, billing export, and budget keys consistently", () => {
+    const data = buildCostConsoleData(
+      {
+        source: "reconciliation",
+        events: [
+          costEvent({
+            id: "ledger",
+            feature: "Document Search",
+            service: "BigQuery",
+            operation: "Analysis Bytes",
+            estimatedCostUsd: 2,
+            actualCostUsd: 3,
+          }),
+        ],
+        billingRows: [
+          {
+            eventDate: "2026-05-27",
+            feature: "document_search",
+            serviceDescription: "BigQuery",
+            skuDescription: "Analysis Bytes",
+            linearIssue: "COM-212",
+            actualCostUsd: 4,
+          },
+        ],
+      },
+      {
+        thresholds: { warningPct: 80, criticalPct: 100 },
+        budgets: [
+          {
+            key: "search",
+            label: "Search",
+            type: "feature",
+            budgetUsd: 10,
+            match: { features: ["Document Search"], services: ["BigQuery"] },
+          },
+        ],
+      },
+      generatedAt,
+    );
+
+    expect(data.byFeature).toEqual([
+      expect.objectContaining({
+        feature: "document_search",
+        actualCost: 7,
+        estimatedCost: 2,
+        billingRows: 1,
+      }),
+    ]);
+    expect(data.workflowRuns).toEqual([
+      expect.objectContaining({
+        service: "bigquery",
+        operation: "analysis_bytes",
+        actualCost: 3,
+      }),
+    ]);
+    expect(data.budgets).toEqual([
+      expect.objectContaining({
+        key: "search",
+        actualCost: 7,
+        matchedRows: 2,
+      }),
+    ]);
+  });
+
   it("creates budget rows and alerts from configured thresholds", () => {
     const data = buildCostConsoleData(
       {

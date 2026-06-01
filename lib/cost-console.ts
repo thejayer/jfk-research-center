@@ -376,8 +376,8 @@ function normalizeEvent(value: unknown): CostConsoleEvent | null {
   const input = value as Record<string, unknown>;
   const id = normalizeString(input.id);
   const eventDate = normalizeDateString(input.eventDate);
-  const feature = normalizeString(input.feature);
-  const service = normalizeString(input.service);
+  const feature = normalizeKey(input.feature);
+  const service = normalizeKey(input.service);
   if (!id || !eventDate || !feature || !service) return null;
 
   return {
@@ -385,7 +385,7 @@ function normalizeEvent(value: unknown): CostConsoleEvent | null {
     eventDate,
     feature,
     service,
-    operation: normalizeString(input.operation) || "unspecified",
+    operation: normalizeKey(input.operation) || "unspecified",
     workflow: normalizeString(input.workflow) || "Manual",
     workflowRunId: normalizeString(input.workflowRunId),
     linearIssue: normalizeString(input.linearIssue),
@@ -699,8 +699,8 @@ function normalizeBudgets(value: unknown): CostBudgetDefinition[] {
       type: normalizeString(input.type) || "project",
       budgetUsd,
       match: {
-        features: normalizeStringArray(match.features),
-        services: normalizeStringArray(match.services),
+        features: normalizeKeyArray(match.features),
+        services: normalizeKeyArray(match.services),
         linearIssues: normalizeStringArray(match.linearIssues),
       },
     });
@@ -955,6 +955,11 @@ function sum(rows: readonly CostConsoleRow[], key: keyof CostConsoleRow): number
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.map(normalizeString).filter(Boolean)));
+}
+
+function normalizeKeyArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.map(normalizeKey).filter(Boolean)));
 }
 
 function normalizeKey(value: unknown): string {

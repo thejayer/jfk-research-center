@@ -66,6 +66,13 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
+/**
+ * Enforces the configured throttle for warehouse-backed routes.
+ *
+ * @param req Incoming Next.js request used to derive a client bucket key.
+ * @param pathname Request pathname used by readCostRateLimitRule.
+ * @returns A 429 response with retry-after/x-ratelimit headers, or null when allowed.
+ */
 function rateLimitCostSensitiveRequest(
   req: NextRequest,
   pathname: string,
@@ -99,11 +106,40 @@ function rateLimitCostSensitiveRequest(
   });
 }
 
+/**
+ * Builds the rate-limit client key from trusted request metadata.
+ *
+ * Prefers platform-provided req.ip when available. Forwarded headers are only
+ * used when JFK_TRUSTED_PROXY_HOPS is configured; x-forwarded-for is parsed
+ * from the trusted proxy side before falling back to x-real-ip or "unknown".
+ */
 function clientIdentifier(req: NextRequest): string {
-  const forwardedFor = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwardedFor || req.headers.get("x-real-ip") || "unknown";
+  const platformIp = normalizeClientAddress(
+    (req as NextRequest & { ip?: string }).ip,
+  );
+  if (platformIp) return platformIp;
+
+  const trustedProxyHops = readTrustedProxyHops();
+  if (trustedProxyHops > 0) {
+    const forwardedFor = clientFromForwardedFor(
+      req.headers.get("x-forwarded-for"),
+      trustedProxyHops,
+    );
+    if (forwardedFor) return forwardedFor;
+
+    const realIp = normalizeClientAddress(req.headers.get("x-real-ip"));
+    if (realIp) return realIp;
+  }
+
+  return "unknown";
 }
 
+/**
+ * Keeps the shared in-memory costRateLimitBuckets map bounded.
+ *
+ * First sweeps expired buckets by comparing bucket.resetAt to now, then deletes
+ * oldest Map entries until size is <= MAX_COST_RATE_LIMIT_BUCKETS.
+ */
 function pruneExpiredCostRateLimitBuckets(now: number): void {
   if (costRateLimitBuckets.size <= MAX_COST_RATE_LIMIT_BUCKETS) return;
 
@@ -116,6 +152,32 @@ function pruneExpiredCostRateLimitBuckets(now: number): void {
     if (!oldestKey) return;
     costRateLimitBuckets.delete(oldestKey);
   }
+}
+
+function clientFromForwardedFor(
+  forwardedFor: string | null,
+  trustedProxyHops: number,
+): string {
+  const parts = (forwardedFor ?? "")
+    .split(",")
+    .map(normalizeClientAddress)
+    .filter(Boolean);
+  if (parts.length <= trustedProxyHops) return "";
+  return parts[parts.length - trustedProxyHops - 1] ?? "";
+}
+
+function normalizeClientAddress(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function readTrustedProxyHops(): number {
+  const raw = typeof process === "undefined"
+    ? undefined
+    : process.env.JFK_TRUSTED_PROXY_HOPS;
+  if (raw == null || raw.trim() === "") return 0;
+
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
 }
 
 export const config = {

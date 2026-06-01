@@ -35,6 +35,8 @@ Rate limit env overrides:
   cost-sensitive route bucket.
 - `JFK_COST_RATE_LIMIT_WINDOW_SECONDS`: positive integer window size.
 - `JFK_COST_RATE_LIMIT_DISABLED=1`: emergency bypass only.
+- `JFK_TRUSTED_PROXY_HOPS`: positive integer count of trusted proxy hops before
+  `x-forwarded-for` / `x-real-ip` are used for rate-limit client keys.
 
 The in-app limiter is intentionally cheap and per Cloud Run instance. Keep it
 enabled, but use Cloud Armor or an upstream edge limit as the durable perimeter
