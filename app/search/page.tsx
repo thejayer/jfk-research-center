@@ -22,6 +22,7 @@ import { formatNumber } from "@/lib/format";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 import { MediaAssetCard } from "@/components/media/media-asset-card";
 import styles from "@/components/search/search-workspace.module.css";
+import { isSemanticSearchDisabled } from "@/lib/cost-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,14 @@ export const metadata: Metadata = {
   title: "Search",
   description:
     "Full-text search across the JFK archival collection, across record titles, descriptions, and OCR passages.",
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
+  },
 };
 
 export default async function SearchPage({
@@ -38,12 +47,14 @@ export default async function SearchPage({
 }) {
   const params = await searchParams;
   const { q, mode, group, filters, page } = parseSearchParams(params);
+  const semanticDisabled = isSemanticSearchDisabled();
+  const effectiveMode = semanticDisabled && mode === "semantic" ? "document" : mode;
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
-  const offset = mode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
-  const returnHref = buildSearchUrl(q, mode, filters, page, group);
+  const offset = effectiveMode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
+  const returnHref = buildSearchUrl(q, effectiveMode, filters, page, group);
   const mediaIndexPromise = fetchMediaIndex();
   const [response, manifest] = await Promise.all([
-    fetchSearch(q, mode, filters, offset),
+    fetchSearch(q, effectiveMode, filters, offset),
     fetchCorpusManifest(),
   ]);
   const mediaIndex = await mediaIndexPromise.catch(() => ({ assets: [] }));
@@ -62,12 +73,12 @@ export default async function SearchPage({
         <ResearchHistoryTracker
           item={{
             type: "search",
-            sourceId: `${mode}:${group}:${trimmedQuery}`,
+            sourceId: `${effectiveMode}:${group}:${trimmedQuery}`,
             title: `Search: ${trimmedQuery}`,
             href: returnHref,
             context:
               group === "results"
-                ? `${formatModeLabel(mode)} results`
+                ? `${formatModeLabel(effectiveMode)} results`
                 : `${formatGroupLabel(group)} research lane`,
           }}
         />
@@ -75,7 +86,7 @@ export default async function SearchPage({
       <div className="container">
         <SearchHero
           q={q}
-          mode={mode}
+          mode={effectiveMode}
           group={group}
           total={response.total}
           manifest={manifest}
@@ -85,7 +96,13 @@ export default async function SearchPage({
       <div className={styles.commandBand}>
         <div className={`container ${styles.commandInner}`}>
           <SearchBar autoFocus />
-          <ModeTabs q={q} mode={mode} filters={filters} total={response.total} />
+          <ModeTabs
+            q={q}
+            mode={effectiveMode}
+            filters={filters}
+            total={response.total}
+            semanticDisabled={semanticDisabled}
+          />
         </div>
       </div>
 
@@ -110,17 +127,22 @@ export default async function SearchPage({
 
             <div className={styles.main}>
               <ActiveTopicChip topicLabels={response.filters.topicLabels} />
-              <ResultHeading q={q} mode={mode} total={response.total} manifest={manifest} />
+              <ResultHeading
+                q={q}
+                mode={effectiveMode}
+                total={response.total}
+                manifest={manifest}
+              />
               {(q || hasSelectedFilters(filters)) && (
                 <SearchGroupTabs
                   q={q}
-                  mode={mode}
+                  mode={effectiveMode}
                   group={group}
                   filters={filters}
                   counts={groupCounts}
                 />
               )}
-              {response.total > 0 && mode === "document" && (
+              {response.total > 0 && effectiveMode === "document" && (
                 <SearchTriageStrip triage={triage} />
               )}
 
@@ -128,20 +150,22 @@ export default async function SearchPage({
                 <SearchGroupedPanel
                   q={q}
                   group={group}
-                  mode={mode}
+                  mode={effectiveMode}
                   filters={filters}
                   searchFilters={response.filters}
                   mediaResults={mediaResults}
+                  semanticDisabled={semanticDisabled}
                 />
               ) : response.total === 0 ? (
                 <SearchEmptyPanel
                   q={q}
-                  mode={mode}
+                  mode={effectiveMode}
                   filters={filters}
                   topicLabels={response.filters.topicLabels}
                   entityLabels={response.filters.entityLabels}
+                  semanticDisabled={semanticDisabled}
                 />
-              ) : mode === "document" ? (
+              ) : effectiveMode === "document" ? (
                 <div>
                   <div className={styles.resultList}>
                     {response.results.map((r) =>
@@ -160,7 +184,7 @@ export default async function SearchPage({
                   {q && (
                     <PaginationControls
                       q={q}
-                      mode={mode}
+                      mode={effectiveMode}
                       filters={filters}
                       page={page}
                       pageSize={SEARCH_PAGE_SIZE}
@@ -179,10 +203,10 @@ export default async function SearchPage({
                       />
                     ) : null,
                   )}
-                  {q && mode === "mention" && (
+                  {q && effectiveMode === "mention" && (
                     <PaginationControls
                       q={q}
-                      mode={mode}
+                      mode={effectiveMode}
                       filters={filters}
                       page={page}
                       pageSize={SEARCH_PAGE_SIZE}
@@ -431,6 +455,7 @@ function SearchGroupedPanel({
   filters,
   searchFilters,
   mediaResults,
+  semanticDisabled,
 }: {
   q: string;
   group: SearchGroup;
@@ -438,6 +463,7 @@ function SearchGroupedPanel({
   filters: import("@/lib/search").ParsedSearch["filters"];
   searchFilters: import("@/lib/api-types").SearchFilters;
   mediaResults: MediaAsset[];
+  semanticDisabled: boolean;
 }) {
   if (group === "entities") {
     const entities = rankFacetItems(
@@ -509,13 +535,21 @@ function SearchGroupedPanel({
             title: "Browse open questions",
             detail: "Review unresolved threads, tensions, and supporting records.",
           },
-          {
-            href: buildSearchUrl(query, "semantic", filters),
-            title: query
-              ? `Find semantically related records for ${query}`
-              : "Find semantically related records",
-            detail: "Use semantic mode when exact words are not enough.",
-          },
+          semanticDisabled
+            ? {
+                href: buildSearchUrl(query, "document", filters),
+                title: query
+                  ? `Search document records for ${query}`
+                  : "Search document records",
+                detail: "Semantic search is paused while cost controls are active.",
+              }
+            : {
+                href: buildSearchUrl(query, "semantic", filters),
+                title: query
+                  ? `Find semantically related records for ${query}`
+                  : "Find semantically related records",
+                detail: "Use semantic mode when exact words are not enough.",
+              },
           {
             href: "/established-facts",
             title: "Balance against established facts",
@@ -770,11 +804,13 @@ function ModeTabs({
   mode,
   filters,
   total,
+  semanticDisabled,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
   filters: import("@/lib/search").ParsedSearch["filters"];
   total: number;
+  semanticDisabled: boolean;
 }) {
   return (
     <div
@@ -792,11 +828,13 @@ function ModeTabs({
         active={mode === "mention"}
         href={buildSearchUrl(q, "mention", filters)}
       />
-      <TabLink
-        label="Semantic"
-        active={mode === "semantic"}
-        href={buildSearchUrl(q, "semantic", filters)}
-      />
+      {!semanticDisabled && (
+        <TabLink
+          label="Semantic"
+          active={mode === "semantic"}
+          href={buildSearchUrl(q, "semantic", filters)}
+        />
+      )}
       {q && (
         <span
           className={`muted ${styles.modeTotal}`}
@@ -912,12 +950,14 @@ function SearchEmptyPanel({
   filters,
   topicLabels,
   entityLabels,
+  semanticDisabled,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
   filters: import("@/lib/search").ParsedSearch["filters"];
   topicLabels: Record<string, string>;
   entityLabels: Record<string, string>;
+  semanticDisabled: boolean;
 }) {
   const hasFilters = hasSelectedFilters(filters);
   const trimmedQuery = q.trim();
@@ -927,6 +967,7 @@ function SearchEmptyPanel({
     filters,
     topicLabels,
     entityLabels,
+    semanticDisabled,
   });
 
   return (
@@ -1022,12 +1063,14 @@ function buildEmptySuggestions({
   filters,
   topicLabels,
   entityLabels,
+  semanticDisabled,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
   filters: import("@/lib/search").ParsedSearch["filters"];
   topicLabels: Record<string, string>;
   entityLabels: Record<string, string>;
+  semanticDisabled: boolean;
 }) {
   const fallbackQuery = q || "Oswald";
   const queryWithoutPunctuation = fallbackQuery
@@ -1038,18 +1081,24 @@ function buildEmptySuggestions({
   const selectedEntity = filters.entity[0];
 
   return [
-    {
-      label: mode === "semantic" ? "Use document search" : "Try semantic search",
-      detail:
-        mode === "semantic"
-          ? "Look for exact title and description matches."
-          : "Find related OCR passages even without exact words.",
-      href: buildSearchUrl(
-        fallbackQuery,
-        mode === "semantic" ? "document" : "semantic",
-        filters,
-      ),
-    },
+    semanticDisabled
+      ? {
+          label: "Use document search",
+          detail: "Semantic search is paused while cost controls are active.",
+          href: buildSearchUrl(fallbackQuery, "document", filters),
+        }
+      : {
+          label: mode === "semantic" ? "Use document search" : "Try semantic search",
+          detail:
+            mode === "semantic"
+              ? "Look for exact title and description matches."
+              : "Find related OCR passages even without exact words.",
+          href: buildSearchUrl(
+            fallbackQuery,
+            mode === "semantic" ? "document" : "semantic",
+            filters,
+          ),
+        },
     {
       label: "Search mentions",
       detail: "Jump straight to OCR passages and entity hits.",

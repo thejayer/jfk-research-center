@@ -148,34 +148,42 @@ describe("cost console", () => {
     ]);
   });
 
-  it("combines owner and service budget matches for mixed rules", () => {
+  it("requires all non-empty budget match dimensions", () => {
     const data = buildCostConsoleData(
       {
         source: "ledger",
         events: [
           costEvent({
-            id: "feature-match",
+            id: "feature-only",
             feature: "media",
             service: "gcs",
             estimatedCostUsd: 5,
             actualCostUsd: 5,
           }),
           costEvent({
-            id: "service-match",
+            id: "service-only",
             feature: "search",
             service: "bigquery",
             estimatedCostUsd: 7,
             actualCostUsd: 7,
           }),
+          costEvent({
+            id: "full-match",
+            feature: "media",
+            service: "bigquery",
+            estimatedCostUsd: 9,
+            actualCostUsd: 9,
+          }),
         ],
       },
       {
+        thresholds: { warningPct: 80, criticalPct: 100 },
         budgets: [
           {
             key: "mixed",
             label: "Mixed ownership",
             type: "feature",
-            budgetUsd: 20,
+            budgetUsd: 10,
             match: { features: ["media"], services: ["bigquery"] },
           },
         ],
@@ -186,9 +194,17 @@ describe("cost console", () => {
     expect(data.budgets).toEqual([
       expect.objectContaining({
         key: "mixed",
-        estimatedCost: 12,
-        actualCost: 12,
-        matchedRows: 2,
+        estimatedCost: 9,
+        actualCost: 9,
+        budgetUsedPct: 90,
+        status: "warning",
+        matchedRows: 1,
+      }),
+    ]);
+    expect(data.alerts).toEqual([
+      expect.objectContaining({
+        key: "mixed",
+        severity: "warning",
       }),
     ]);
   });
@@ -244,6 +260,39 @@ describe("cost console", () => {
     expect(data.windows.last7.actualCost).toBe(10);
     expect(data.windows.last30.estimatedCost).toBe(44);
     expect(data.windows.last30.actualCost).toBe(44);
+  });
+
+  it("uses UTC date boundaries for 7-day windows across daylight changes", () => {
+    const data = buildCostConsoleData(
+      {
+        source: "reconciliation",
+        events: [
+          costEvent({
+            id: "before-window",
+            eventDate: "2026-03-02",
+            estimatedCostUsd: 20,
+            actualCostUsd: 20,
+          }),
+          costEvent({
+            id: "window-start",
+            eventDate: "2026-03-03",
+            estimatedCostUsd: 3,
+            actualCostUsd: 3,
+          }),
+          costEvent({
+            id: "window-end",
+            eventDate: "2026-03-09",
+            estimatedCostUsd: 9,
+            actualCostUsd: 9,
+          }),
+        ],
+      },
+      { budgets: [] },
+      new Date("2026-03-09T23:30:00.000Z"),
+    );
+
+    expect(data.windows.last7.estimatedCost).toBe(12);
+    expect(data.windows.last7.actualCost).toBe(12);
   });
 
   it("uses 30-day deltas for reconciliation variance alerts", () => {
