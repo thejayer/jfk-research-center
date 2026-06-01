@@ -314,6 +314,14 @@
   margin-top: 72px;
 }
 
+.lastSection {
+  margin-bottom: 88px;
+}
+
+.minWidthZero {
+  min-width: 0;
+}
+
 .sectionHead {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

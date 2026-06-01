@@ -33,13 +33,10 @@ export default async function HomePage() {
       .filter((event) => event.category === "release")
       .sort((a, b) => (a.date < b.date ? 1 : -1))
       .slice(0, 3) ?? [];
-  const specimenDocument =
-    data.recentDocuments.find((document) => document.naid === "104-10301-10004") ??
-    null;
 
   return (
     <div>
-      <HomepageHero specimenDocument={specimenDocument} />
+      <HomepageHero />
       <ScopeTrustBand manifest={data.corpusManifest} />
       <EntryRoutesSection
         documentCount={data.corpusManifest.totalRecords}
@@ -61,7 +58,7 @@ export default async function HomePage() {
   );
 }
 
-function HomepageHero({ specimenDocument }: { specimenDocument: DocumentCard | null }) {
+function HomepageHero() {
   const suggestions = [
     ["Oswald", "/search?q=Oswald"],
     ["Mexico City", "/search?q=Mexico+City"],
@@ -103,20 +100,20 @@ function HomepageHero({ specimenDocument }: { specimenDocument: DocumentCard | n
           </div>
         </div>
 
-        <SpecimenRecord document={specimenDocument} />
+        <SpecimenRecord />
       </div>
     </section>
   );
 }
 
-function SpecimenRecord({ document }: { document: DocumentCard | null }) {
+function SpecimenRecord() {
   const title =
     "Internal Draft History of the Bay of Pigs, Vol. III - Evolution of CIA's Anti-Castro Policies, 1959 - January 1961";
   const agency = "Central Intelligence Agency";
   const date = "December 1, 1979";
   const type = "Paper - textual document";
   const naid = "104-10301-10004";
-  const href = document?.href ?? "/search?q=104-10301-10004";
+  const href = "/search?q=104-10301-10004";
 
   return (
     <aside className={styles.specimen} aria-label="Sample record">
@@ -397,9 +394,8 @@ function ArchiveUpdatesSection({
 }) {
   return (
     <section
-      className={`container ${styles.section}`}
+      className={`container ${styles.section} ${styles.lastSection}`}
       aria-label="Archive updates"
-      style={{ marginBottom: 88 }}
     >
       <HomeSectionHeading
         index="04"
@@ -419,7 +415,7 @@ function ArchiveUpdatesSection({
         <UpdateLane title="Recently processed records" href="/search" action="See processed records">
           {recentDocuments.map((document) => (
             <Link key={document.id} href={document.href} className={styles.updateDoc}>
-              <span style={{ minWidth: 0 }}>
+              <span className={styles.minWidthZero}>
                 <span className={styles.updateDocMeta}>
                   {[document.agency, document.dateLabel, document.documentType]
                     .filter(Boolean)
@@ -531,7 +527,7 @@ function BrowseRow({
 }) {
   return (
     <Link href={href} className={styles.browseRow}>
-      <span style={{ minWidth: 0 }}>
+      <span className={styles.minWidthZero}>
         <span className={styles.badge}>{label}</span>
         <span className={styles.browseName}>{title}</span>
         <span className={styles.browseDesc}>{trimCopy(body, 122)}</span>

@@ -25,6 +25,8 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 function MastheadStrip() {
+  const currentYear = new Date().getFullYear();
+
   return (
     <div
       style={{
@@ -56,7 +58,9 @@ function MastheadStrip() {
             gap: 16,
           }}
         >
-          <span className="masthead-release-note">Releases indexed 2017-2025</span>
+          <span className="masthead-release-note">
+            Releases indexed 2017-{currentYear}
+          </span>
           <span
             style={{
               display: "inline-flex",
