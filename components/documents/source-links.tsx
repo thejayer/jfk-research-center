@@ -1,4 +1,5 @@
 import type { DocumentDetail } from "@/lib/api-types";
+import styles from "./document-reader.module.css";
 
 export function SourceLinks({ doc }: { doc: DocumentDetail }) {
   const links: Array<{ label: string; href: string; note?: string }> = [];
@@ -18,12 +19,7 @@ export function SourceLinks({ doc }: { doc: DocumentDetail }) {
   return (
     <aside
       aria-label="Source links"
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: "20px 22px",
-      }}
+      className={styles.sourcePanel}
     >
       <div className="eyebrow" style={{ marginBottom: 12 }}>
         Source
@@ -36,25 +32,24 @@ export function SourceLinks({ doc }: { doc: DocumentDetail }) {
           No external source link is recorded for this item.
         </p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <ul className={styles.sourceList}>
           {links.map((l) => (
             <li
               key={l.href}
-              style={{ padding: "8px 0", fontSize: "0.9rem", lineHeight: 1.45 }}
+              className={styles.sourceItem}
             >
               <a
                 href={l.href}
                 target="_blank"
                 rel="noreferrer"
-                style={{ color: "var(--link)" }}
+                className={styles.sourceLink}
               >
                 {l.label}
                 <ExternalLinkIcon />
               </a>
               {l.note && (
                 <div
-                  className="muted"
-                  style={{ fontSize: "0.8rem", marginTop: 2 }}
+                  className={`muted ${styles.sourceNote}`}
                 >
                   {l.note}
                 </div>
@@ -73,12 +68,7 @@ export function SourceLinks({ doc }: { doc: DocumentDetail }) {
             Citation
           </div>
           <p
-            style={{
-              fontSize: "0.83rem",
-              lineHeight: 1.55,
-              color: "var(--text-muted)",
-              fontFamily: "var(--font-mono)",
-            }}
+            className={styles.sourceCitation}
           >
             {doc.citation}
           </p>

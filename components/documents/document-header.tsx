@@ -7,6 +7,7 @@ import { LinkButton } from "@/components/ui/button";
 import { SaveResearchButton } from "@/components/research/save-research-button";
 import { CiteButton } from "./cite-button";
 import { CopyNaidButton } from "./copy-naid-button";
+import styles from "./document-reader.module.css";
 
 export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
   const citations = formatCitation({
@@ -20,27 +21,17 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
     sourceUrl: doc.sourceUrl,
   });
   const dateRange = formatDateRange(doc.startDate, doc.endDate);
-  const sourceHref = doc.digitalObjectUrl ?? doc.sourceUrl;
+  const sourceHref = doc.digitalObjectUrl || doc.sourceUrl;
 
   return (
-    <header
-      style={{
-        paddingTop: 40,
-        paddingBottom: 30,
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <div className="document-masthead">
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 9,
-              flexWrap: "wrap",
-              marginBottom: 14,
-            }}
-          >
+    <header className={styles.headerHero}>
+      <div className={styles.headerGrid}>
+        <div className={styles.headerContent}>
+          <div className={styles.headerKicker}>
+            <span className={styles.headerRule} />
+            <span className="eyebrow">Archive record</span>
+          </div>
+          <div className={styles.badgeRow}>
             {doc.documentType && (
               <Badge tone="accent" size="sm">
                 {doc.documentType}
@@ -54,7 +45,7 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
             )}
             {doc.dateLabel && (
               <>
-                <Dot />
+                <span aria-hidden="true" className={styles.metaDot} />
                 <span className="muted num" style={{ fontSize: "0.86rem" }}>
                   {doc.dateLabel}
                 </span>
@@ -62,55 +53,23 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
             )}
           </div>
 
-          <h1
-            style={{
-              fontFamily: "var(--font-serif)",
-              fontSize: "clamp(1.7rem, 1.3rem + 1.4vw, 2.5rem)",
-              letterSpacing: 0,
-              fontWeight: 500,
-              marginBottom: 10,
-              lineHeight: 1.12,
-            }}
-          >
+          <h1 className={styles.title}>
             {doc.title}
           </h1>
 
           {doc.subtitle && (
-            <div
-              className="muted"
-              style={{
-                fontFamily: "var(--font-serif)",
-                fontStyle: "italic",
-                fontSize: "1.05rem",
-                marginBottom: 18,
-              }}
-            >
+            <div className={styles.subtitle}>
               {doc.subtitle}
             </div>
           )}
 
           {doc.description && (
-            <p
-              style={{
-                maxWidth: "70ch",
-                fontSize: "1rem",
-                lineHeight: 1.65,
-                color: "var(--text)",
-              }}
-            >
+            <p className={styles.description}>
               {doc.description}
             </p>
           )}
 
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 10,
-              marginTop: 22,
-              alignItems: "center",
-            }}
-          >
+          <div className={styles.primaryActions}>
             {sourceHref && (
               <LinkButton href={sourceHref} variant="primary">
                 Open source
@@ -118,43 +77,37 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
               </LinkButton>
             )}
             <CiteButton citations={citations} />
-            <SaveResearchButton
-              item={{
-                type: "document",
-                sourceId: doc.id,
-                title: doc.title,
-                href: doc.href,
-                context: doc.naid ? `NAID ${doc.naid}` : doc.agency ?? undefined,
-              }}
-            />
+            <span className={styles.headerSaveAction}>
+              <SaveResearchButton
+                item={{
+                  type: "document",
+                  sourceId: doc.id,
+                  title: doc.title,
+                  href: doc.href,
+                  context: doc.naid ? `NAID ${doc.naid}` : doc.agency ?? undefined,
+                }}
+              />
+            </span>
           </div>
         </div>
 
         <aside
           aria-label="Record profile"
-          style={{
-            border: "1px solid var(--border-strong)",
-            borderRadius: "var(--radius-md)",
-            background: "var(--surface)",
-            padding: "18px 20px",
-            boxShadow: "var(--shadow-sm)",
-          }}
+          className={styles.recordProfile}
         >
-          <div className="eyebrow" style={{ marginBottom: 16 }}>
-            Record profile
+          <div className={styles.profileHeader}>
+            <div className="eyebrow">
+              National Archives identifier
+            </div>
+            <div className={styles.profileTitle}>
+              NAID {doc.naid}
+            </div>
           </div>
-          <dl
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr",
-              gap: 14,
-              margin: 0,
-            }}
-          >
+          <dl className={styles.profileList}>
             <Stat
               label="NAID"
               value={
-                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <span className={styles.inlineStat}>
                   {doc.naid}
                   <CopyNaidButton naid={doc.naid} />
                 </span>
@@ -170,11 +123,11 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
           </dl>
 
           {doc.tags.length > 0 && (
-            <div style={{ marginTop: 18 }}>
-              <div className="eyebrow" style={{ marginBottom: 8 }}>
+            <div className={styles.tagBlock}>
+              <div className="eyebrow">
                 Tags
               </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div className={styles.tagList}>
                 {doc.tags.map((tag) => (
                   <Badge key={tag} tone="neutral" size="sm">
                     {tag}
@@ -199,36 +152,16 @@ function Stat({
   compact?: boolean;
 }) {
   return (
-    <div>
+    <div
+      className={`${styles.profileStat} ${
+        compact ? styles.profileStatCompact : ""
+      }`}
+    >
       <dt className="eyebrow">{label}</dt>
-      <dd
-        className="num"
-        style={{
-          margin: 0,
-          marginTop: 5,
-          fontFamily: "var(--font-serif)",
-          fontSize: compact ? "1.1rem" : "1.65rem",
-          lineHeight: 1.12,
-          color: "var(--text)",
-        }}
-      >
+      <dd className="num">
         {value}
       </dd>
     </div>
-  );
-}
-
-function Dot() {
-  return (
-    <span
-      aria-hidden="true"
-      style={{
-        width: 3,
-        height: 3,
-        borderRadius: "50%",
-        background: "var(--border-strong)",
-      }}
-    />
   );
 }
 

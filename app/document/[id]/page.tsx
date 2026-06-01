@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { CSSProperties } from "react";
 import { fetchCaseTimeline, fetchDocument, fetchMediaIndex } from "@/lib/api-client";
 import { DocumentHeader } from "@/components/documents/document-header";
 import { MetadataPanel } from "@/components/documents/metadata-panel";
@@ -23,6 +22,7 @@ import { buildDocumentReadingGuide } from "@/lib/document-reading-guide";
 import type { SavedResearchInput } from "@/lib/saved-research";
 import { findTimelineEventsForDocument } from "@/lib/timeline-source-bridge";
 import { findRelatedMediaAssets } from "@/lib/media-assets";
+import styles from "@/components/documents/document-reader.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -96,69 +96,58 @@ export default async function DocumentPage({
     : [];
 
   return (
-    <div className="container" style={{ paddingBottom: 96 }}>
+    <div className={`container ${styles.page}`}>
       <ResearchHistoryTracker
         item={researchItem}
       />
-      <nav
-        aria-label="Breadcrumb"
-        style={{
-          paddingTop: 20,
-          color: "var(--text-muted)",
-          fontSize: "0.85rem",
-        }}
-      >
+      <nav aria-label="Breadcrumb" className={styles.breadcrumb}>
         {returnHref ? (
-          <Link href={returnHref} style={{ color: "var(--link)", fontWeight: 500 }}>
+          <Link href={returnHref}>
             Back to results
           </Link>
         ) : (
-          <Link href="/" style={{ color: "var(--text-muted)" }}>Home</Link>
+          <Link href="/">Home</Link>
         )}
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
-        <Link href="/search" style={{ color: "var(--text-muted)" }}>Records</Link>
-        <span aria-hidden style={{ margin: "0 6px" }}>/</span>
-        <span style={{ color: "var(--text)" }}>
+        <span aria-hidden>/</span>
+        <Link href="/search">Records</Link>
+        <span aria-hidden>/</span>
+        <span className={styles.breadcrumbCurrent}>
           NAID {data.document.naid}
         </span>
       </nav>
 
       <DocumentHeader doc={data.document} />
 
-      <div style={{ marginTop: 18 }}>
+      <div className={styles.trustWrap}>
         <TrustStatusStrip doc={data.document} />
       </div>
 
-      {hasReleaseHistory && (
-        <ReleaseHistory entries={releaseHistory} />
-      )}
+      <div className={styles.supportStack}>
+        {hasReleaseHistory && (
+          <ReleaseHistory entries={releaseHistory} />
+        )}
 
-      <DocumentResearchContext
-        doc={data.document}
-        topics={data.relatedTopics}
-        entities={data.relatedEntities}
-        mentions={data.mentions}
-        relatedDocuments={data.relatedDocuments}
-      />
+        <DocumentResearchContext
+          doc={data.document}
+          topics={data.relatedTopics}
+          entities={data.relatedEntities}
+          mentions={data.mentions}
+          relatedDocuments={data.relatedDocuments}
+        />
 
-      <DocumentTimelineBridge doc={data.document} events={timelineEvents} />
+        <DocumentTimelineBridge doc={data.document} events={timelineEvents} />
 
-      <RelatedMediaPanel
-        assets={relatedMedia}
-        title="Official media tied to this record"
-        description="JFK Library media records connected through the same topic or entity relationships as this document."
-      />
+        <RelatedMediaPanel
+          assets={relatedMedia}
+          title="Official media tied to this record"
+          description="JFK Library media records connected through the same topic or entity relationships as this document."
+        />
+      </div>
 
       <div
-        className="document-grid"
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr)",
-          gap: 32,
-          marginTop: 40,
-        }}
+        className={styles.workspaceGrid}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 40 }}>
+        <div className={styles.readerStack}>
           <DocumentAskPanel doc={data.document} mentions={data.mentions} />
 
           <OcrPanel doc={data.document} mentions={data.mentions} />
@@ -185,12 +174,7 @@ export default async function DocumentPage({
         </div>
 
         <aside
-          className="document-aside"
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
-          }}
+          className={styles.readerAside}
         >
           <DocumentJumpNav
             returnHref={returnHref}
@@ -219,20 +203,6 @@ export default async function DocumentPage({
           </div>
         </aside>
       </div>
-
-      <style>{`
-        @media (min-width: 980px) {
-          .document-grid {
-            grid-template-columns: minmax(0, 1fr) 320px !important;
-            gap: 48px !important;
-          }
-          .document-aside {
-            position: sticky;
-            top: calc(var(--header-height) + 24px);
-            align-self: start;
-          }
-        }
-      `}</style>
     </div>
   );
 }
@@ -267,39 +237,17 @@ function DocumentJumpNav({
   return (
     <nav
       aria-label="Document sections"
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: "16px 18px",
-      }}
+      className={styles.jumpNav}
     >
       <div className="eyebrow" style={{ marginBottom: 10 }}>
         On this record
       </div>
-      <ul
-        style={{
-          listStyle: "none",
-          padding: 0,
-          margin: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-        }}
-      >
+      <ul className={styles.jumpList}>
         {links.map((link) => (
           <li key={link.href}>
             <a
               href={link.href}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                padding: "7px 0",
-                color: "var(--text)",
-                fontSize: "0.88rem",
-              }}
+              className={styles.jumpLink}
             >
               <span>{link.label}</span>
               <ArrowDownIcon />
@@ -310,16 +258,7 @@ function DocumentJumpNav({
       {returnHref && (
         <Link
           href={returnHref}
-          style={{
-            display: "inline-flex",
-            marginTop: 12,
-            paddingTop: 12,
-            borderTop: "1px solid var(--border)",
-            width: "100%",
-            color: "var(--link)",
-            fontSize: "0.86rem",
-            fontWeight: 500,
-          }}
+          className={styles.returnLink}
         >
           Back to results
         </Link>
@@ -395,20 +334,15 @@ function DocumentReaderActions({
   return (
     <section
       aria-label="Reader actions"
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: "16px 18px",
-      }}
+      className={styles.readerActions}
     >
       <div className="eyebrow" style={{ marginBottom: 10 }}>
         Reader actions
       </div>
-      <div style={{ marginBottom: 10 }}>
+      <div className={styles.saveWrap}>
         <SaveResearchButton item={saveItem} compact />
       </div>
-      <div style={{ display: "grid", gap: 8 }}>
+      <div className={styles.readerActionGrid}>
         {actions.map((action) =>
           action.external ? (
             <a
@@ -416,12 +350,12 @@ function DocumentReaderActions({
               href={action.href}
               target="_blank"
               rel="noopener noreferrer"
-              style={readerActionStyle}
+              className={styles.readerAction}
             >
               <ReaderActionContent label={action.label} detail={action.detail} />
             </a>
           ) : (
-            <Link key={action.label} href={action.href} style={readerActionStyle}>
+            <Link key={action.label} href={action.href} className={styles.readerAction}>
               <ReaderActionContent label={action.label} detail={action.detail} />
             </Link>
           ),
@@ -440,11 +374,11 @@ function ReaderActionContent({
 }) {
   return (
     <>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: "0.88rem", fontWeight: 600 }}>
+      <span className={styles.readerActionText}>
+        <span className={styles.readerActionLabel}>
           {label}
         </span>
-        <span className="muted" style={{ display: "block", fontSize: "0.76rem" }}>
+        <span className={`muted ${styles.readerActionDetail}`}>
           {detail}
         </span>
       </span>
@@ -452,18 +386,6 @@ function ReaderActionContent({
     </>
   );
 }
-
-const readerActionStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-  padding: "10px 11px",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text)",
-  textDecoration: "none",
-};
 
 function formatDocumentMeasure(
   pageCount?: number | null,
