@@ -1,11 +1,11 @@
 import Link from "next/link";
-import type { CSSProperties } from "react";
 import type { DocumentCard, ConfidenceLevel } from "@/lib/api-types";
 import { Badge, ConfidenceBadge, OcrBadge } from "@/components/ui/badge";
 import { highlightHTML } from "@/lib/format";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import { SourceReliabilityBadge } from "@/components/research/source-reliability-badge";
 import { sourceReliabilityForDocument } from "@/lib/source-reliability";
+import styles from "./search-workspace.module.css";
 
 export function SearchResultCard({
   document,
@@ -33,25 +33,9 @@ export function SearchResultCard({
     <article
       data-search-result="true"
       tabIndex={-1}
-      className="search-result-focusable"
-      style={{
-        ...surfaceCardStyle,
-        padding: "20px",
-        scrollMarginTop: "calc(var(--header-height, 64px) + 80px)",
-      }}
+      className={`search-result-focusable surface-card ${styles.resultCard}`}
     >
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "center",
-          marginBottom: 10,
-          color: "var(--text-muted)",
-          fontSize: "0.82rem",
-          lineHeight: 1.4,
-        }}
-      >
+      <div className={styles.resultMeta}>
         {document.agency && <span>{document.agency}</span>}
         {document.dateLabel && (
           <>
@@ -76,17 +60,10 @@ export function SearchResultCard({
       </div>
 
       <h3
-        style={{
-          fontFamily: "var(--font-serif)",
-          fontSize: "1.35rem",
-          letterSpacing: 0,
-          lineHeight: 1.2,
-          marginBottom: 8,
-        }}
+        className={styles.resultCardTitle}
       >
         <Link
           href={href}
-          style={{ color: "var(--text)" }}
           dangerouslySetInnerHTML={{
             __html: highlightHTML(document.title, terms),
           }}
@@ -95,13 +72,7 @@ export function SearchResultCard({
 
       {document.snippet && (
         <p
-          className="muted search-result-snippet"
-          style={{
-            fontSize: "0.97rem",
-            lineHeight: 1.6,
-            maxWidth: "72ch",
-            marginBottom: 12,
-          }}
+          className={`muted search-result-snippet ${styles.resultSnippet}`}
           dangerouslySetInnerHTML={{
             __html: highlightHTML(document.snippet, terms),
           }}
@@ -111,21 +82,12 @@ export function SearchResultCard({
       {matchReasons.length > 0 && (
         <div
           aria-label="Why this result matched"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-            gap: 8,
-            marginBottom: 12,
-          }}
+          className={styles.reasonGrid}
         >
           {matchReasons.map((reason) => (
             <div
               key={reason.label}
-              style={{
-                ...surfaceCardStyle,
-                background: "color-mix(in srgb, var(--surface) 86%, var(--bg))",
-                padding: "8px 10px",
-              }}
+              className={styles.reasonCard}
             >
               <div
                 className="eyebrow"
@@ -144,14 +106,7 @@ export function SearchResultCard({
         </div>
       )}
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 8,
-          alignItems: "center",
-        }}
-      >
+      <div className={styles.resultBadgeRow}>
         <ConfidenceBadge level={confidence} />
         <SourceReliabilityBadge kind={sourceReliabilityForDocument(document)} />
         {document.hasOcr && <OcrBadge />}
@@ -162,13 +117,7 @@ export function SearchResultCard({
         ))}
         {mentionCount > 0 && (
           <span
-            className="muted"
-            style={{
-              fontSize: "0.82rem",
-              marginLeft: "auto",
-              padding: "4px 0",
-              whiteSpace: "nowrap",
-            }}
+            className={`muted ${styles.mentionCount}`}
           >
             {mentionCount} {mentionCount === 1 ? "mention" : "mentions"}
           </span>
@@ -241,12 +190,3 @@ function Dot() {
     </span>
   );
 }
-
-const surfaceCardStyle: CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--surface)",
-  boxShadow: "var(--shadow-sm)",
-  transition:
-    "border-color var(--motion), background var(--motion), box-shadow var(--motion), transform var(--motion)",
-};
