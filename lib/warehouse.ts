@@ -101,6 +101,7 @@ import {
   topicToCard as mockTopicToCard,
 } from "./mock-data";
 import { normalizeSourceUrl } from "./source-urls";
+import { readBigQueryMaximumBytesBilled } from "./cost-controls";
 
 const PROJECT = process.env.JFK_BQ_PROJECT || "jfk-vault";
 const DATASET_CURATED = "jfk_curated";
@@ -123,10 +124,12 @@ async function query<T = Record<string, unknown>>(
   sql: string,
   params: Record<string, unknown> = {},
 ): Promise<T[]> {
+  const maximumBytesBilled = readBigQueryMaximumBytesBilled();
   const [rows] = await bq().query({
     query: sql,
     params,
     location: "US",
+    ...(maximumBytesBilled ? { maximumBytesBilled } : {}),
   });
   return rows as T[];
 }
@@ -1435,10 +1438,20 @@ export async function fetchSearch({
     return buildSearchResponse({ query: q, mode, filters, limit, offset });
   }
 
-  if (mode === "semantic") {
-    return fetchSemanticSearch({ query: q, limit });
-  }
   const qNorm = q.trim();
+  if (!qNorm && !hasWarehouseSearchFilters(filters)) {
+    return {
+      query: "",
+      mode,
+      total: 0,
+      filters: emptySearchFilters(),
+      results: [],
+    };
+  }
+
+  if (mode === "semantic") {
+    return fetchSemanticSearch({ query: qNorm, limit });
+  }
   const params: Record<string, unknown> = {
     qNorm,
     qLike: qNorm ? `%${qNorm.toLowerCase()}%` : "%",
@@ -1634,18 +1647,18 @@ async function fetchSemanticSearch({
   query: string;
   limit: number;
 }): Promise<SearchResponse> {
-  const facets = await loadSearchFacets();
   const qNorm = q.trim();
   if (!qNorm) {
     return {
       query: "",
       mode: "semantic",
       total: 0,
-      filters: facets,
+      filters: emptySearchFilters(),
       results: [],
     };
   }
 
+  const facets = await loadSearchFacets();
   const rows = await query<SemanticHitRow>(
     `
     WITH query_emb AS (
@@ -1719,6 +1732,33 @@ async function fetchSemanticSearch({
 // sums counts over the requested [yearFrom, yearTo] window. Pairs below
 // minCount are dropped; isolated nodes (no remaining peers) are dropped too.
 // ---------------------------------------------------------------------------
+
+function hasWarehouseSearchFilters(filters: SearchFilters): boolean {
+  return (
+    !!filters.agencies?.length ||
+    !!filters.topics?.length ||
+    !!filters.entities?.length ||
+    typeof filters.yearFrom === "number" ||
+    typeof filters.yearTo === "number"
+  );
+}
+
+function emptySearchFilters(): import("./api-types").SearchFilters {
+  return {
+    years: [],
+    yearCounts: {},
+    yearBounds: { min: 1950, max: 2005 },
+    agencies: [],
+    agencyCounts: {},
+    topics: [],
+    topicLabels: {},
+    topicCounts: {},
+    entities: [],
+    entityLabels: {},
+    entityCounts: {},
+    confidence: ["high", "medium", "low"],
+  };
+}
 
 const COOC_YEAR_MIN = 1950;
 const COOC_YEAR_MAX = 2005;

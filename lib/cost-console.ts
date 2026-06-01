@@ -232,8 +232,7 @@ export function buildCostConsoleData(
   const thresholds = normalizeThresholds(budgetConfig.thresholds);
   const budgets = buildBudgetRows(
     normalizeBudgets(budgetConfig.budgets),
-    byFeature,
-    byService,
+    events,
     thresholds,
     sourceKind === "reconciliation",
   );
@@ -493,30 +492,25 @@ function summarizeWindows(daily: readonly CostConsoleRow[], generatedAt: Date) {
 
 function buildBudgetRows(
   budgets: readonly CostBudgetDefinition[],
-  featureRows: readonly CostConsoleRow[],
-  serviceRows: readonly CostConsoleRow[],
+  events: readonly CostConsoleEvent[],
   thresholds: BudgetThresholds,
   actualMode: boolean,
 ): CostBudgetRow[] {
   return budgets
     .filter((budget) => budget.budgetUsd > 0)
     .map((budget) => {
-      const matchedFeatureRows = featureRows.filter((row) =>
-        budgetMatchesFeatureRow(budget, row),
+      const matchedEvents = events.filter((event) =>
+        budgetMatchesEvent(budget, event),
       );
-      const matchedServiceRows = serviceRows.filter((row) =>
-        budgetMatchesServiceRow(budget, row),
+      const estimatedCost = roundMoney(
+        matchedEvents.reduce((total, event) => total + event.estimatedCostUsd, 0),
       );
-      const hasOwnerMatch =
-        (budget.match.features?.length ?? 0) > 0 ||
-        (budget.match.linearIssues?.length ?? 0) > 0;
-      const matchedRows = budgetMatchedRows(
-        matchedFeatureRows,
-        matchedServiceRows,
-        hasOwnerMatch,
+      const actualCost = roundMoney(
+        matchedEvents.reduce(
+          (total, event) => total + (event.actualCostUsd ?? 0),
+          0,
+        ),
       );
-      const estimatedCost = roundMoney(sum(matchedRows, "estimatedCost"));
-      const actualCost = roundMoney(sum(matchedRows, "actualCost"));
       const spendToDate = actualMode ? actualCost : estimatedCost;
       const budgetUsedPct = budget.budgetUsd
         ? roundOne((spendToDate / budget.budgetUsd) * 100)
@@ -532,7 +526,7 @@ function buildBudgetRows(
         budgetUsedPct,
         remainingBudget: roundMoney(budget.budgetUsd - spendToDate),
         status: budgetStatus(budgetUsedPct, thresholds),
-        matchedRows: matchedRows.length,
+        matchedRows: matchedEvents.length,
       };
     })
     .sort((a, b) => statusRank(b.status) - statusRank(a.status) || b.budgetUsedPct - a.budgetUsedPct);
@@ -622,52 +616,23 @@ function normalizeThresholds(value: unknown): BudgetThresholds {
   return { warningPct, criticalPct };
 }
 
-function budgetMatchesFeatureRow(
+function budgetMatchesEvent(
   budget: CostBudgetDefinition,
-  row: CostConsoleRow,
+  event: CostConsoleEvent,
 ): boolean {
-  const features = new Set(budget.match.features ?? []);
-  const linearIssues = new Set(budget.match.linearIssues ?? []);
-  return (
-    (row.feature ? features.has(row.feature) : false) ||
-    (row.linearIssue ? linearIssues.has(row.linearIssue) : false)
-  );
-}
+  const features = budget.match.features ?? [];
+  const services = budget.match.services ?? [];
+  const linearIssues = budget.match.linearIssues ?? [];
+  const hasMatcher =
+    features.length > 0 || services.length > 0 || linearIssues.length > 0;
 
-function budgetMatchesServiceRow(
-  budget: CostBudgetDefinition,
-  row: CostConsoleRow,
-): boolean {
-  const services = new Set(budget.match.services ?? []);
-  return row.service ? services.has(row.service) : false;
-}
-
-function budgetMatchedRows(
-  featureRows: readonly CostConsoleRow[],
-  serviceRows: readonly CostConsoleRow[],
-  hasOwnerMatch: boolean,
-): CostConsoleRow[] {
-  if (!hasOwnerMatch) return [...serviceRows];
-  if (featureRows.length === 0) return [...serviceRows];
-  if (serviceRows.length === 0) return [...featureRows];
-
-  const rows = new Map<string, CostConsoleRow>();
-  for (const row of [...featureRows, ...serviceRows]) {
-    rows.set(costRowIdentity(row), row);
+  if (!hasMatcher) return false;
+  if (features.length > 0 && !features.includes(event.feature)) return false;
+  if (services.length > 0 && !services.includes(event.service)) return false;
+  if (linearIssues.length > 0 && !linearIssues.includes(event.linearIssue)) {
+    return false;
   }
-  return [...rows.values()];
-}
-
-function costRowIdentity(row: CostConsoleRow): string {
-  return [
-    row.date ?? "",
-    row.feature ?? "",
-    row.service ?? "",
-    row.workflow ?? "",
-    row.workflowRunId ?? "",
-    row.linearIssue ?? "",
-    row.operation ?? "",
-  ].join("\u0000");
+  return true;
 }
 
 function budgetStatus(

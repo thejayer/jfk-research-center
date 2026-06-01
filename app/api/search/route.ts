@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { fetchSearch } from "@/lib/warehouse";
 import type { ConfidenceLevel } from "@/lib/api-types";
+import { isSemanticSearchDisabled } from "@/lib/cost-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,16 @@ export async function GET(req: NextRequest) {
       : modeRaw === "semantic"
         ? "semantic"
         : "document";
+
+  if (mode === "semantic" && isSemanticSearchDisabled()) {
+    return NextResponse.json(
+      { error: "semantic search temporarily disabled" },
+      {
+        status: 503,
+        headers: { "cache-control": "no-store" },
+      },
+    );
+  }
 
   const filters = {
     agencies: multi(url, "agency"),
