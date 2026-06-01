@@ -1,5 +1,6 @@
 import type { DocumentDetail } from "@/lib/api-types";
 import { formatDateRange, formatNumber } from "@/lib/format";
+import styles from "./document-reader.module.css";
 
 export function MetadataPanel({ doc }: { doc: DocumentDetail }) {
   const allRows: Array<[string, string | null | undefined]> = [
@@ -21,37 +22,21 @@ export function MetadataPanel({ doc }: { doc: DocumentDetail }) {
   return (
     <aside
       aria-label="Document metadata"
-      style={{
-        background: "var(--surface)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        padding: "20px 22px",
-      }}
+      className={styles.metadataPanel}
     >
       <div className="eyebrow" style={{ marginBottom: 14 }}>
         Archival metadata
       </div>
-      <dl
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(90px, auto) 1fr",
-          rowGap: 10,
-          columnGap: 16,
-          fontSize: "0.88rem",
-        }}
-      >
+      <dl className={styles.metadataList}>
         {rows.map(([k, v]) => (
-          <div key={k} style={{ display: "contents" }}>
-            <dt className="muted" style={{ fontSize: "0.82rem" }}>
+          <div key={k} className={styles.metadataRow}>
+            <dt className={`muted ${styles.metadataKey}`}>
               {k}
             </dt>
             <dd
-              style={{
-                margin: 0,
-                color: "var(--text)",
-                wordBreak: "break-word",
-              }}
-              className={k === "NAID" || k === "Pages" || k === "OCR Chunks" ? "num" : ""}
+              className={`${styles.metadataValue} ${
+                k === "NAID" || k === "Pages" || k === "OCR Chunks" ? "num" : ""
+              }`}
             >
               {v}
             </dd>

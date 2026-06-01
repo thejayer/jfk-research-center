@@ -3,6 +3,7 @@ import { formatNumber, highlightHTML } from "@/lib/format";
 import { ChunkActions } from "./chunk-actions";
 import { ChunkHashHandler } from "./chunk-hash-handler";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
+import styles from "./document-reader.module.css";
 
 export function OcrPanel({
   doc,
@@ -14,14 +15,8 @@ export function OcrPanel({
   if (!doc.hasOcr) {
     return (
       <section
-        className="ocr-panel-empty"
+        className={`${styles.ocrPanel} ${styles.ocrEmpty}`}
         id="ocr-text"
-        style={{
-          padding: "28px 28px",
-          border: "1px dashed var(--border-strong)",
-          borderRadius: "var(--radius-md)",
-          background: "var(--surface)",
-        }}
       >
         <div className="eyebrow" style={{ marginBottom: 8 }}>
           OCR / Extracted Text
@@ -40,25 +35,10 @@ export function OcrPanel({
 
   return (
     <section
-      className="ocr-panel-section"
+      className={`${styles.ocrPanel} ocr-panel-section`}
       id="ocr-text"
-      style={{
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-md)",
-        background: "var(--surface)",
-        padding: "24px 28px",
-      }}
     >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: 18,
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
+      <div className={styles.ocrHeader}>
         <div>
           <div className="eyebrow" style={{ marginBottom: 4 }}>
             OCR reader
@@ -102,36 +82,18 @@ export function OcrPanel({
       {(terms.length > 0 || chunksWithAnchors.length > 0) && (
         <div
           aria-label="OCR reader map"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 220px), 1fr))",
-            gap: 12,
-            marginTop: 18,
-            marginBottom: 24,
-          }}
+          className={styles.ocrMap}
         >
           {terms.length > 0 && (
-            <div
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: "11px 12px",
-                background: "color-mix(in srgb, var(--surface) 88%, var(--bg))",
-              }}
-            >
+            <div className={styles.ocrMapCard}>
               <div className="eyebrow" style={{ marginBottom: 8 }}>
                 Matched terms
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div className={styles.tokenList}>
                 {terms.slice(0, 8).map((term) => (
                   <span
                     key={term}
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: 999,
-                      padding: "3px 8px",
-                      fontSize: "0.76rem",
-                    }}
+                    className={styles.token}
                   >
                     {term}
                   </span>
@@ -142,30 +104,17 @@ export function OcrPanel({
           {chunksWithAnchors.length > 0 && (
             <nav
               aria-label="OCR chunk jump"
-              style={{
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                padding: "11px 12px",
-                background: "color-mix(in srgb, var(--surface) 88%, var(--bg))",
-              }}
+              className={styles.ocrMapCard}
             >
               <div className="eyebrow" style={{ marginBottom: 8 }}>
                 Chunk map
               </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div className={styles.tokenList}>
                 {chunksWithAnchors.slice(0, 12).map((mention) => (
                   <a
                     key={mention.id}
                     href={`#chunk-${mention.chunkOrder}`}
-                    className="num"
-                    style={{
-                      border: "1px solid var(--border)",
-                      borderRadius: 999,
-                      padding: "3px 8px",
-                      color: "var(--text)",
-                      textDecoration: "none",
-                      fontSize: "0.76rem",
-                    }}
+                    className={`num ${styles.token}`}
                   >
                     {mention.chunkOrder}
                   </a>
@@ -178,17 +127,7 @@ export function OcrPanel({
 
       {doc.ocrExcerpt && (
         <blockquote
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: "1.12rem",
-            lineHeight: 1.65,
-            color: "var(--text)",
-            borderLeft: "2px solid var(--accent)",
-            paddingLeft: 18,
-            margin: 0,
-            marginBottom: 26,
-            maxWidth: "68ch",
-          }}
+          className={styles.ocrExcerpt}
           dangerouslySetInnerHTML={{
             __html: `"${highlightHTML(doc.ocrExcerpt, terms)}"`,
           }}
@@ -201,7 +140,7 @@ export function OcrPanel({
           <div className="eyebrow" style={{ marginBottom: 12 }}>
             Matched passages in this record
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className={styles.chunkList}>
             {mentions.map((mention) => {
               const anchorId =
                 mention.chunkOrder != null
@@ -211,38 +150,16 @@ export function OcrPanel({
                 <div
                   key={mention.id}
                   id={anchorId}
-                  className="ocr-chunk"
-                  style={{
-                    paddingLeft: 14,
-                    paddingRight: 8,
-                    paddingTop: 4,
-                    paddingBottom: 8,
-                    borderLeft: "1px solid var(--border)",
-                    scrollMarginTop: 80,
-                  }}
+                  className={`ocr-chunk ${styles.ocrChunk}`}
                 >
                   <p
-                    style={{
-                      fontFamily: "var(--font-serif)",
-                      fontSize: "1rem",
-                      lineHeight: 1.55,
-                      color: "var(--text)",
-                      maxWidth: "66ch",
-                      margin: 0,
-                    }}
+                    className={styles.ocrChunkText}
                     dangerouslySetInnerHTML={{
                       __html: `"${highlightHTML(mention.excerpt, mention.matchedTerms)}"`,
                     }}
                   />
                   <div
-                    className="muted"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                      fontSize: "0.78rem",
-                      marginTop: 6,
-                    }}
+                    className={`muted ${styles.ocrChunkMeta}`}
                   >
                     <span>
                       {formatPassageMeta(mention)}

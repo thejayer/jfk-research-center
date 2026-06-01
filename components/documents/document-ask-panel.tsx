@@ -14,6 +14,7 @@ import {
   type DocumentAskAnswer,
   type DocumentAskCitation,
 } from "@/lib/document-ask";
+import styles from "./document-reader.module.css";
 
 export function DocumentAskPanel({
   doc,
@@ -41,7 +42,7 @@ export function DocumentAskPanel({
     <section
       id="ask-this-document"
       aria-labelledby="ask-this-document-title"
-      style={panelStyle}
+      className={styles.askPanel}
     >
       <div style={headerStyle}>
         <div>
@@ -194,13 +195,6 @@ function buildSuggestions(
     doc.hasOcr ? "Which loaded passage is most relevant?" : "What can metadata tell me?",
   ].filter((value): value is string => Boolean(value));
 }
-
-const panelStyle: CSSProperties = {
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-md)",
-  background: "var(--surface)",
-  padding: "22px 24px",
-};
 
 const headerStyle: CSSProperties = {
   display: "flex",
