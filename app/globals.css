@@ -239,22 +239,26 @@ mark {
 }
 
 .research-tray-trigger {
-  position: fixed;
-  right: 18px;
-  bottom: 18px;
-  z-index: 45;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 42px;
-  padding: 8px 10px 8px 12px;
-  border: 1px solid var(--border-strong);
+  min-height: 44px;
+  padding: 8px 9px 8px 11px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--text);
-  color: var(--bg);
-  box-shadow: var(--shadow-md);
+  background: var(--surface);
+  color: var(--text-muted);
   font-size: 0.84rem;
   font-weight: 650;
+  white-space: nowrap;
+  transition: background var(--motion), color var(--motion), border-color var(--motion);
+}
+
+.research-tray-trigger:hover,
+.research-tray-trigger[aria-expanded="true"] {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
 }
 
 .research-tray-trigger strong {
@@ -264,7 +268,8 @@ mark {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--bg) 16%, transparent);
+  background: var(--surface-2);
+  color: var(--text);
   font-family: var(--font-mono);
   font-size: 0.72rem;
 }
@@ -460,10 +465,6 @@ mark {
 }
 
 @media (max-width: 640px) {
-  .research-tray-trigger {
-    right: 12px;
-    bottom: 12px;
-  }
   .research-tray-trigger span {
     display: none;
   }
