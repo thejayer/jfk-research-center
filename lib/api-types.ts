@@ -130,7 +130,16 @@ export type SearchResult =
   | { kind: "document"; document: DocumentCard; mentionCount: number; confidence: ConfidenceLevel; }
   | { kind: "mention"; mention: MentionExcerpt };
 
+export type SearchFacetCountScope = "corpus" | "query";
+
 export type SearchFilters = {
+  /**
+   * Counts are document counts. Each facet applies the text query and filters
+   * from the other groups, but excludes its own active selection. `corpus`
+   * means there is no query or active filter; `query` means the counts are
+   * narrowed by the current search context.
+   */
+  countScope: SearchFacetCountScope;
   // Event-date histogram (one entry per year within yearBounds) backs the
   // /search year range slider.
   years: string[];
@@ -147,6 +156,7 @@ export type SearchFilters = {
   entityLabels: Record<string, string>;
   entityCounts: Record<string, number>;
   confidence: ConfidenceLevel[];
+  confidenceCounts: Partial<Record<ConfidenceLevel, number>>;
 };
 
 /** Filter values applied to a search — shape used by fetchSearch. */

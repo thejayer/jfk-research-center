@@ -532,6 +532,13 @@
   padding: 12px 0;
 }
 
+.filterScope {
+  margin: -5px 0 11px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
 .filterGroup {
   border-top: 1px solid var(--border);
 }

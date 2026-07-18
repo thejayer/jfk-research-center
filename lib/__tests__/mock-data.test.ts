@@ -23,9 +23,9 @@ describe("buildSearchResponse", () => {
   });
 
   it("paginates document results without changing the total", () => {
-    const all = buildSearchResponse({ query: "", mode: "document", limit: 100 });
+    const all = buildSearchResponse({ query: "a", mode: "document", limit: 100 });
     const page = buildSearchResponse({
-      query: "",
+      query: "a",
       mode: "document",
       limit: 2,
       offset: 1,
@@ -34,6 +34,106 @@ describe("buildSearchResponse", () => {
     expect(page.total).toBe(all.total);
     expect(page.results).toHaveLength(2);
     expect(page.results[0]).toEqual(all.results[1]);
+  });
+
+  it("returns corpus-scoped counts, but no result enumeration, for an empty search", () => {
+    const response = buildSearchResponse({ query: "", mode: "document" });
+
+    expect(response.total).toBe(0);
+    expect(response.results).toEqual([]);
+    expect(response.filters.countScope).toBe("corpus");
+    expect(response.filters.years).toHaveLength(56);
+    expect(
+      Object.values(response.filters.agencyCounts).some((count) => count > 0),
+    ).toBe(true);
+    expect(response.filters.confidence).toEqual([]);
+  });
+
+  it("returns query-scoped document counts for a text search", () => {
+    const response = buildSearchResponse({ query: "Oswald", mode: "document" });
+
+    expect(response.total).toBeGreaterThan(0);
+    expect(response.filters.countScope).toBe("query");
+    expect(
+      Object.values(response.filters.confidenceCounts).reduce(
+        (sum, count) => sum + (count ?? 0),
+        0,
+      ),
+    ).toBe(response.total);
+    expect(
+      response.filters.agencies.every(
+        (agency) => (response.filters.agencyCounts[agency] ?? 0) > 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("self-excludes each facet group when filters are combined", () => {
+    const response = buildSearchResponse({
+      query: "Oswald",
+      mode: "document",
+      filters: {
+        agencies: ["CIA"],
+        entities: ["oswald"],
+        topics: ["cia"],
+        yearFrom: 1959,
+        yearTo: 1963,
+      },
+    });
+
+    expect(response.total).toBeGreaterThan(0);
+    expect(response.filters.countScope).toBe("query");
+    expect(response.filters.agencyCounts.CIA).toBe(response.total);
+    expect(response.filters.entityCounts.oswald).toBe(response.total);
+    expect(response.filters.topicCounts.cia).toBe(response.total);
+    expect(
+      Object.values(response.filters.yearCounts).reduce(
+        (sum, count) => sum + count,
+        0,
+      ),
+    ).toBeGreaterThanOrEqual(response.total);
+  });
+
+  it("retains an invalid selected value so it can be cleared", () => {
+    const response = buildSearchResponse({
+      query: "Oswald",
+      mode: "document",
+      filters: { agencies: ["Not an agency"] },
+    });
+
+    expect(response.total).toBe(0);
+    expect(response.filters.agencies).toContain("Not an agency");
+    expect(response.filters.agencyCounts["Not an agency"]).toBeUndefined();
+  });
+
+  it("ignores confidence outside document mode", () => {
+    for (const mode of ["mention", "semantic"] as const) {
+      const baseline = buildSearchResponse({ query: "Oswald", mode });
+      const filtered = buildSearchResponse({
+        query: "Oswald",
+        mode,
+        filters: { confidence: ["high"] },
+      });
+
+      expect(filtered.total).toBe(baseline.total);
+      expect(filtered.results).toEqual(baseline.results);
+      expect(filtered.filters).toEqual(baseline.filters);
+    }
+  });
+
+  it("continues to apply confidence in document mode", () => {
+    const response = buildSearchResponse({
+      query: "Oswald",
+      mode: "document",
+      filters: { confidence: ["high"] },
+    });
+
+    expect(response.total).toBeGreaterThan(0);
+    expect(
+      response.results.every(
+        (result) => result.kind === "document" && result.confidence === "high",
+      ),
+    ).toBe(true);
+    expect(response.filters.countScope).toBe("query");
   });
 
   it("returns no mention results for an empty query", () => {

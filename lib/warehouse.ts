@@ -71,6 +71,8 @@ import type {
   OpenQuestionsTopicResponse,
   SearchResponse,
   SearchResult,
+  SearchFilterInput,
+  SearchFilters as SearchFacetData,
   TopicCard,
   TopicDetail,
   TopicResponse,
@@ -102,6 +104,14 @@ import {
 } from "./mock-data";
 import { normalizeSourceUrl } from "./source-urls";
 import { readBigQueryMaximumBytesBilled } from "./cost-controls";
+import {
+  denseSearchFacetYears,
+  rankedFacetValues,
+  searchFacetCountScope,
+  searchFiltersForMode,
+  semanticCandidateLimit,
+  SEARCH_FACET_YEAR_BOUNDS,
+} from "./search-facets";
 
 const PROJECT = process.env.JFK_BQ_PROJECT || "jfk-vault";
 const DATASET_CURATED = "jfk_curated";
@@ -1411,15 +1421,6 @@ function truncateAround(text: string, aliases: string[], budget: number): string
 // SEARCH
 // ---------------------------------------------------------------------------
 
-type SearchFilters = {
-  agencies?: string[];
-  yearFrom?: number | null;
-  yearTo?: number | null;
-  topics?: string[];
-  entities?: string[];
-  confidence?: ConfidenceLevel[];
-};
-
 export async function fetchSearch({
   query: q,
   mode,
@@ -1429,7 +1430,7 @@ export async function fetchSearch({
 }: {
   query: string;
   mode: "document" | "mention" | "semantic";
-  filters?: SearchFilters;
+  filters?: SearchFilterInput;
   limit?: number;
   /** Document mode only. Mention/semantic ignore this. */
   offset?: number;
@@ -1438,19 +1439,21 @@ export async function fetchSearch({
     return buildSearchResponse({ query: q, mode, filters, limit, offset });
   }
 
+  filters = searchFiltersForMode(mode, filters);
   const qNorm = q.trim();
   if (!qNorm && !hasWarehouseSearchFilters(filters)) {
+    const facets = await loadSearchFacets(qNorm, filters);
     return {
       query: "",
       mode,
       total: 0,
-      filters: emptySearchFilters(),
+      filters: facets,
       results: [],
     };
   }
 
   if (mode === "semantic") {
-    return fetchSemanticSearch({ query: qNorm, limit });
+    return fetchSemanticSearch({ query: qNorm, filters, limit });
   }
   const params: Record<string, unknown> = {
     qNorm,
@@ -1462,8 +1465,8 @@ export async function fetchSearch({
   // enforces "must actually match the query" when a query is present.
   if (qNorm) where.push("match_confidence IS NOT NULL");
 
-  if (filters.confidence?.length && qNorm) {
-    where.push("match_confidence IN UNNEST(@confidences)");
+  if (filters.confidence?.length) {
+    where.push(qNorm ? "match_confidence IN UNNEST(@confidences)" : "FALSE");
     params.confidences = filters.confidence;
   }
 
@@ -1488,16 +1491,10 @@ export async function fetchSearch({
   }
   if (filters.topics?.length) {
     // physical-evidence has no jfk_mvp.* table — it redirects to /evidence
-    // and is not a documentary topic. Silently drop it from the filter
-    // (a user could only land here by hand-crafting the URL).
-    const unionSql = filters.topics
-      .filter((slug) => TOPIC_CATALOG[slug] && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug))
-      .map(
-        (slug) =>
-          `SELECT document_id FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
-      )
-      .join(" UNION ALL ");
-    if (unionSql) where.push(`document_id IN (${unionSql})`);
+    // and is not a documentary topic. An unsupported-only selection matches
+    // no documents while remaining visible in the UI so it can be cleared.
+    const unionSql = topicDocumentUnionSql(filters.topics);
+    where.push(unionSql ? `document_id IN (${unionSql})` : "FALSE");
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
@@ -1538,7 +1535,7 @@ export async function fetchSearch({
        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
       params,
     ),
-    loadSearchFacets(),
+    loadSearchFacets(qNorm, filters),
   ]);
 
   const total = await query<{ n: number }>(
@@ -1565,6 +1562,31 @@ export async function fetchSearch({
   let mentionResults: SearchResult[] = [];
   let mentionTotal = 0;
   if (mode === "mention" && qNorm) {
+    const mentionWhere = [
+      "c.source_type IN ('abbyy_ocr', 'docai_ocr')",
+      "LOWER(c.chunk_text) LIKE @qLike",
+    ];
+    if (filters.agencies?.length) {
+      mentionWhere.push("r.agency IN UNNEST(@agencies)");
+    }
+    if (typeof filters.yearFrom === "number") {
+      mentionWhere.push("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
+    }
+    if (typeof filters.yearTo === "number") {
+      mentionWhere.push("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
+    }
+    if (filters.entities?.length) {
+      mentionWhere.push(`r.document_id IN (
+        SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+        WHERE entity_id IN UNNEST(@entities)
+      )`);
+    }
+    if (filters.topics?.length) {
+      const unionSql = topicDocumentUnionSql(filters.topics);
+      mentionWhere.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
+    }
+    const mentionWhereSql = mentionWhere.join(" AND ");
+
     const [ocrRows, ocrTotal] = await Promise.all([
       query<{
         document_id: string;
@@ -1580,8 +1602,7 @@ export async function fetchSearch({
            FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
            JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
              USING (document_id)
-          WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
-            AND LOWER(c.chunk_text) LIKE @qLike
+          WHERE ${mentionWhereSql}
           ORDER BY c.document_id, c.chunk_order
           LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
         params,
@@ -1589,8 +1610,9 @@ export async function fetchSearch({
       query<{ n: number }>(
         `SELECT COUNT(*) AS n
            FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-          WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
-            AND LOWER(c.chunk_text) LIKE @qLike`,
+           JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+             USING (document_id)
+          WHERE ${mentionWhereSql}`,
         params,
       ),
     ]);
@@ -1642,9 +1664,11 @@ type SemanticHitRow = {
 
 async function fetchSemanticSearch({
   query: q,
+  filters,
   limit,
 }: {
   query: string;
+  filters: SearchFilterInput;
   limit: number;
 }): Promise<SearchResponse> {
   const qNorm = q.trim();
@@ -1658,7 +1682,40 @@ async function fetchSemanticSearch({
     };
   }
 
-  const facets = await loadSearchFacets();
+  const facets = await loadSearchFacets(qNorm, filters);
+  const hasMetadataFilters =
+    !!filters.agencies?.length ||
+    !!filters.entities?.length ||
+    !!filters.topics?.length ||
+    typeof filters.yearFrom === "number" ||
+    typeof filters.yearTo === "number";
+  const candidateLimit = semanticCandidateLimit(limit, hasMetadataFilters);
+  const params: Record<string, unknown> = { q: qNorm, limit, candidateLimit };
+  const where: string[] = [];
+  if (filters.agencies?.length) {
+    where.push("r.agency IN UNNEST(@agencies)");
+    params.agencies = filters.agencies;
+  }
+  if (typeof filters.yearFrom === "number") {
+    where.push("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
+    params.yearFrom = filters.yearFrom;
+  }
+  if (typeof filters.yearTo === "number") {
+    where.push("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
+    params.yearTo = filters.yearTo;
+  }
+  if (filters.entities?.length) {
+    where.push(`r.document_id IN (
+      SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+      WHERE entity_id IN UNNEST(@entities)
+    )`);
+    params.entities = filters.entities;
+  }
+  if (filters.topics?.length) {
+    const unionSql = topicDocumentUnionSql(filters.topics);
+    where.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
+  }
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const rows = await query<SemanticHitRow>(
     `
     WITH query_emb AS (
@@ -1680,7 +1737,7 @@ async function fetchSemanticSearch({
         TABLE \`${PROJECT}.${DATASET_CURATED}.chunk_embeddings\`,
         'embedding',
         (SELECT embedding FROM query_emb),
-        top_k => @limit,
+        top_k => @candidateLimit,
         distance_type => 'COSINE'
       )
     )
@@ -1696,9 +1753,11 @@ async function fetchSemanticSearch({
     FROM hits h
     JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r USING (document_id)
     JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c USING (chunk_id)
+    ${whereSql}
     ORDER BY h.distance ASC
+    LIMIT @limit
     `,
-    { q: qNorm, limit },
+    params,
   );
 
   const results: SearchResult[] = rows.map((r) => ({
@@ -1733,18 +1792,33 @@ async function fetchSemanticSearch({
 // minCount are dropped; isolated nodes (no remaining peers) are dropped too.
 // ---------------------------------------------------------------------------
 
-function hasWarehouseSearchFilters(filters: SearchFilters): boolean {
+function hasWarehouseSearchFilters(filters: SearchFilterInput): boolean {
   return (
     !!filters.agencies?.length ||
     !!filters.topics?.length ||
     !!filters.entities?.length ||
+    !!filters.confidence?.length ||
     typeof filters.yearFrom === "number" ||
     typeof filters.yearTo === "number"
   );
 }
 
+function topicDocumentUnionSql(slugs: readonly string[]): string {
+  return slugs
+    .filter(
+      (slug) =>
+        TOPIC_CATALOG[slug] && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug),
+    )
+    .map(
+      (slug) =>
+        `SELECT document_id FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
+    )
+    .join(" UNION ALL ");
+}
+
 function emptySearchFilters(): import("./api-types").SearchFilters {
   return {
+    countScope: "corpus",
     years: [],
     yearCounts: {},
     yearBounds: { min: 1950, max: 2005 },
@@ -1757,6 +1831,7 @@ function emptySearchFilters(): import("./api-types").SearchFilters {
     entityLabels: {},
     entityCounts: {},
     confidence: ["high", "medium", "low"],
+    confidenceCounts: {},
   };
 }
 
@@ -1916,82 +1991,207 @@ function cooccurrencePairKey(source: string, target: string): string {
   return `${source}--${target}`;
 }
 
-async function loadSearchFacets() {
-  const topicCountsUnion = MVP_QUERYABLE_TOPIC_SLUGS
-    .map(
-      (slug) =>
-        `SELECT '${slug}' AS slug, COUNT(*) AS n
+type SearchFacetCountRow = {
+  facet_group: "agency" | "year" | "entity" | "topic" | "confidence";
+  facet_value: string;
+  n: number;
+};
+
+let corpusSearchFacetsPromise: Promise<SearchFacetData> | null = null;
+
+async function loadSearchFacets(
+  qNorm: string,
+  filters: SearchFilterInput,
+): Promise<SearchFacetData> {
+  if (searchFacetCountScope(qNorm, filters) !== "corpus") {
+    return querySearchFacets(qNorm, filters);
+  }
+
+  // The empty search page is common and its corpus distribution is stable for
+  // the lifetime of a Cloud Run instance. Avoid paying for the same aggregate
+  // on every visit; reset after a failure so a transient BQ error can recover.
+  if (!corpusSearchFacetsPromise) {
+    corpusSearchFacetsPromise = querySearchFacets(qNorm, filters).catch((error) => {
+      corpusSearchFacetsPromise = null;
+      throw error;
+    });
+  }
+  return corpusSearchFacetsPromise;
+}
+
+async function querySearchFacets(
+  qNorm: string,
+  filters: SearchFilterInput,
+): Promise<SearchFacetData> {
+  const params: Record<string, unknown> = {
+    qNorm,
+    qLike: qNorm ? `%${qNorm.toLowerCase()}%` : "%",
+  };
+  const where = ["(@qNorm = '' OR f.match_confidence IS NOT NULL)"];
+
+  if (filters.agencies?.length) {
+    where.push("(f.facet_group = 'agency' OR f.agency IN UNNEST(@agencies))");
+    params.agencies = filters.agencies;
+  }
+  if (typeof filters.yearFrom === "number") {
+    where.push(
+      "(f.facet_group = 'year' OR EXTRACT(YEAR FROM f.start_date) >= @yearFrom)",
+    );
+    params.yearFrom = filters.yearFrom;
+  }
+  if (typeof filters.yearTo === "number") {
+    where.push(
+      "(f.facet_group = 'year' OR EXTRACT(YEAR FROM f.start_date) <= @yearTo)",
+    );
+    params.yearTo = filters.yearTo;
+  }
+  if (filters.entities?.length) {
+    where.push(`(f.facet_group = 'entity' OR EXISTS (
+      SELECT 1 FROM UNNEST(f.entity_ids) AS entity_id
+      WHERE entity_id IN UNNEST(@entities)
+    ))`);
+    params.entities = filters.entities;
+  }
+  if (filters.topics?.length) {
+    where.push(`(f.facet_group = 'topic' OR EXISTS (
+      SELECT 1 FROM UNNEST(f.topic_slugs) AS topic_slug
+      WHERE topic_slug IN UNNEST(@topics)
+    ))`);
+    params.topics = filters.topics;
+  }
+  if (filters.confidence?.length) {
+    where.push(
+      "(f.facet_group = 'confidence' OR f.match_confidence IN UNNEST(@confidences))",
+    );
+    params.confidences = filters.confidence;
+  }
+
+  const topicMembershipUnion = MVP_QUERYABLE_TOPIC_SLUGS.map(
+    (slug) =>
+      `SELECT document_id, '${slug}' AS topic_slug
          FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
-    )
-    .join(" UNION ALL ");
+  ).join(" UNION ALL ");
+  const ocrHitSql = qNorm
+    ? `SELECT document_id
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
+        WHERE source_type IN ('abbyy_ocr', 'docai_ocr')
+          AND LOWER(chunk_text) LIKE @qLike
+        GROUP BY document_id`
+    : "SELECT CAST(NULL AS STRING) AS document_id WHERE FALSE";
 
-  const [years, agencies, entityMeta, entityCountRows, topicCountRows] =
-    await Promise.all([
-      query<{ y: string; n: number }>(
-        `SELECT CAST(EXTRACT(YEAR FROM start_date) AS STRING) AS y,
-                COUNT(*) AS n
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
-          WHERE start_date IS NOT NULL
-            AND EXTRACT(YEAR FROM start_date) BETWEEN 1950 AND 2005
-          GROUP BY y
-          ORDER BY y DESC`,
-      ),
-      query<{ agency: string; n: number }>(
-        `SELECT agency, COUNT(*) AS n
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
-          WHERE agency IS NOT NULL
-          GROUP BY agency
-         HAVING n >= 2
-          ORDER BY n DESC`,
-      ),
-      loadEntities(),
-      query<{ entity_id: string; n: number }>(
-        `SELECT entity_id, COUNT(DISTINCT document_id) AS n
+  const [rows, entityMeta] = await Promise.all([
+    query<SearchFacetCountRow>(
+      `WITH doc_with_ocr_hit AS (
+         ${ocrHitSql}
+       ),
+       entity_membership AS (
+         SELECT document_id, ARRAY_AGG(DISTINCT entity_id) AS entity_ids
            FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
-          GROUP BY entity_id`,
-      ),
-      query<{ slug: string; n: number }>(topicCountsUnion),
-    ]);
+          GROUP BY document_id
+       ),
+       topic_membership_rows AS (
+         ${topicMembershipUnion}
+       ),
+       topic_membership AS (
+         SELECT document_id, ARRAY_AGG(DISTINCT topic_slug) AS topic_slugs
+           FROM topic_membership_rows
+          GROUP BY document_id
+       ),
+       scored AS (
+         SELECT
+           r.document_id,
+           r.agency,
+           r.start_date,
+           IFNULL(e.entity_ids, ARRAY<STRING>[]) AS entity_ids,
+           IFNULL(t.topic_slugs, ARRAY<STRING>[]) AS topic_slugs,
+           CASE
+             WHEN @qNorm = '' THEN CAST(NULL AS STRING)
+             WHEN LOWER(r.title) LIKE @qLike THEN 'high'
+             WHEN LOWER(r.description) LIKE @qLike THEN 'medium'
+             WHEN o.document_id IS NOT NULL THEN 'low'
+           END AS match_confidence
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+         LEFT JOIN doc_with_ocr_hit o USING (document_id)
+         LEFT JOIN entity_membership e USING (document_id)
+         LEFT JOIN topic_membership t USING (document_id)
+       ),
+       facet_memberships AS (
+         SELECT s.*, f.facet_group, f.facet_value
+         FROM scored s
+         CROSS JOIN UNNEST(ARRAY_CONCAT(
+           IF(
+             s.agency IS NULL OR TRIM(s.agency) = '',
+             ARRAY<STRUCT<facet_group STRING, facet_value STRING>>[],
+             [STRUCT('agency' AS facet_group, s.agency AS facet_value)]
+           ),
+           IF(
+             s.start_date IS NULL OR
+               EXTRACT(YEAR FROM s.start_date) NOT BETWEEN
+                 ${SEARCH_FACET_YEAR_BOUNDS.min} AND ${SEARCH_FACET_YEAR_BOUNDS.max},
+             ARRAY<STRUCT<facet_group STRING, facet_value STRING>>[],
+             [STRUCT(
+               'year' AS facet_group,
+               CAST(EXTRACT(YEAR FROM s.start_date) AS STRING) AS facet_value
+             )]
+           ),
+           IF(
+             s.match_confidence IS NULL,
+             ARRAY<STRUCT<facet_group STRING, facet_value STRING>>[],
+             [STRUCT('confidence' AS facet_group, s.match_confidence AS facet_value)]
+           ),
+           ARRAY(
+             SELECT AS STRUCT 'entity' AS facet_group, entity_id AS facet_value
+             FROM UNNEST(s.entity_ids) AS entity_id
+           ),
+           ARRAY(
+             SELECT AS STRUCT 'topic' AS facet_group, topic_slug AS facet_value
+             FROM UNNEST(s.topic_slugs) AS topic_slug
+           )
+         )) AS f
+       )
+       SELECT f.facet_group, f.facet_value, COUNT(DISTINCT f.document_id) AS n
+       FROM facet_memberships f
+       WHERE ${where.join(" AND ")}
+       GROUP BY f.facet_group, f.facet_value
+       ORDER BY f.facet_group, n DESC, f.facet_value`,
+      params,
+    ),
+    loadEntities(),
+  ]);
 
-  const entityCountMap = Object.fromEntries(
-    entityCountRows.map((r) => [r.entity_id, r.n]),
-  );
-  const entityIds = [...entityMeta].sort(
-    (a, b) =>
-      (entityCountMap[b.entity_id] ?? 0) - (entityCountMap[a.entity_id] ?? 0),
-  );
-
-  // Expand the sparse year-count rows into a dense series over the full
-  // [min, max] range so the slider histogram can render zero-bars for
-  // uneventful years instead of collapsing the axis.
-  const countedYears = years.map((r) => parseInt(r.y, 10)).filter(
-    (n): n is number => Number.isFinite(n),
-  );
-  const yearMin = countedYears.length ? Math.min(...countedYears) : 1950;
-  const yearMax = countedYears.length ? Math.max(...countedYears) : 2005;
-  const yearSeries: string[] = [];
-  for (let y = yearMin; y <= yearMax; y++) yearSeries.push(String(y));
-  const yearCountMap: Record<string, number> = {};
-  for (const y of yearSeries) yearCountMap[y] = 0;
-  for (const r of years) yearCountMap[r.y] = r.n;
+  const countsByGroup: Record<SearchFacetCountRow["facet_group"], Record<string, number>> = {
+    agency: {},
+    year: {},
+    entity: {},
+    topic: {},
+    confidence: {},
+  };
+  for (const row of rows) {
+    countsByGroup[row.facet_group][row.facet_value] = Number(row.n);
+  }
 
   return {
-    years: yearSeries,
-    yearCounts: yearCountMap,
-    yearBounds: { min: yearMin, max: yearMax },
-    agencies: agencies.map((r) => r.agency),
-    agencyCounts: Object.fromEntries(agencies.map((r) => [r.agency, r.n])),
-    topics: MVP_QUERYABLE_TOPIC_SLUGS,
+    countScope: searchFacetCountScope(qNorm, filters),
+    years: denseSearchFacetYears(),
+    yearCounts: countsByGroup.year,
+    yearBounds: SEARCH_FACET_YEAR_BOUNDS,
+    agencies: rankedFacetValues(countsByGroup.agency, filters.agencies ?? []),
+    agencyCounts: countsByGroup.agency,
+    topics: rankedFacetValues(countsByGroup.topic, filters.topics ?? []),
     topicLabels: Object.fromEntries(
       MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => [slug, TOPIC_CATALOG[slug]!.title]),
     ),
-    topicCounts: Object.fromEntries(topicCountRows.map((r) => [r.slug, r.n])),
-    entities: entityIds.map((e) => e.entity_id),
+    topicCounts: countsByGroup.topic,
+    entities: rankedFacetValues(countsByGroup.entity, filters.entities ?? []),
     entityLabels: Object.fromEntries(
-      entityIds.map((e) => [e.entity_id, e.entity_name]),
+      entityMeta.map((entity) => [entity.entity_id, entity.entity_name]),
     ),
-    entityCounts: entityCountMap,
-    confidence: ["high", "medium", "low"] as ConfidenceLevel[],
+    entityCounts: countsByGroup.entity,
+    confidence: rankedFacetValues(
+      countsByGroup.confidence,
+      filters.confidence ?? [],
+    ) as ConfidenceLevel[],
+    confidenceCounts: countsByGroup.confidence,
   };
 }
 

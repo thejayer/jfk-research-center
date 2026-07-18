@@ -54,6 +54,15 @@ import type {
 } from "./api-types";
 import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
 import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
+import {
+  denseSearchFacetYears,
+  rankedFacetValues,
+  searchFacetCountScope,
+  searchFiltersForMode,
+  SEARCH_FACET_YEAR_BOUNDS,
+  withoutFacetGroup,
+  type SearchFacetGroup,
+} from "./search-facets";
 
 // ----------------------------------------------------------------------------
 // Entities
@@ -2008,42 +2017,16 @@ export function buildSearchResponse({
   offset?: number;
 }): SearchResponse {
   const q = query.trim().toLowerCase();
-
-  const mockYears = ["1959", "1960", "1963", "1964", "1968", "1978", "1979", "1998"];
-  const mockAgencies = [
-    "CIA",
-    "FBI",
-    "Warren Commission",
-    "HSCA",
-    "ARRB",
-    "Secret Service",
-    "Department of State",
-    "Department of Defense",
-  ];
-  const facets = {
-    years: mockYears,
-    yearCounts: Object.fromEntries(mockYears.map((y) => [y, 0])),
-    yearBounds: { min: 1950, max: 2005 },
-    agencies: mockAgencies,
-    agencyCounts: Object.fromEntries(mockAgencies.map((a) => [a, 0])),
-    topics: Object.keys(TOPIC_TABLE),
-    topicLabels: Object.fromEntries(
-      Object.entries(TOPIC_TABLE).map(([slug, t]) => [slug, t.title]),
-    ),
-    topicCounts: Object.fromEntries(Object.keys(TOPIC_TABLE).map((s) => [s, 0])),
-    entities: Object.keys(ENTITY_TABLE),
-    entityLabels: Object.fromEntries(
-      Object.entries(ENTITY_TABLE).map(([id, e]) => [id, e.name]),
-    ),
-    entityCounts: Object.fromEntries(Object.keys(ENTITY_TABLE).map((id) => [id, 0])),
-    confidence: ["high", "medium", "low"] as ConfidenceLevel[],
-  };
+  const effectiveFilters = searchFiltersForMode(mode, appliedFilters);
+  const facets = buildMockSearchFacets(q, effectiveFilters);
 
   let results: SearchResult[] = [];
 
-  if (mode === "document") {
+  // An unfiltered empty query is an invitation to search, not a request to
+  // enumerate the corpus. Facets still describe the corpus in that state.
+  if (mode === "document" && (q || hasMockSearchFilters(effectiveFilters))) {
     const matches = DOCUMENT_SEEDS.filter((d) =>
-      matchesDocument(d, q) && matchesDocumentFilters(d, q, appliedFilters),
+      matchesDocument(d, q) && matchesDocumentFilters(d, q, effectiveFilters),
     );
     results = matches.slice(offset, offset + limit).map<SearchResult>((d) => ({
       kind: "document",
@@ -2055,7 +2038,7 @@ export function buildSearchResponse({
     const matches = MENTION_SEEDS.filter((m) =>
       q.length > 0 &&
       matchesMention(m, q) &&
-      matchesMentionFilters(m, q, appliedFilters),
+      matchesMentionFilters(m, q, effectiveFilters),
     );
     results = matches.slice(offset, offset + limit).map<SearchResult>((m) => ({
       kind: "mention",
@@ -2068,17 +2051,118 @@ export function buildSearchResponse({
     mode,
     total:
       mode === "document"
-        ? DOCUMENT_SEEDS.filter((d) =>
-            matchesDocument(d, q) && matchesDocumentFilters(d, q, appliedFilters),
-          ).length
+        ? q || hasMockSearchFilters(effectiveFilters)
+          ? DOCUMENT_SEEDS.filter((d) =>
+              matchesDocument(d, q) && matchesDocumentFilters(d, q, effectiveFilters),
+            ).length
+          : 0
         : MENTION_SEEDS.filter((m) =>
             q.length > 0 &&
             matchesMention(m, q) &&
-            matchesMentionFilters(m, q, appliedFilters),
+            matchesMentionFilters(m, q, effectiveFilters),
           ).length,
     filters: facets,
     results,
   };
+}
+
+function buildMockSearchFacets(
+  query: string,
+  filters: SearchFilterInput,
+): SearchResponse["filters"] {
+  const countDocuments = (group: SearchFacetGroup) =>
+    DOCUMENT_SEEDS.filter(
+      (document) =>
+        matchesDocument(document, query) &&
+        matchesDocumentFilters(
+          document,
+          query,
+          withoutFacetGroup(filters, group),
+        ),
+    );
+
+  const agencyCounts = countBy(
+    countDocuments("agency"),
+    (document) => document.agency ?? null,
+  );
+  const yearCounts = countBy(
+    countDocuments("year"),
+    (document) => {
+      const year = documentYear(document);
+      return year !== null &&
+        year >= SEARCH_FACET_YEAR_BOUNDS.min &&
+        year <= SEARCH_FACET_YEAR_BOUNDS.max
+        ? String(year)
+        : null;
+    },
+  );
+  const entityCounts = countMany(
+    countDocuments("entity"),
+    (document) => document.entities,
+  );
+  const topicCounts = countMany(
+    countDocuments("topic"),
+    (document) => document.topics,
+  );
+  const confidenceCounts = query
+    ? countBy(
+        countDocuments("confidence"),
+        (document) => confidenceForDoc(document, query),
+      )
+    : {};
+
+  return {
+    countScope: searchFacetCountScope(query, filters),
+    years: denseSearchFacetYears(),
+    yearCounts,
+    yearBounds: SEARCH_FACET_YEAR_BOUNDS,
+    agencies: rankedFacetValues(agencyCounts, filters.agencies ?? []),
+    agencyCounts,
+    topics: rankedFacetValues(topicCounts, filters.topics ?? []),
+    topicLabels: Object.fromEntries(
+      Object.entries(TOPIC_TABLE).map(([slug, topic]) => [slug, topic.title]),
+    ),
+    topicCounts,
+    entities: rankedFacetValues(entityCounts, filters.entities ?? []),
+    entityLabels: Object.fromEntries(
+      Object.entries(ENTITY_TABLE).map(([id, entity]) => [id, entity.name]),
+    ),
+    entityCounts,
+    confidence: rankedFacetValues(
+      confidenceCounts,
+      filters.confidence ?? [],
+    ) as ConfidenceLevel[],
+    confidenceCounts,
+  };
+}
+
+function countBy<T>(
+  values: T[],
+  readValue: (value: T) => string | null,
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) {
+    const key = readValue(value);
+    if (key) counts[key] = (counts[key] ?? 0) + 1;
+  }
+  return counts;
+}
+
+function countMany<T>(
+  values: T[],
+  readValues: (value: T) => readonly string[],
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) {
+    for (const key of new Set(readValues(value))) {
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+  }
+  return counts;
+}
+
+function hasMockSearchFilters(filters: SearchFilterInput): boolean {
+  return searchFacetCountScope("", filters) === "query";
 }
 
 // ----------------------------------------------------------------------------
@@ -3061,8 +3145,10 @@ function matchesDocumentFilters(
     return false;
   }
 
-  if (q && filters.confidence?.length && !filters.confidence.includes(confidenceForDoc(d, q))) {
-    return false;
+  if (filters.confidence?.length) {
+    if (!q || !filters.confidence.includes(confidenceForDoc(d, q))) {
+      return false;
+    }
   }
 
   return true;
