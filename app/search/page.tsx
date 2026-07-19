@@ -119,7 +119,10 @@ export default async function SearchPage({
             <div className={styles.sidebarSlot}>
               <SearchSidebar>
                 <div className={styles.sidebarStack}>
-                  <SearchFilters filters={response.filters} />
+                  <SearchFilters
+                    filters={response.filters}
+                    mode={effectiveMode}
+                  />
                   <SavedSearches />
                 </div>
               </SearchSidebar>
@@ -255,8 +258,12 @@ function buildSearchGroupCounts(
 ) {
   return {
     results: response.total,
-    entities: Object.keys(response.filters.entityCounts).length,
-    topics: Object.keys(response.filters.topicCounts).length,
+    entities: Object.values(response.filters.entityCounts).filter(
+      (count) => count > 0,
+    ).length,
+    topics: Object.values(response.filters.topicCounts).filter(
+      (count) => count > 0,
+    ).length,
     media: mediaCount,
   };
 }

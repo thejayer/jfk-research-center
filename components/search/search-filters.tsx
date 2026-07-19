@@ -4,13 +4,20 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import type { SearchFilters as FacetData } from "@/lib/api-types";
+import type { SearchMode } from "@/lib/search";
 import { YearRangeFacet } from "./year-range-facet";
 import styles from "./search-workspace.module.css";
 
 type FilterKey = "agency" | "entity" | "topic" | "confidence";
 type GroupKey = FilterKey | "eventDate";
 
-export function SearchFilters({ filters }: { filters: FacetData }) {
+export function SearchFilters({
+  filters,
+  mode,
+}: {
+  filters: FacetData;
+  mode: SearchMode;
+}) {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -25,6 +32,7 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
   const toggleParam = useCallback(
     (key: FilterKey, value: string) => {
       const sp = new URLSearchParams(Array.from(params?.entries() ?? []));
+      sp.delete("page");
       const existing = sp.getAll(key);
       const has = existing.includes(value);
       sp.delete(key);
@@ -41,6 +49,7 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
     (key: FilterKey) => {
       const sp = new URLSearchParams(Array.from(params?.entries() ?? []));
       sp.delete(key);
+      sp.delete("page");
       router.push(`/search?${sp.toString()}`);
     },
     [params, router],
@@ -54,8 +63,12 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
     [params],
   );
 
+  const visibleFilterGroups =
+    mode === "document"
+      ? FILTER_GROUPS
+      : FILTER_GROUPS.filter((group) => group.key !== "confidence");
   const activeTotal =
-    FILTER_GROUPS.reduce(
+    visibleFilterGroups.reduce(
       (n, g) => n + (params?.getAll(g.key).length ?? 0),
       0,
     ) +
@@ -82,8 +95,18 @@ export function SearchFilters({ filters }: { filters: FacetData }) {
           </Link>
         )}
       </div>
+      <p
+        className={styles.filterScope}
+        data-search-facet-scope={filters.countScope}
+      >
+        {filters.countScope === "corpus"
+          ? "Counts show documents across the indexed corpus."
+          : mode === "semantic"
+            ? "Exact-text document counts for this query; semantic results are ranked separately."
+          : "Document counts match this search and the other active filters."}
+      </p>
 
-      {FILTER_GROUPS.map((g, idx) => {
+      {visibleFilterGroups.map((g, idx) => {
         const values = g.fromFilters(filters);
         const activeCount = params?.getAll(g.key).length ?? 0;
         const renderValue = g.renderValue
@@ -169,6 +192,7 @@ const FILTER_GROUPS: Group[] = [
     key: "confidence",
     label: "Confidence",
     fromFilters: (f) => f.confidence as string[],
+    countFor: (v, f) => f.confidenceCounts[v as keyof typeof f.confidenceCounts],
   },
 ];
 

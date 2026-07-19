@@ -35,6 +35,7 @@ export function YearRangeFacet({
       const lo = Math.min(nextFrom, nextTo);
       const hi = Math.max(nextFrom, nextTo);
       const sp = new URLSearchParams(Array.from(params?.entries() ?? []));
+      sp.delete("page");
       if (lo !== min) sp.set("yearFrom", String(lo));
       else sp.delete("yearFrom");
       if (hi !== max) sp.set("yearTo", String(hi));
@@ -48,6 +49,7 @@ export function YearRangeFacet({
     const sp = new URLSearchParams(Array.from(params?.entries() ?? []));
     sp.delete("yearFrom");
     sp.delete("yearTo");
+    sp.delete("page");
     router.replace(`/search?${sp.toString()}`);
   }, [params, router]);
 
