@@ -68,29 +68,55 @@ describe("buildSearchResponse", () => {
   });
 
   it("self-excludes each facet group when filters are combined", () => {
-    const response = buildSearchResponse({
+    const filters = {
+      agencies: ["CIA"],
+      entities: ["oswald"],
+      topics: ["cia"],
+      confidence: ["high" as const],
+      yearFrom: 1959,
+      yearTo: 1963,
+    };
+    const request = {
       query: "Oswald",
-      mode: "document",
-      filters: {
-        agencies: ["CIA"],
-        entities: ["oswald"],
-        topics: ["cia"],
-        yearFrom: 1959,
-        yearTo: 1963,
-      },
+      mode: "document" as const,
+    };
+    const response = buildSearchResponse({ ...request, filters });
+    const withoutAgency = buildSearchResponse({
+      ...request,
+      filters: { ...filters, agencies: [] },
+    });
+    const withoutEntity = buildSearchResponse({
+      ...request,
+      filters: { ...filters, entities: [] },
+    });
+    const withoutTopic = buildSearchResponse({
+      ...request,
+      filters: { ...filters, topics: [] },
+    });
+    const withoutConfidence = buildSearchResponse({
+      ...request,
+      filters: { ...filters, confidence: [] },
+    });
+    const withoutYear = buildSearchResponse({
+      ...request,
+      filters: { ...filters, yearFrom: null, yearTo: null },
     });
 
     expect(response.total).toBeGreaterThan(0);
     expect(response.filters.countScope).toBe("query");
-    expect(response.filters.agencyCounts.CIA).toBe(response.total);
-    expect(response.filters.entityCounts.oswald).toBe(response.total);
-    expect(response.filters.topicCounts.cia).toBe(response.total);
-    expect(
-      Object.values(response.filters.yearCounts).reduce(
-        (sum, count) => sum + count,
-        0,
-      ),
-    ).toBeGreaterThanOrEqual(response.total);
+    expect(response.filters.agencyCounts).toEqual(
+      withoutAgency.filters.agencyCounts,
+    );
+    expect(response.filters.entityCounts).toEqual(
+      withoutEntity.filters.entityCounts,
+    );
+    expect(response.filters.topicCounts).toEqual(
+      withoutTopic.filters.topicCounts,
+    );
+    expect(response.filters.confidenceCounts).toEqual(
+      withoutConfidence.filters.confidenceCounts,
+    );
+    expect(response.filters.yearCounts).toEqual(withoutYear.filters.yearCounts);
   });
 
   it("retains an invalid selected value so it can be cleared", () => {

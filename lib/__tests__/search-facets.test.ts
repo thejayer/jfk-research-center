@@ -34,7 +34,18 @@ describe("search facet count contract", () => {
       yearFrom: null,
       yearTo: null,
     });
-    expect(withoutFacetGroup(filters, "topic").entities).toEqual(["oswald"]);
+    expect(withoutFacetGroup(filters, "entity")).toEqual({
+      ...filters,
+      entities: [],
+    });
+    expect(withoutFacetGroup(filters, "topic")).toEqual({
+      ...filters,
+      topics: [],
+    });
+    expect(withoutFacetGroup(filters, "confidence")).toEqual({
+      ...filters,
+      confidence: [],
+    });
   });
 
   it("keeps selected zero-result values available after applying a filter", () => {
