@@ -16,6 +16,7 @@ export function ResearchTray() {
   const [items, setItems] = useState<SavedResearchItem[]>([]);
   const triggerButtonRef = useRef<HTMLButtonElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
 
   useEffect(() => {
@@ -40,7 +41,36 @@ export function ResearchTray() {
     wasOpenRef.current = true;
     closeButtonRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        return;
+      }
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!panelRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -54,14 +84,18 @@ export function ResearchTray() {
     return next;
   }, [items]);
 
+  const savedItemLabel = `${items.length} saved ${items.length === 1 ? "item" : "items"}`;
+
   return (
     <>
       <button
         ref={triggerButtonRef}
         type="button"
         className="research-tray-trigger"
-        aria-label={`Open saved research tray${items.length > 0 ? `, ${items.length} saved items` : ""}`}
+        aria-label={`Research tray, ${savedItemLabel}`}
+        aria-controls="research-tray-dialog"
         aria-expanded={open}
+        aria-haspopup="dialog"
         onClick={() => setOpen(true)}
       >
         <BookmarkIcon />
@@ -78,6 +112,8 @@ export function ResearchTray() {
           }}
         >
           <aside
+            id="research-tray-dialog"
+            ref={panelRef}
             className="research-tray-panel"
             role="dialog"
             aria-modal="true"

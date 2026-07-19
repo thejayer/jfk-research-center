@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ResearchTray } from "@/components/research/research-tray";
 import { ThemeToggle } from "./theme-toggle";
 import styles from "./site-header.module.css";
 
@@ -305,6 +306,7 @@ export function SiteHeader() {
             <span>Search</span>
             <kbd className={styles.kbd}>/</kbd>
           </Link>
+          <ResearchTray />
           <ThemeToggle />
           <button
             type="button"
