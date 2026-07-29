@@ -41,8 +41,10 @@ ORDER BY
   total_bytes_billed DESC
 LIMIT 50;
 
--- 3. Application-attributed warehouse work. New requests carry privacy-safe
--- labels; no raw query text, document id, or client address is retained.
+-- 3. Application-attributed warehouse work. These labels do not carry raw
+-- query text, document ids, or client addresses. BigQuery job metadata can
+-- still expose query text, and query 2 emits query_sample; apply BigQuery
+-- job-history retention and least-privilege IAM controls to this view/output.
 SELECT
   COALESCE(
     (SELECT value FROM UNNEST(labels) WHERE key = "route"),

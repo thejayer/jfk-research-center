@@ -66,9 +66,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(data, {
       headers: {
         "cache-control": "public, s-maxage=300, stale-while-revalidate=300",
-        ...(requestContext.requestId
-          ? { "x-jfk-request-id": requestContext.requestId }
-          : {}),
       },
     });
   } catch (err) {

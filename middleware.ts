@@ -9,11 +9,13 @@ import {
 import {
   buildCostRequestFingerprint,
   createRequestId,
+  JFK_INTERNAL_REQUEST_MARKER_HEADER,
   JFK_REQUEST_FINGERPRINT_HEADER,
   JFK_REQUEST_ID_HEADER,
   JFK_TRAFFIC_CLASS_HEADER,
   normalizeRequestFingerprint,
   normalizeRequestId,
+  validateInternalRequestMarker,
 } from "@/lib/cost-request";
 
 type CostRateLimitBucket = {
@@ -113,16 +115,23 @@ export async function middleware(req: NextRequest) {
 async function buildCostRequestSignals(
   req: NextRequest,
 ): Promise<CostRequestSignals> {
+  const trustIncomingSignals = await validateInternalRequestMarker(req.headers);
   return {
     requestId:
-      normalizeRequestId(req.headers.get(JFK_REQUEST_ID_HEADER)) ||
+      (trustIncomingSignals
+        ? normalizeRequestId(req.headers.get(JFK_REQUEST_ID_HEADER))
+        : "") ||
       createRequestId(),
     requestFingerprint:
-      normalizeRequestFingerprint(
-        req.headers.get(JFK_REQUEST_FINGERPRINT_HEADER),
-      ) || (await buildCostRequestFingerprint(new URL(req.url))),
+      (trustIncomingSignals
+        ? normalizeRequestFingerprint(
+            req.headers.get(JFK_REQUEST_FINGERPRINT_HEADER),
+          )
+        : "") || (await buildCostRequestFingerprint(new URL(req.url))),
     trafficClass:
-      normalizeTrafficClass(req.headers.get(JFK_TRAFFIC_CLASS_HEADER)) ??
+      (trustIncomingSignals
+        ? normalizeTrafficClass(req.headers.get(JFK_TRAFFIC_CLASS_HEADER))
+        : null) ??
       classifyCostTrafficUserAgent(req.headers.get("user-agent")),
   };
 }
@@ -140,6 +149,7 @@ function nextResponseWithCostSignals(
   signals: CostRequestSignals,
 ): NextResponse {
   const requestHeaders = new Headers(req.headers);
+  requestHeaders.delete(JFK_INTERNAL_REQUEST_MARKER_HEADER);
   requestHeaders.set(JFK_REQUEST_ID_HEADER, signals.requestId);
   requestHeaders.set(
     JFK_REQUEST_FINGERPRINT_HEADER,
@@ -152,8 +162,18 @@ function nextResponseWithCostSignals(
       headers: requestHeaders,
     },
   });
-  response.headers.set(JFK_REQUEST_ID_HEADER, signals.requestId);
+  if (!isPubliclyCacheableCostApi(req.nextUrl.pathname)) {
+    response.headers.set(JFK_REQUEST_ID_HEADER, signals.requestId);
+  }
   return response;
+}
+
+function isPubliclyCacheableCostApi(pathname: string): boolean {
+  return (
+    pathname === "/api/search" ||
+    pathname === "/api/v1/documents" ||
+    pathname === "/api/v1/search/semantic"
+  );
 }
 
 function logCostControlEvent(

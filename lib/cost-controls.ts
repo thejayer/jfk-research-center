@@ -123,8 +123,10 @@ export function classifyCostTrafficUserAgent(
  */
 export function readAutomatedTrafficBlockReason(
   userAgent: string | null,
+  env: Record<string, string | undefined> = readProcessEnv(),
 ): AutomatedTrafficBlockReason | null {
   if (isBlockedCrawlerUserAgent(userAgent)) return "known-crawler";
+  if (env.JFK_LEGACY_MOBILE_BLOCK_DISABLED === "1") return null;
   if (isLegacyMobileAutomationUserAgent(userAgent)) {
     return "legacy-mobile-fingerprint";
   }

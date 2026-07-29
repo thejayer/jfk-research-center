@@ -1432,7 +1432,7 @@ type WarehouseSearchInput = {
   mode: "document" | "mention" | "semantic";
   filters?: SearchFilterInput;
   limit?: number;
-  /** Document mode only. Mention/semantic ignore this. */
+  /** Document and mention modes. Semantic ignores this. */
   offset?: number;
 };
 
@@ -1481,12 +1481,13 @@ async function fetchSearchUncached({
     });
   }
   if (isArchiveIdentifierQuery(qNorm)) {
-    return fetchIdentifierSearch({
+    const identifierResult = await fetchIdentifierSearch({
       query: qNorm,
       filters,
       limit,
       offset,
     });
+    if (identifierResult.total > 0) return identifierResult;
   }
   const params: Record<string, unknown> = {
     qNorm,
@@ -1811,9 +1812,12 @@ function identifierSearchFilters(
   selected: SearchFilterInput,
   total: number,
 ): SearchFacetData {
-  const agencies = Array.from(
-    new Set(rows.map((row) => row.agency).filter(Boolean)),
-  ) as string[];
+  const agencyCounts: Record<string, number> = {};
+  for (const row of rows) {
+    if (!row.agency) continue;
+    agencyCounts[row.agency] = (agencyCounts[row.agency] ?? 0) + 1;
+  }
+  const agencies = Object.keys(agencyCounts);
   const topics = selected.topics ?? [];
   const entities = selected.entities ?? [];
   return {
@@ -1822,9 +1826,7 @@ function identifierSearchFilters(
     yearCounts: {},
     yearBounds: SEARCH_FACET_YEAR_BOUNDS,
     agencies,
-    agencyCounts: Object.fromEntries(
-      agencies.map((agency) => [agency, total]),
-    ),
+    agencyCounts,
     topics,
     topicLabels: Object.fromEntries(
       topics.map((slug) => [slug, TOPIC_CATALOG[slug]?.title ?? slug]),

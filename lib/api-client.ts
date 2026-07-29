@@ -13,6 +13,8 @@
 
 import { headers } from "next/headers";
 import {
+  createInternalRequestMarker,
+  JFK_INTERNAL_REQUEST_MARKER_HEADER,
   JFK_REQUEST_FINGERPRINT_HEADER,
   JFK_REQUEST_ID_HEADER,
   JFK_TRAFFIC_CLASS_HEADER,
@@ -64,15 +66,10 @@ type FetchOpts = {
 async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
   const base = await getBaseUrl();
   const incomingHeaders = await headers();
-  const forwardedHeaders = new Headers();
-  for (const headerName of [
-    JFK_REQUEST_ID_HEADER,
-    JFK_REQUEST_FINGERPRINT_HEADER,
-    JFK_TRAFFIC_CLASS_HEADER,
-  ]) {
-    const value = incomingHeaders.get(headerName);
-    if (value) forwardedHeaders.set(headerName, value);
-  }
+  const forwardedHeaders = await buildInternalFetchHeaders(
+    incomingHeaders,
+    opts,
+  );
   const res = await fetch(`${base}${path}`, {
     signal: opts.signal,
     headers: forwardedHeaders,
@@ -85,6 +82,40 @@ async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
     throw new Error(`API request failed: ${res.status} ${path}`);
   }
   return (await res.json()) as T;
+}
+
+export async function buildInternalFetchHeaders(
+  incomingHeaders: Pick<Headers, "get">,
+  opts: FetchOpts = {},
+  markerSecret?: string,
+): Promise<Headers> {
+  const forwardedHeaders = new Headers();
+  const headerNames = [
+    JFK_REQUEST_FINGERPRINT_HEADER,
+    JFK_TRAFFIC_CLASS_HEADER,
+    ...(opts.noStore ? [JFK_REQUEST_ID_HEADER] : []),
+  ];
+  for (const headerName of headerNames) {
+    const value = incomingHeaders.get(headerName);
+    if (value) forwardedHeaders.set(headerName, value);
+  }
+
+  // Never forward a marker from the original request. Create a new signature
+  // only after selecting the attribution headers safe for this fetch mode.
+  if (
+    forwardedHeaders.has(JFK_REQUEST_FINGERPRINT_HEADER) ||
+    forwardedHeaders.has(JFK_TRAFFIC_CLASS_HEADER) ||
+    forwardedHeaders.has(JFK_REQUEST_ID_HEADER)
+  ) {
+    const marker = await createInternalRequestMarker(
+      forwardedHeaders,
+      markerSecret,
+    );
+    if (marker) {
+      forwardedHeaders.set(JFK_INTERNAL_REQUEST_MARKER_HEADER, marker);
+    }
+  }
+  return forwardedHeaders;
 }
 
 export async function fetchHome(): Promise<HomeResponse> {

@@ -44,6 +44,19 @@ describe("cost controls", () => {
       "legacy-mobile-fingerprint",
     );
     expect(
+      readAutomatedTrafficBlockReason(campaignUserAgent, {
+        JFK_LEGACY_MOBILE_BLOCK_DISABLED: "1",
+      }),
+    ).toBeNull();
+    expect(
+      readAutomatedTrafficBlockReason("GPTBot/1.4", {
+        JFK_LEGACY_MOBILE_BLOCK_DISABLED: "1",
+      }),
+    ).toBe("known-crawler");
+    expect(classifyCostTrafficUserAgent(campaignUserAgent)).toBe(
+      "legacy_mobile_automation",
+    );
+    expect(
       isLegacyMobileAutomationUserAgent(
         campaignUserAgent.replace("Nexus 5", "Pixel 8"),
       ),

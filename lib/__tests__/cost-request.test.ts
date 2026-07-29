@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCostRequestFingerprint,
+  createInternalRequestMarker,
+  JFK_INTERNAL_REQUEST_MARKER_HEADER,
   normalizeRequestFingerprint,
   normalizeRequestId,
+  validateInternalRequestMarker,
 } from "../cost-request";
 
 describe("cost request signals", () => {
@@ -37,5 +40,25 @@ describe("cost request signals", () => {
     expect(right).toBe(left);
     expect(changed).not.toBe(left);
     expect(left).not.toContain("oswald");
+  });
+
+  it("accepts attribution only with a valid server-generated marker", async () => {
+    const secret = "test-internal-marker-secret";
+    const headers = new Headers({
+      "x-jfk-request-id": "request_123",
+      "x-jfk-request-fingerprint": "abcdef0123456789",
+      "x-jfk-traffic-class": "browser",
+    });
+    headers.set(
+      JFK_INTERNAL_REQUEST_MARKER_HEADER,
+      await createInternalRequestMarker(headers, secret),
+    );
+
+    expect(await validateInternalRequestMarker(headers, secret)).toBe(true);
+    headers.set("x-jfk-traffic-class", "known_crawler");
+    expect(await validateInternalRequestMarker(headers, secret)).toBe(false);
+    expect(
+      await validateInternalRequestMarker(headers, "different-server-secret"),
+    ).toBe(false);
   });
 });

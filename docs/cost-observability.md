@@ -38,9 +38,13 @@ layers:
   eliminating the normal second count scan. Exact archive identifiers use
   indexed equality predicates instead of OCR and broad facet scans.
 - Privacy-safe request ids and hashed request fingerprints are propagated
-  through the server-side API call and attached to BigQuery jobs as labels.
-  Block and rate-limit decisions emit structured logs without raw queries or
-  client addresses.
+  through a signed server-side loopback request and attached to BigQuery jobs
+  as labels. Block and rate-limit decisions emit structured logs without raw
+  queries or client addresses.
+
+Cache hits and coalesced searches do not create new BigQuery jobs. Consequently,
+`request_id` and `request_fingerprint` labels appear only on cache misses; the
+monitoring queries must not be read as one warehouse job per caller.
 
 Rate limit env overrides:
 
@@ -48,6 +52,8 @@ Rate limit env overrides:
   cost-sensitive route bucket.
 - `JFK_COST_RATE_LIMIT_WINDOW_SECONDS`: positive integer window size.
 - `JFK_COST_RATE_LIMIT_DISABLED=1`: emergency bypass only.
+- `JFK_LEGACY_MOBILE_BLOCK_DISABLED=1`: bypass only the July legacy-mobile
+  fingerprint block; known-crawler blocking remains enabled.
 - `JFK_TRUSTED_PROXY_HOPS`: positive integer count of trusted proxy hops before
   `x-forwarded-for` / `x-real-ip` are used for rate-limit client keys.
 - `JFK_SEARCH_CACHE_TTL_SECONDS`: positive cache lifetime; default `300`.
