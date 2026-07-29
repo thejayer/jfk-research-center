@@ -1,15 +1,39 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME, verifySessionValue } from "@/lib/admin-auth";
 import {
-  isBlockedCrawlerUserAgent,
+  classifyCostTrafficUserAgent,
   isCostSensitivePath,
+  readAutomatedTrafficBlockReason,
   readCostRateLimitRule,
 } from "@/lib/cost-controls";
+import {
+  buildCostRequestFingerprint,
+  createRequestId,
+  JFK_REQUEST_FINGERPRINT_HEADER,
+  JFK_REQUEST_ID_HEADER,
+  JFK_TRAFFIC_CLASS_HEADER,
+  normalizeRequestFingerprint,
+  normalizeRequestId,
+} from "@/lib/cost-request";
 
 type CostRateLimitBucket = {
   count: number;
   resetAt: number;
 };
+
+type CostRequestSignals = {
+  requestId: string;
+  requestFingerprint: string;
+  trafficClass: ReturnType<typeof classifyCostTrafficUserAgent>;
+};
+
+const COST_TRAFFIC_CLASSES = new Set<CostRequestSignals["trafficClass"]>([
+  "known_crawler",
+  "legacy_mobile_automation",
+  "server_fetch",
+  "browser",
+  "unknown",
+]);
 
 const MAX_COST_RATE_LIMIT_BUCKETS = 5000;
 const costRateLimitBuckets = new Map<string, CostRateLimitBucket>();
@@ -18,29 +42,49 @@ const costRateLimitBuckets = new Map<string, CostRateLimitBucket>();
 // user can reach it unauthenticated; /api/admin/login is similarly excluded.
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const costSensitive = isCostSensitivePath(pathname);
+  const costSignals = costSensitive ? await buildCostRequestSignals(req) : null;
 
-  // Emergency cost-control gate: known crawlers get an intentional 403
-  // NextResponse before they can trigger expensive search/document work.
-  if (
-    isCostSensitivePath(pathname) &&
-    isBlockedCrawlerUserAgent(req.headers.get("user-agent"))
-  ) {
-    return new NextResponse("crawler access disabled for cost control", {
+  // Emergency cost-control gate: named crawlers and the high-confidence
+  // rotating legacy-mobile campaign get a 403 before route rendering.
+  const blockReason = costSensitive
+    ? readAutomatedTrafficBlockReason(req.headers.get("user-agent"))
+    : null;
+  if (blockReason) {
+    logCostControlEvent("cost_control_block", req, costSignals, blockReason);
+    return new NextResponse("automated access disabled for cost control", {
       status: 403,
       headers: {
         "cache-control": "no-store",
         "x-robots-tag": "noindex, nofollow",
+        "x-jfk-cost-control": blockReason,
+        ...(costSignals
+          ? { [JFK_REQUEST_ID_HEADER]: costSignals.requestId }
+          : {}),
       },
     });
   }
 
   const rateLimitResponse = rateLimitCostSensitiveRequest(req, pathname);
-  if (rateLimitResponse) return rateLimitResponse;
+  if (rateLimitResponse) {
+    logCostControlEvent("cost_control_rate_limit", req, costSignals);
+    if (costSignals) {
+      rateLimitResponse.headers.set(
+        JFK_REQUEST_ID_HEADER,
+        costSignals.requestId,
+      );
+    }
+    return rateLimitResponse;
+  }
 
   const isAdmin = pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname.startsWith("/api/admin/");
-  if (!isAdmin) return NextResponse.next();
+  if (!isAdmin) {
+    return costSignals
+      ? nextResponseWithCostSignals(req, costSignals)
+      : NextResponse.next();
+  }
 
   const isLogin =
     pathname === "/admin/login" ||
@@ -64,6 +108,70 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(url);
   }
   return NextResponse.next();
+}
+
+async function buildCostRequestSignals(
+  req: NextRequest,
+): Promise<CostRequestSignals> {
+  return {
+    requestId:
+      normalizeRequestId(req.headers.get(JFK_REQUEST_ID_HEADER)) ||
+      createRequestId(),
+    requestFingerprint:
+      normalizeRequestFingerprint(
+        req.headers.get(JFK_REQUEST_FINGERPRINT_HEADER),
+      ) || (await buildCostRequestFingerprint(new URL(req.url))),
+    trafficClass:
+      normalizeTrafficClass(req.headers.get(JFK_TRAFFIC_CLASS_HEADER)) ??
+      classifyCostTrafficUserAgent(req.headers.get("user-agent")),
+  };
+}
+
+function normalizeTrafficClass(
+  value: string | null,
+): CostRequestSignals["trafficClass"] | null {
+  return COST_TRAFFIC_CLASSES.has(value as CostRequestSignals["trafficClass"])
+    ? (value as CostRequestSignals["trafficClass"])
+    : null;
+}
+
+function nextResponseWithCostSignals(
+  req: NextRequest,
+  signals: CostRequestSignals,
+): NextResponse {
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set(JFK_REQUEST_ID_HEADER, signals.requestId);
+  requestHeaders.set(
+    JFK_REQUEST_FINGERPRINT_HEADER,
+    signals.requestFingerprint,
+  );
+  requestHeaders.set(JFK_TRAFFIC_CLASS_HEADER, signals.trafficClass);
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+  response.headers.set(JFK_REQUEST_ID_HEADER, signals.requestId);
+  return response;
+}
+
+function logCostControlEvent(
+  event: "cost_control_block" | "cost_control_rate_limit",
+  req: NextRequest,
+  signals: CostRequestSignals | null,
+  reason?: string,
+): void {
+  console.info(
+    JSON.stringify({
+      event,
+      path: req.nextUrl.pathname,
+      requestId: signals?.requestId ?? null,
+      requestFingerprint: signals?.requestFingerprint ?? null,
+      trafficClass: signals?.trafficClass ?? "unknown",
+      ...(reason ? { reason } : {}),
+    }),
+  );
 }
 
 /**
@@ -190,5 +298,6 @@ export const config = {
     "/api/document/:path*",
     "/compare/:path*",
     "/api/compare/:path*",
+    "/api/v1/:path*",
   ],
 };

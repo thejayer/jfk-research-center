@@ -9,6 +9,8 @@ const COST_SENSITIVE_PATH_PREFIXES = [
   "/api/document",
   "/compare",
   "/api/compare",
+  "/api/v1/documents",
+  "/api/v1/search/semantic",
 ] as const;
 
 const BLOCKED_CRAWLER_PATTERNS = [
@@ -30,7 +32,12 @@ const BLOCKED_CRAWLER_PATTERNS = [
   /petalbot/i,
 ] as const;
 
+const LEGACY_MOBILE_AUTOMATION_PATTERN =
+  /Mozilla\/5\.0 \(Linux; Android 6(?:\.0(?:\.1)?)?; Nexus 5(?: Build\/[^)]+)?\).*Chrome\/65(?:\.\d+){0,3}.*Mobile Safari\/537\.36/i;
+
 const COST_RATE_LIMIT_RULES = [
+  { prefix: "/api/v1/search/semantic", key: "api-v1-semantic", maxRequests: 10 },
+  { prefix: "/api/v1/documents", key: "api-v1-documents", maxRequests: 20 },
   { prefix: "/api/search", key: "api-search", maxRequests: 20 },
   { prefix: "/search", key: "search", maxRequests: 30 },
   { prefix: "/api/compare", key: "api-compare", maxRequests: 30 },
@@ -44,6 +51,17 @@ export type CostRateLimitRule = {
   maxRequests: number;
   windowMs: number;
 };
+
+export type CostTrafficClass =
+  | "known_crawler"
+  | "legacy_mobile_automation"
+  | "server_fetch"
+  | "browser"
+  | "unknown";
+
+export type AutomatedTrafficBlockReason =
+  | "known-crawler"
+  | "legacy-mobile-fingerprint";
 
 /**
  * Returns true when the pathname can fan out into live warehouse work.
@@ -66,6 +84,63 @@ export function isCostSensitivePath(pathname: string): boolean {
 export function isBlockedCrawlerUserAgent(userAgent: string | null): boolean {
   if (!userAgent) return false;
   return BLOCKED_CRAWLER_PATTERNS.some((pattern) => pattern.test(userAgent));
+}
+
+/**
+ * Detects the exact legacy mobile browser family used by the July 2026
+ * rotating enumeration campaign.
+ *
+ * The signal is intentionally narrow: Android 6, Nexus 5, and Chrome 65 must
+ * all be present. Broader old-browser blocking would create unnecessary false
+ * positives for legitimate researchers.
+ */
+export function isLegacyMobileAutomationUserAgent(
+  userAgent: string | null,
+): boolean {
+  if (!userAgent) return false;
+  return LEGACY_MOBILE_AUTOMATION_PATTERN.test(userAgent);
+}
+
+/**
+ * Returns a privacy-safe traffic class for request and BigQuery attribution.
+ */
+export function classifyCostTrafficUserAgent(
+  userAgent: string | null,
+): CostTrafficClass {
+  if (isBlockedCrawlerUserAgent(userAgent)) return "known_crawler";
+  if (isLegacyMobileAutomationUserAgent(userAgent)) {
+    return "legacy_mobile_automation";
+  }
+  if (!userAgent) return "unknown";
+  if (/^(?:node|undici)(?:\/|$)/i.test(userAgent.trim())) return "server_fetch";
+  if (/mozilla\/5\.0/i.test(userAgent)) return "browser";
+  return "unknown";
+}
+
+/**
+ * Identifies high-confidence automated traffic that should never reach a
+ * warehouse-backed route.
+ */
+export function readAutomatedTrafficBlockReason(
+  userAgent: string | null,
+): AutomatedTrafficBlockReason | null {
+  if (isBlockedCrawlerUserAgent(userAgent)) return "known-crawler";
+  if (isLegacyMobileAutomationUserAgent(userAgent)) {
+    return "legacy-mobile-fingerprint";
+  }
+  return null;
+}
+
+/**
+ * Returns true for archive identifiers that can be resolved with direct
+ * equality predicates instead of full text/OCR scans.
+ */
+export function isArchiveIdentifierQuery(value: string): boolean {
+  const query = value.trim();
+  return (
+    /^\d{3}-\d{4,6}-\d{3,6}$/.test(query) ||
+    /^\d{7,12}$/.test(query)
+  );
 }
 
 /**

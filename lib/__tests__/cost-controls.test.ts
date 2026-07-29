@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyCostTrafficUserAgent,
+  isArchiveIdentifierQuery,
   isBlockedCrawlerUserAgent,
   isCostSensitivePath,
+  isLegacyMobileAutomationUserAgent,
+  readAutomatedTrafficBlockReason,
   isSemanticSearchDisabled,
   readBigQueryMaximumBytesBilled,
   readCostRateLimitRule,
@@ -13,6 +17,8 @@ describe("cost controls", () => {
     expect(isCostSensitivePath("/api/search")).toBe(true);
     expect(isCostSensitivePath("/document/wc-report-1964")).toBe(true);
     expect(isCostSensitivePath("/api/document/wc-report-1964")).toBe(true);
+    expect(isCostSensitivePath("/api/v1/documents")).toBe(true);
+    expect(isCostSensitivePath("/api/v1/search/semantic")).toBe(true);
     expect(isCostSensitivePath("/about")).toBe(false);
   });
 
@@ -22,6 +28,38 @@ describe("cost controls", () => {
     expect(isBlockedCrawlerUserAgent("Mozilla/5.0 Bytespider")).toBe(true);
     expect(isBlockedCrawlerUserAgent("Mozilla/5.0 Safari/605.1.15")).toBe(false);
     expect(isBlockedCrawlerUserAgent(null)).toBe(false);
+  });
+
+  it("narrowly detects and blocks the July legacy-mobile campaign", () => {
+    const campaignUserAgent =
+      "Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5 Build/MRA58N) " +
+      "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 " +
+      "Mobile Safari/537.36";
+
+    expect(isLegacyMobileAutomationUserAgent(campaignUserAgent)).toBe(true);
+    expect(classifyCostTrafficUserAgent(campaignUserAgent)).toBe(
+      "legacy_mobile_automation",
+    );
+    expect(readAutomatedTrafficBlockReason(campaignUserAgent)).toBe(
+      "legacy-mobile-fingerprint",
+    );
+    expect(
+      isLegacyMobileAutomationUserAgent(
+        campaignUserAgent.replace("Nexus 5", "Pixel 8"),
+      ),
+    ).toBe(false);
+    expect(
+      isLegacyMobileAutomationUserAgent(
+        campaignUserAgent.replace("Chrome/65", "Chrome/126"),
+      ),
+    ).toBe(false);
+  });
+
+  it("recognizes archive ids that can use the equality fast path", () => {
+    expect(isArchiveIdentifierQuery("104-10338-10005")).toBe(true);
+    expect(isArchiveIdentifierQuery("123456789")).toBe(true);
+    expect(isArchiveIdentifierQuery("Oswald 104-10338-10005")).toBe(false);
+    expect(isArchiveIdentifierQuery("123456")).toBe(false);
   });
 
   it("reads semantic kill switch state", () => {
@@ -42,6 +80,11 @@ describe("cost controls", () => {
     expect(readCostRateLimitRule("/document/104-10338-10005")).toEqual({
       key: "document",
       maxRequests: 60,
+      windowMs: 60000,
+    });
+    expect(readCostRateLimitRule("/api/v1/documents")).toEqual({
+      key: "api-v1-documents",
+      maxRequests: 20,
       windowMs: 60000,
     });
     expect(readCostRateLimitRule("/about")).toBeNull();

@@ -12,6 +12,11 @@
  */
 
 import { headers } from "next/headers";
+import {
+  JFK_REQUEST_FINGERPRINT_HEADER,
+  JFK_REQUEST_ID_HEADER,
+  JFK_TRAFFIC_CLASS_HEADER,
+} from "./cost-request";
 import type {
   BibliographyIndex,
   CaseTimelineIndex,
@@ -58,8 +63,19 @@ type FetchOpts = {
 
 async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
   const base = await getBaseUrl();
+  const incomingHeaders = await headers();
+  const forwardedHeaders = new Headers();
+  for (const headerName of [
+    JFK_REQUEST_ID_HEADER,
+    JFK_REQUEST_FINGERPRINT_HEADER,
+    JFK_TRAFFIC_CLASS_HEADER,
+  ]) {
+    const value = incomingHeaders.get(headerName);
+    if (value) forwardedHeaders.set(headerName, value);
+  }
   const res = await fetch(`${base}${path}`, {
     signal: opts.signal,
+    headers: forwardedHeaders,
     ...(opts.noStore
       ? { cache: "no-store" as const }
       : { next: { revalidate: opts.revalidate ?? 60 } }),
@@ -121,7 +137,7 @@ export async function fetchSearch(
   if (offset > 0) params.set("offset", String(offset));
   const qs = params.toString();
   const path = qs ? `/api/search?${qs}` : "/api/search";
-  const data = await get<SearchResponse>(path, { noStore: true });
+  const data = await get<SearchResponse>(path, { revalidate: 300 });
   if (!data) throw new Error("Search payload missing");
   return data;
 }

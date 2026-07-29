@@ -103,7 +103,12 @@ import {
   topicToCard as mockTopicToCard,
 } from "./mock-data";
 import { normalizeSourceUrl } from "./source-urls";
-import { readBigQueryMaximumBytesBilled } from "./cost-controls";
+import {
+  isArchiveIdentifierQuery,
+  readBigQueryMaximumBytesBilled,
+} from "./cost-controls";
+import { searchCacheKey, withSearchCache } from "./search-cache";
+import { warehouseJobLabels } from "./warehouse-request-context";
 import {
   denseSearchFacetYears,
   rankedFacetValues,
@@ -139,6 +144,7 @@ async function query<T = Record<string, unknown>>(
     query: sql,
     params,
     location: "US",
+    labels: warehouseJobLabels(),
     ...(maximumBytesBilled ? { maximumBytesBilled } : {}),
   });
   return rows as T[];
@@ -1421,20 +1427,31 @@ function truncateAround(text: string, aliases: string[], budget: number): string
 // SEARCH
 // ---------------------------------------------------------------------------
 
-export async function fetchSearch({
-  query: q,
-  mode,
-  filters = {},
-  limit = 50,
-  offset = 0,
-}: {
+type WarehouseSearchInput = {
   query: string;
   mode: "document" | "mention" | "semantic";
   filters?: SearchFilterInput;
   limit?: number;
   /** Document mode only. Mention/semantic ignore this. */
   offset?: number;
-}): Promise<SearchResponse> {
+};
+
+export async function fetchSearch(
+  input: WarehouseSearchInput,
+): Promise<SearchResponse> {
+  return withSearchCache(
+    searchCacheKey(input),
+    () => fetchSearchUncached(input),
+  );
+}
+
+async function fetchSearchUncached({
+  query: q,
+  mode,
+  filters = {},
+  limit = 50,
+  offset = 0,
+}: WarehouseSearchInput): Promise<SearchResponse> {
   if (useMockData()) {
     return buildSearchResponse({ query: q, mode, filters, limit, offset });
   }
@@ -1454,6 +1471,22 @@ export async function fetchSearch({
 
   if (mode === "semantic") {
     return fetchSemanticSearch({ query: qNorm, filters, limit });
+  }
+  if (mode === "mention") {
+    return fetchMentionSearch({
+      query: qNorm,
+      filters,
+      limit,
+      offset,
+    });
+  }
+  if (isArchiveIdentifierQuery(qNorm)) {
+    return fetchIdentifierSearch({
+      query: qNorm,
+      filters,
+      limit,
+      offset,
+    });
   }
   const params: Record<string, unknown> = {
     qNorm,
@@ -1524,10 +1557,14 @@ export async function fetchSearch({
 
   const [results, filterData] = await Promise.all([
     query<
-      RecordRow & { ocr_hit_text: string | null; match_confidence: ConfidenceLevel | null }
+      RecordRow & {
+        ocr_hit_text: string | null;
+        match_confidence: ConfidenceLevel | null;
+        total_count: number;
+      }
     >(
       `${cteSql}
-       SELECT * FROM scored
+       SELECT scored.*, COUNT(*) OVER() AS total_count FROM scored
        ${whereSql}
        ORDER BY
          CASE match_confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
@@ -1538,11 +1575,17 @@ export async function fetchSearch({
     loadSearchFacets(qNorm, filters),
   ]);
 
-  const total = await query<{ n: number }>(
-    `${cteSql}
-     SELECT COUNT(*) AS n FROM scored ${whereSql}`,
-    params,
-  );
+  const total =
+    results[0]?.total_count ??
+    (offset > 0
+      ? (
+          await query<{ n: number }>(
+            `${cteSql}
+             SELECT COUNT(*) AS n FROM scored ${whereSql}`,
+            params,
+          )
+        )[0]?.n ?? 0
+      : 0);
 
   const docResults: SearchResult[] = results.map((r) => {
     const snippet = r.ocr_hit_text
@@ -1556,90 +1599,12 @@ export async function fetchSearch({
     };
   });
 
-  // Mention mode: OCR passage hits only. Paginated by offset; total is
-  // the real COUNT(*) of matching chunks. Metadata-only hits (title/
-  // description without OCR) live in Documents mode.
-  let mentionResults: SearchResult[] = [];
-  let mentionTotal = 0;
-  if (mode === "mention" && qNorm) {
-    const mentionWhere = [
-      "c.source_type IN ('abbyy_ocr', 'docai_ocr')",
-      "LOWER(c.chunk_text) LIKE @qLike",
-    ];
-    if (filters.agencies?.length) {
-      mentionWhere.push("r.agency IN UNNEST(@agencies)");
-    }
-    if (typeof filters.yearFrom === "number") {
-      mentionWhere.push("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
-    }
-    if (typeof filters.yearTo === "number") {
-      mentionWhere.push("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
-    }
-    if (filters.entities?.length) {
-      mentionWhere.push(`r.document_id IN (
-        SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
-        WHERE entity_id IN UNNEST(@entities)
-      )`);
-    }
-    if (filters.topics?.length) {
-      const unionSql = topicDocumentUnionSql(filters.topics);
-      mentionWhere.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
-    }
-    const mentionWhereSql = mentionWhere.join(" AND ");
-
-    const [ocrRows, ocrTotal] = await Promise.all([
-      query<{
-        document_id: string;
-        naid: string;
-        title: string;
-        chunk_id: string;
-        chunk_order: number;
-        chunk_text: string;
-        page_label: string | null;
-      }>(
-        `SELECT r.document_id, r.naid, r.title,
-                c.chunk_id, c.chunk_order, c.chunk_text, c.page_label
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-           JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-             USING (document_id)
-          WHERE ${mentionWhereSql}
-          ORDER BY c.document_id, c.chunk_order
-          LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
-        params,
-      ),
-      query<{ n: number }>(
-        `SELECT COUNT(*) AS n
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-           JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-             USING (document_id)
-          WHERE ${mentionWhereSql}`,
-        params,
-      ),
-    ]);
-    mentionResults = ocrRows.map((r) => ({
-      kind: "mention",
-      mention: {
-        id: `mx-${r.chunk_id}`,
-        documentId: r.document_id,
-        documentTitle: r.title,
-        documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-${r.chunk_order}`,
-        excerpt: truncateAround(r.chunk_text, [qNorm], 280),
-        matchedTerms: [qNorm],
-        confidence: "low",
-        source: "ocr",
-        pageLabel: r.page_label,
-        chunkOrder: r.chunk_order,
-      },
-    }));
-    mentionTotal = ocrTotal[0]?.n ?? 0;
-  }
-
   return {
     query: qNorm,
-    mode,
-    total: mode === "mention" ? mentionTotal : (total[0]?.n ?? 0),
+    mode: "document",
+    total,
     filters: filterData,
-    results: mode === "mention" ? mentionResults : docResults,
+    results: docResults,
   };
 }
 
@@ -1650,6 +1615,228 @@ export async function fetchSearch({
 // can render them without a new card component; the `score` field carries
 // the cosine-based relevance (1 - distance), higher = better.
 // ---------------------------------------------------------------------------
+
+async function fetchMentionSearch({
+  query: qNorm,
+  filters,
+  limit,
+  offset,
+}: {
+  query: string;
+  filters: SearchFilterInput;
+  limit: number;
+  offset: number;
+}): Promise<SearchResponse> {
+  if (!qNorm) {
+    return {
+      query: "",
+      mode: "mention",
+      total: 0,
+      filters: await loadSearchFacets(qNorm, filters),
+      results: [],
+    };
+  }
+
+  const params: Record<string, unknown> = {
+    qLike: `%${qNorm.toLowerCase()}%`,
+  };
+  const mentionWhere = [
+    "c.source_type IN ('abbyy_ocr', 'docai_ocr')",
+    "LOWER(c.chunk_text) LIKE @qLike",
+  ];
+  if (filters.agencies?.length) {
+    mentionWhere.push("r.agency IN UNNEST(@agencies)");
+    params.agencies = filters.agencies;
+  }
+  if (typeof filters.yearFrom === "number") {
+    mentionWhere.push("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
+    params.yearFrom = filters.yearFrom;
+  }
+  if (typeof filters.yearTo === "number") {
+    mentionWhere.push("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
+    params.yearTo = filters.yearTo;
+  }
+  if (filters.entities?.length) {
+    mentionWhere.push(`r.document_id IN (
+      SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+      WHERE entity_id IN UNNEST(@entities)
+    )`);
+    params.entities = filters.entities;
+  }
+  if (filters.topics?.length) {
+    const unionSql = topicDocumentUnionSql(filters.topics);
+    mentionWhere.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
+  }
+  const mentionWhereSql = mentionWhere.join(" AND ");
+
+  const [ocrRows, facets] = await Promise.all([
+    query<{
+      document_id: string;
+      naid: string;
+      title: string;
+      chunk_id: string;
+      chunk_order: number;
+      chunk_text: string;
+      page_label: string | null;
+      total_count: number;
+    }>(
+      `SELECT r.document_id, r.naid, r.title,
+              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
+              COUNT(*) OVER() AS total_count
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
+         JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+           USING (document_id)
+        WHERE ${mentionWhereSql}
+        ORDER BY c.document_id, c.chunk_order
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+      params,
+    ),
+    loadSearchFacets(qNorm, filters),
+  ]);
+
+  const total =
+    ocrRows[0]?.total_count ??
+    (offset > 0
+      ? (
+          await query<{ n: number }>(
+            `SELECT COUNT(*) AS n
+               FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
+               JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+                 USING (document_id)
+              WHERE ${mentionWhereSql}`,
+            params,
+          )
+        )[0]?.n ?? 0
+      : 0);
+  const results: SearchResult[] = ocrRows.map((row) => ({
+    kind: "mention",
+    mention: {
+      id: `mx-${row.chunk_id}`,
+      documentId: row.document_id,
+      documentTitle: row.title,
+      documentHref: `/document/${encodeURIComponent(row.document_id)}#chunk-${row.chunk_order}`,
+      excerpt: truncateAround(row.chunk_text, [qNorm], 280),
+      matchedTerms: [qNorm],
+      confidence: "low",
+      source: "ocr",
+      pageLabel: row.page_label,
+      chunkOrder: row.chunk_order,
+    },
+  }));
+
+  return {
+    query: qNorm,
+    mode: "mention",
+    total,
+    filters: facets,
+    results,
+  };
+}
+
+async function fetchIdentifierSearch({
+  query: qNorm,
+  filters,
+  limit,
+  offset,
+}: {
+  query: string;
+  filters: SearchFilterInput;
+  limit: number;
+  offset: number;
+}): Promise<SearchResponse> {
+  const params: Record<string, unknown> = { qNorm };
+  const where = [
+    "(r.document_id = @qNorm OR CAST(r.naid AS STRING) = @qNorm)",
+  ];
+
+  if (filters.confidence?.length && !filters.confidence.includes("high")) {
+    where.push("FALSE");
+  }
+  if (filters.agencies?.length) {
+    where.push("r.agency IN UNNEST(@agencies)");
+    params.agencies = filters.agencies;
+  }
+  if (typeof filters.yearFrom === "number") {
+    where.push("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
+    params.yearFrom = filters.yearFrom;
+  }
+  if (typeof filters.yearTo === "number") {
+    where.push("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
+    params.yearTo = filters.yearTo;
+  }
+  if (filters.entities?.length) {
+    where.push(`r.document_id IN (
+      SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+      WHERE entity_id IN UNNEST(@entities)
+    )`);
+    params.entities = filters.entities;
+  }
+  if (filters.topics?.length) {
+    const unionSql = topicDocumentUnionSql(filters.topics);
+    where.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
+  }
+
+  const rows = await query<
+    RecordRow & {
+      match_confidence: ConfidenceLevel;
+      total_count: number;
+    }
+  >(
+    `SELECT r.*, 'high' AS match_confidence, COUNT(*) OVER() AS total_count
+       FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
+      WHERE ${where.join(" AND ")}
+      ORDER BY r.start_date DESC NULLS LAST
+      LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+    params,
+  );
+  const total = rows[0]?.total_count ?? 0;
+  const results: SearchResult[] = rows.map((row) => ({
+    kind: "document",
+    document: rowToCard(row),
+    mentionCount: 0,
+    confidence: "high",
+  }));
+
+  return {
+    query: qNorm,
+    mode: "document",
+    total,
+    filters: identifierSearchFilters(rows, filters, total),
+    results,
+  };
+}
+
+function identifierSearchFilters(
+  rows: RecordRow[],
+  selected: SearchFilterInput,
+  total: number,
+): SearchFacetData {
+  const agencies = Array.from(
+    new Set(rows.map((row) => row.agency).filter(Boolean)),
+  ) as string[];
+  const topics = selected.topics ?? [];
+  const entities = selected.entities ?? [];
+  return {
+    countScope: "query",
+    years: denseSearchFacetYears(),
+    yearCounts: {},
+    yearBounds: SEARCH_FACET_YEAR_BOUNDS,
+    agencies,
+    agencyCounts: Object.fromEntries(
+      agencies.map((agency) => [agency, total]),
+    ),
+    topics,
+    topicLabels: Object.fromEntries(
+      topics.map((slug) => [slug, TOPIC_CATALOG[slug]?.title ?? slug]),
+    ),
+    topicCounts: Object.fromEntries(topics.map((slug) => [slug, total])),
+    entities,
+    entityLabels: Object.fromEntries(entities.map((id) => [id, id])),
+    entityCounts: Object.fromEntries(entities.map((id) => [id, total])),
+    confidence: total > 0 ? ["high"] : [],
+    confidenceCounts: total > 0 ? { high: total } : {},
+  };
+}
 
 type SemanticHitRow = {
   chunk_id: string;
