@@ -9,6 +9,10 @@ import {
 } from "@/lib/api-v1";
 import { findPublicApiEndpointPolicy } from "@/lib/public-api-access";
 import { enforcePublicApiAccess } from "@/lib/public-api-enforcement";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "@/lib/warehouse-request-context";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
@@ -48,14 +52,21 @@ export async function GET(req: NextRequest) {
       .getAll("confidence")
       .filter(Boolean) as ConfidenceLevel[],
   };
+  const requestContext = warehouseRequestContextFromHeaders(
+    req.headers,
+    "api_v1_documents",
+    "document",
+  );
 
   try {
-    const data = await fetchSearch({
-      query: url.searchParams.get("q") ?? "",
-      mode: "document",
-      filters,
-      limit,
-    });
+    const data = await withWarehouseRequestContext(requestContext, () =>
+      fetchSearch({
+        query: url.searchParams.get("q") ?? "",
+        mode: "document",
+        filters,
+        limit,
+      })
+    );
     return jsonResponse(data, { cacheSeconds: 300 });
   } catch (err) {
     console.error("[api/v1/documents] failed:", err);

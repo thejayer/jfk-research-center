@@ -9,7 +9,14 @@ vi.mock("next/headers", () => ({
   headers: nextHeaders.headers,
 }));
 
-import { fetchMediaAsset } from "../api-client";
+import {
+  buildInternalFetchHeaders,
+  fetchMediaAsset,
+} from "../api-client";
+import {
+  JFK_INTERNAL_REQUEST_MARKER_HEADER,
+  validateInternalRequestMarker,
+} from "../cost-request";
 
 const mediaAsset: MediaAsset = {
   id: "jfkl-test-media",
@@ -70,5 +77,44 @@ describe("api-client media helpers", () => {
     );
 
     await expect(fetchMediaAsset("missing-media")).resolves.toBeNull();
+  });
+});
+
+describe("internal API fetch headers", () => {
+  const secret = "test-internal-marker-secret";
+  const incoming = new Headers({
+    "x-jfk-request-id": "request_123",
+    "x-jfk-request-fingerprint": "abcdef0123456789",
+    "x-jfk-traffic-class": "browser",
+    [JFK_INTERNAL_REQUEST_MARKER_HEADER]: "a".repeat(64),
+  });
+
+  it("omits per-request ids from cacheable fetches and replaces markers", async () => {
+    const forwarded = await buildInternalFetchHeaders(
+      incoming,
+      { revalidate: 300 },
+      secret,
+    );
+
+    expect(forwarded.get("x-jfk-request-id")).toBeNull();
+    expect(forwarded.get("x-jfk-request-fingerprint")).toBe(
+      "abcdef0123456789",
+    );
+    expect(forwarded.get("x-jfk-traffic-class")).toBe("browser");
+    expect(forwarded.get(JFK_INTERNAL_REQUEST_MARKER_HEADER)).not.toBe(
+      "a".repeat(64),
+    );
+    expect(await validateInternalRequestMarker(forwarded, secret)).toBe(true);
+  });
+
+  it("retains per-request ids only for no-store fetches", async () => {
+    const forwarded = await buildInternalFetchHeaders(
+      incoming,
+      { noStore: true },
+      secret,
+    );
+
+    expect(forwarded.get("x-jfk-request-id")).toBe("request_123");
+    expect(await validateInternalRequestMarker(forwarded, secret)).toBe(true);
   });
 });

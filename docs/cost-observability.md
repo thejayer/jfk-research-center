@@ -1,8 +1,8 @@
 # JFK Research Center Cost Observability
 
 The Cost Console starts as a small in-repo ledger so project spend can be tied
-back to features, services, workflows, and Linear issues before Cloud Billing
-reconciliation is enabled.
+back to features, services, workflows, and Manage work packets before Cloud
+Billing reconciliation is enabled.
 
 ## Current Console
 
@@ -19,15 +19,32 @@ downloaded images, and zero bytes stored under `public/media/jfkl`.
 
 ## Runtime Guardrails
 
-The public routes that can trigger warehouse-backed work are protected in three
+The public routes that can trigger warehouse-backed work are protected in six
 layers:
 
-- Known crawler user agents are blocked before route rendering.
+- Known crawler user agents and the narrow Android 6 / Nexus 5 / Chrome 65
+  fingerprint observed in the July 2026 rotating campaign are blocked before
+  route rendering.
 - Cost-sensitive routes are rate-limited per client and route bucket. Defaults:
-  `/api/search` 20/minute, `/search` 30/minute, compare routes 30/minute, and
-  document routes 60/minute.
+  `/api/search` and `/api/v1/documents` 20/minute, `/search` 30/minute,
+  `/api/v1/search/semantic` 10/minute, compare routes 30/minute, and document
+  routes 60/minute.
 - BigQuery jobs default to `JFK_BQ_MAX_BYTES_BILLED=268435456` bytes per job,
   and semantic search stays disabled while `JFK_API_DISABLE_SEMANTIC_SEARCH=1`.
+- Search responses use a bounded, per-instance promise/TTL cache. It coalesces
+  concurrent identical searches and reuses successful responses for five
+  minutes.
+- Document and mention result queries include their total via a window count,
+  eliminating the normal second count scan. Exact archive identifiers use
+  indexed equality predicates instead of OCR and broad facet scans.
+- Privacy-safe request ids and hashed request fingerprints are propagated
+  through a signed server-side loopback request and attached to BigQuery jobs
+  as labels. Block and rate-limit decisions emit structured logs without raw
+  queries or client addresses.
+
+Cache hits and coalesced searches do not create new BigQuery jobs. Consequently,
+`request_id` and `request_fingerprint` labels appear only on cache misses; the
+monitoring queries must not be read as one warehouse job per caller.
 
 Rate limit env overrides:
 
@@ -35,12 +52,20 @@ Rate limit env overrides:
   cost-sensitive route bucket.
 - `JFK_COST_RATE_LIMIT_WINDOW_SECONDS`: positive integer window size.
 - `JFK_COST_RATE_LIMIT_DISABLED=1`: emergency bypass only.
+- `JFK_LEGACY_MOBILE_BLOCK_DISABLED=1`: bypass only the July legacy-mobile
+  fingerprint block; known-crawler blocking remains enabled.
 - `JFK_TRUSTED_PROXY_HOPS`: positive integer count of trusted proxy hops before
   `x-forwarded-for` / `x-real-ip` are used for rate-limit client keys.
+- `JFK_SEARCH_CACHE_TTL_SECONDS`: positive cache lifetime; default `300`.
+- `JFK_SEARCH_CACHE_MAX_ENTRIES`: positive per-instance LRU bound; default
+  `500`.
+- `JFK_SEARCH_CACHE_DISABLED=1`: emergency cache bypass.
 
 The in-app limiter is intentionally cheap and per Cloud Run instance. Keep it
 enabled, but use Cloud Armor or an upstream edge limit as the durable perimeter
-if traffic spikes continue.
+if traffic spikes continue. The current project has no shared limiter backend
+provisioned, so this remains an infrastructure follow-up rather than an
+application configuration switch.
 
 ## Event Shape
 
@@ -53,7 +78,8 @@ Each event should include:
 - `operation`: stable operation name.
 - `workflow` and optional `workflowRunId`: GitHub Actions or manual workflow
   attribution.
-- `linearIssue`: Linear issue id when the run belongs to feature work.
+- `linearIssue`: legacy packet-attribution field retained for compatibility;
+  use the corresponding Manage packet id when the run belongs to packet work.
 - `estimatedCostUsd` and optional `actualCostUsd`.
 - Usage counters: `requestCount`, `inputTokens`, `outputTokens`, `rowCount`,
   `byteCount`, and `billingRows`.
@@ -68,8 +94,12 @@ fields (`service.description`, `sku.description`, `usage_start_time`, `project`,
 
 Recommended labels for cost-producing jobs:
 
-- `feature`
-- `linear_issue`
+- `app`
+- `request_id`
+- `request_fingerprint`
+- `traffic_class`
+- `route`
+- `search_mode`
 - `github_workflow`
 - `github_run_id`
 
@@ -85,7 +115,7 @@ The intended reconciliation path matches the RegVault pattern:
 2. Add a scheduled exporter that writes a compact Cost Console JSON payload.
 3. Enable Google Cloud Billing export to BigQuery.
 4. Create reconciliation views that allocate actual service spend back to
-   ledger rows by date, service, workflow, feature, and Linear issue.
+   ledger rows by date, service, workflow, feature, and Manage packet.
 5. Switch the Cost Console source from `manual_seed` or `ledger` to
    `reconciliation`.
 
@@ -126,18 +156,19 @@ gcloud run services update jfk-research-center \
 ```
 
 5. Monitor the next 24 hours using `sql/91_cost_guardrail_monitoring.sql` and
-   Cloud Run logs for `429` and crawler `403` responses.
+   Cloud Run structured events named `cost_control_block` and
+   `cost_control_rate_limit`.
 
 ## Workflow Convention
 
 Cost-producing jobs should set these values before they run:
 
 - `COST_FEATURE`
-- `LINEAR_ISSUE`
+- the Manage packet id in the legacy `LINEAR_ISSUE` compatibility field
 - `GITHUB_WORKFLOW`
 - `GITHUB_RUN_ID`
 
-Good Linear comment format after a paid or potentially paid run:
+Good Manage packet update format after a paid or potentially paid run:
 
 ```text
 Cost run summary

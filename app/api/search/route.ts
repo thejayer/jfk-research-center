@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { fetchSearch } from "@/lib/warehouse";
 import type { ConfidenceLevel } from "@/lib/api-types";
 import { isSemanticSearchDisabled } from "@/lib/cost-controls";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "@/lib/warehouse-request-context";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +53,21 @@ export async function GET(req: NextRequest) {
   const offset = offsetRaw && offsetRaw > 0 ? offsetRaw : 0;
   const limitRaw = parseIntOrNull(url.searchParams.get("limit"));
   const limit = limitRaw && limitRaw > 0 && limitRaw <= 200 ? limitRaw : undefined;
+  const requestContext = warehouseRequestContextFromHeaders(
+    req.headers,
+    "api_search",
+    mode,
+  );
 
   try {
-    const data = await fetchSearch({ query: q, mode, filters, limit, offset });
-    return NextResponse.json(data);
+    const data = await withWarehouseRequestContext(requestContext, () =>
+      fetchSearch({ query: q, mode, filters, limit, offset })
+    );
+    return NextResponse.json(data, {
+      headers: {
+        "cache-control": "public, s-maxage=300, stale-while-revalidate=300",
+      },
+    });
   } catch (err) {
     console.error("[api/search] failed:", err);
     return NextResponse.json(

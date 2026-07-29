@@ -8,6 +8,11 @@ import {
 } from "@/lib/api-v1";
 import { findPublicApiEndpointPolicy } from "@/lib/public-api-access";
 import { enforcePublicApiAccess } from "@/lib/public-api-enforcement";
+import { isSemanticSearchDisabled } from "@/lib/cost-controls";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "@/lib/warehouse-request-context";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
@@ -23,6 +28,10 @@ export const OPTIONS = preflight;
  */
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+  if (isSemanticSearchDisabled()) {
+    return errorResponse("semantic search temporarily disabled", 503);
+  }
+
   const policy = findPublicApiEndpointPolicy("GET", url.pathname);
   if (policy) {
     const access = await enforcePublicApiAccess(req, policy);
@@ -36,13 +45,20 @@ export async function GET(req: NextRequest) {
     1,
     Math.min(50, parseIntOrNull(url.searchParams.get("limit")) ?? 20),
   );
+  const requestContext = warehouseRequestContextFromHeaders(
+    req.headers,
+    "api_v1_semantic",
+    "semantic",
+  );
 
   try {
-    const data = await fetchSearch({
-      query: q,
-      mode: "semantic",
-      limit,
-    });
+    const data = await withWarehouseRequestContext(requestContext, () =>
+      fetchSearch({
+        query: q,
+        mode: "semantic",
+        limit,
+      })
+    );
     // Semantic results hit Vertex per-call; keep s-maxage short so repeated
     // identical queries are cacheable but novel queries stay cheap.
     return jsonResponse(data, { cacheSeconds: 60 });
