@@ -12,6 +12,7 @@ Billing reconciliation is enabled.
 - Rollup helpers: `lib/cost-console.ts`
 - Runtime guardrails: `middleware.ts` and `lib/cost-controls.ts`
 - Monitoring queries: `sql/91_cost_guardrail_monitoring.sql`
+- Daily monitor: `.github/workflows/cost-monitor.yml`
 
 The first seed records the known direct-cost facts from the JFK Library media
 work: 18 metadata/source-link records, four cache-eligible candidates, zero
@@ -66,6 +67,18 @@ enabled, but use Cloud Armor or an upstream edge limit as the durable perimeter
 if traffic spikes continue. The current project has no shared limiter backend
 provisioned, so this remains an infrastructure follow-up rather than an
 application configuration switch.
+
+## Automated 24-Hour Monitor
+
+The `JFK 24-hour cost monitor` workflow runs daily at 06:15 UTC and can also be
+started manually. It verifies that the latest Cloud Run revision is ready and
+serving 100% of traffic, checks the public home route, counts structured block
+and rate-limit events, and compares BigQuery jobs and billed GiB across the
+current and previous rolling 24-hour windows.
+
+Each run writes a report to the GitHub Actions job summary. A rise in billed GiB
+adds a workflow warning without failing the monitor; deployment health failures
+still fail the job. Log counts are capped at 10,000 entries per signal.
 
 ## Event Shape
 

@@ -1,0 +1,175 @@
+name: JFK 24-hour cost monitor
+
+on:
+  schedule:
+    # 01:15 America/Chicago during daylight-saving time.
+    - cron: "15 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jfk-cost-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: jfk-vault
+
+      - name: Verify production revision
+        id: service
+        shell: bash
+        run: |
+          set -euo pipefail
+          service_json="$RUNNER_TEMP/jfk-service.json"
+          gcloud run services describe jfk-research-center \
+            --project=jfk-vault \
+            --region=us-central1 \
+            --format="json(status.latestReadyRevisionName,status.conditions,status.traffic)" \
+            > "$service_json"
+
+          revision="$(jq -r '.status.latestReadyRevisionName // "unknown"' "$service_json")"
+          ready="$(jq -r '[.status.conditions[] | select(.type == "Ready")][0].status // "False"' "$service_json")"
+          traffic="$(jq -r '[.status.traffic[].percent] | add // 0' "$service_json")"
+          curl --fail --silent --show-error --output /dev/null \
+            https://researchjfk.ai/
+
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+          echo "traffic=$traffic" >> "$GITHUB_OUTPUT"
+          test "$ready" = "True"
+          test "$traffic" = "100"
+
+      - name: Collect cost-control signals
+        id: signals
+        shell: bash
+        run: |
+          set -euo pipefail
+          blocks_json="$RUNNER_TEMP/jfk-blocks.json"
+          limits_json="$RUNNER_TEMP/jfk-rate-limits.json"
+          jobs_json="$RUNNER_TEMP/jfk-query-jobs.json"
+
+          gcloud logging read \
+            'resource.type="cloud_run_revision" AND resource.labels.service_name="jfk-research-center" AND jsonPayload.event="cost_control_block"' \
+            --project=jfk-vault \
+            --freshness=24h \
+            --limit=10000 \
+            --format=json \
+            > "$blocks_json"
+
+          gcloud logging read \
+            'resource.type="cloud_run_revision" AND resource.labels.service_name="jfk-research-center" AND jsonPayload.event="cost_control_rate_limit"' \
+            --project=jfk-vault \
+            --freshness=24h \
+            --limit=10000 \
+            --format=json \
+            > "$limits_json"
+
+          bq query \
+            --project_id=jfk-vault \
+            --location=US \
+            --use_legacy_sql=false \
+            --format=json \
+            < sql/92_cost_guardrail_daily_summary.sql \
+            > "$jobs_json"
+
+          echo "blocks=$(jq 'length' "$blocks_json")" >> "$GITHUB_OUTPUT"
+          echo "rate_limits=$(jq 'length' "$limits_json")" >> "$GITHUB_OUTPUT"
+          echo "blocks_json=$blocks_json" >> "$GITHUB_OUTPUT"
+          echo "jobs_json=$jobs_json" >> "$GITHUB_OUTPUT"
+
+      - name: Publish report
+        env:
+          BLOCKS: ${{ steps.signals.outputs.blocks }}
+          BLOCKS_JSON: ${{ steps.signals.outputs.blocks_json }}
+          JOBS_JSON: ${{ steps.signals.outputs.jobs_json }}
+          RATE_LIMITS: ${{ steps.signals.outputs.rate_limits }}
+          READY: ${{ steps.service.outputs.ready }}
+          REVISION: ${{ steps.service.outputs.revision }}
+          TRAFFIC: ${{ steps.service.outputs.traffic }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          read_metric() {
+            local period="$1"
+            local field="$2"
+            jq -r --arg period "$period" --arg field "$field" \
+              'map(select(.period == $period))[0][$field] // 0' \
+              "$JOBS_JSON"
+          }
+
+          percent_change() {
+            awk -v current="$1" -v previous="$2" \
+              'BEGIN {
+                if (previous == 0) {
+                  print current == 0 ? "0.0%" : "n/a"
+                } else {
+                  printf "%+.1f%%", ((current - previous) / previous) * 100
+                }
+              }'
+          }
+
+          current_jobs="$(read_metric current_24h query_jobs)"
+          previous_jobs="$(read_metric previous_24h query_jobs)"
+          current_gib="$(read_metric current_24h billed_gib)"
+          previous_gib="$(read_metric previous_24h billed_gib)"
+          app_jobs="$(read_metric current_24h app_query_jobs)"
+          app_gib="$(read_metric current_24h app_billed_gib)"
+          job_delta="$(percent_change "$current_jobs" "$previous_jobs")"
+          gib_delta="$(percent_change "$current_gib" "$previous_gib")"
+
+          {
+            echo "# JFK 24-hour cost-control report"
+            echo
+            echo "Generated: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            echo
+            echo "| Signal | Current | Previous 24h | Change |"
+            echo "| --- | ---: | ---: | ---: |"
+            echo "| BigQuery jobs | $current_jobs | $previous_jobs | $job_delta |"
+            echo "| Billed GiB | $current_gib | $previous_gib | $gib_delta |"
+            echo "| App-labeled jobs | $app_jobs | — | — |"
+            echo "| App-labeled billed GiB | $app_gib | — | — |"
+            echo "| Automated requests blocked | $BLOCKS | — | — |"
+            echo "| Requests rate-limited | $RATE_LIMITS | — | — |"
+            echo
+            echo "## Production"
+            echo
+            echo "- Revision: \`$REVISION\`"
+            echo "- Ready: \`$READY\`"
+            echo "- Traffic on ready revisions: \`$TRAFFIC%\`"
+            echo
+            echo "## Block reasons"
+            echo
+            if [ "$BLOCKS" -eq 0 ]; then
+              echo "No automated-request blocks were logged in this window."
+            else
+              jq -r \
+                'group_by(.jsonPayload.reason // "unknown")[] |
+                 "- `\(.[0].jsonPayload.reason // "unknown")`: \(length)"' \
+                "$BLOCKS_JSON"
+            fi
+            echo
+            echo "> Cache hits and coalesced searches do not create BigQuery jobs."
+            echo "> Log counts are capped at 10,000 entries per signal."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if awk -v current="$current_gib" -v previous="$previous_gib" \
+            'BEGIN { exit !(previous > 0 && current > previous) }'; then
+            echo "::warning title=JFK BigQuery usage increased::Billed GiB rose from $previous_gib to $current_gib ($gib_delta)."
+          fi
+          if [ "$BLOCKS" -ge 10000 ] || [ "$RATE_LIMITS" -ge 10000 ]; then
+            echo "::warning title=JFK log count truncated::At least one signal reached the 10,000-entry reporting cap."
+          fi
