@@ -86,7 +86,7 @@ function HomepageHero() {
           <div className={styles.searchWrap}>
             <SearchBar
               size="lg"
-              placeholder="Search by person, agency, place, event, or NAID"
+              placeholder="Name, topic, NAID"
             />
           </div>
 
