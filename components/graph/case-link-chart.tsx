@@ -1051,6 +1051,9 @@ export function CaseLinkChart({
           color: var(--text-muted);
           font-variant-numeric: tabular-nums;
         }
+        .case-link-type[data-active="true"] .case-link-type-count {
+          color: var(--text);
+        }
         .case-link-stats {
           display: grid;
           gap: 2px;

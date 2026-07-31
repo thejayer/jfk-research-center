@@ -559,9 +559,8 @@ export function ZoomableTimeline({ data }: { data: CaseTimelineIndex }) {
         <svg
           ref={svgRef}
           viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-          role="img"
+          role="group"
           aria-label="Zoomable JFK case timeline"
-          tabIndex={0}
           style={{
             width: "100%",
             height: "auto",
