@@ -21,7 +21,17 @@ const mode = requestedBase ? "external" : "local-mock";
 
 const VIEWPORTS = [
   { name: "desktop", width: 1280, height: 900 },
-  { name: "mobile", width: 390, height: 844 },
+  {
+    name: "mobile",
+    width: 390,
+    height: 844,
+    contextOptions: {
+      isMobile: true,
+      hasTouch: true,
+      userAgent:
+        "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36",
+    },
+  },
 ];
 
 const ROUTES = [
@@ -97,6 +107,7 @@ try {
   for (const viewport of VIEWPORTS) {
     const context = await browser.newContext({
       viewport: { width: viewport.width, height: viewport.height },
+      ...(viewport.contextOptions ?? {}),
     });
 
     try {
@@ -119,7 +130,7 @@ try {
 
         try {
           await page.goto(scenario.url, {
-            waitUntil: "networkidle",
+            waitUntil: "load",
             timeout: 45_000,
           });
           await page
@@ -417,9 +428,15 @@ async function trayFocusAssertions(page) {
   });
 
   await page.keyboard.press("Shift+Tab");
-  const wrappedToLast = await page.evaluate(
-    () => document.activeElement?.textContent?.trim() === "Start with search",
-  );
+  const wrappedToLast = await dialog.evaluate((element) => {
+    const focusable = element.querySelectorAll(
+      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    return (
+      focusable.length > 0 &&
+      document.activeElement === focusable[focusable.length - 1]
+    );
+  });
   assertions.push({
     name: "tray-shift-tab-wraps-to-last-control",
     passed: wrappedToLast,
