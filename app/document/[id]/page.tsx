@@ -14,7 +14,6 @@ import { DocumentTimelineBridge } from "@/components/documents/document-timeline
 import { RelatedEntities } from "@/components/entities/related-entities";
 import { EntityDocumentList } from "@/components/entities/entity-document-list";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { SaveResearchButton } from "@/components/research/save-research-button";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 import { RelatedMediaPanel } from "@/components/media/related-media-panel";
@@ -64,15 +63,8 @@ export default async function DocumentPage({
   const returnHref = parseReturnHref(resolvedSearchParams.from);
   const releaseHistory = data.document.releaseHistory ?? [];
   const hasReleaseHistory = releaseHistory.length > 0;
-  const hasResearchContext =
-    data.relatedTopics.length > 0 ||
-    data.relatedEntities.length > 0 ||
-    data.mentions.length > 0 ||
-    data.relatedDocuments.length > 0;
   const hasRelatedEntities = data.relatedEntities.length > 0;
   const hasRelatedDocuments = data.relatedDocuments.length > 0;
-  const hasTimelineEvents = timelineEvents.length > 0;
-  const sourceHref = data.document.digitalObjectUrl || data.document.sourceUrl;
   const researchItem: SavedResearchInput = {
     type: "document",
     sourceId: data.document.id,
@@ -122,10 +114,42 @@ export default async function DocumentPage({
         <TrustStatusStrip doc={data.document} />
       </div>
 
-      <div className={styles.supportStack}>
-        {hasReleaseHistory && (
+      {hasReleaseHistory && (
+        <div className={styles.supportStack}>
           <ReleaseHistory entries={releaseHistory} />
-        )}
+        </div>
+      )}
+
+      <div className={styles.workspaceGrid}>
+        <div className={styles.readerStack}>
+          <OcrPanel doc={data.document} mentions={data.mentions} />
+        </div>
+
+        <aside className={styles.readerAside}>
+          <div id="source">
+            <SourceLinks doc={data.document} />
+          </div>
+          <div id="metadata">
+            <MetadataPanel doc={data.document} />
+          </div>
+          <DocumentReadingGuide guide={readingGuide} />
+        </aside>
+      </div>
+
+      <div
+        className={styles.secondaryStack}
+        role="region"
+        aria-label="Research beyond this record"
+      >
+        <div className={styles.secondaryIntro}>
+          <div className="eyebrow">Research beyond this record</div>
+          <p className="muted">
+            These scoped tools and relationships follow the transcript so the
+            archival text remains the primary reading task.
+          </p>
+        </div>
+
+        <DocumentAskPanel doc={data.document} mentions={data.mentions} />
 
         <DocumentResearchContext
           doc={data.document}
@@ -142,306 +166,28 @@ export default async function DocumentPage({
           title="Official media tied to this record"
           description="JFK Library media records connected through the same topic or entity relationships as this document."
         />
-      </div>
 
-      <div
-        className={styles.workspaceGrid}
-      >
-        <div className={styles.readerStack}>
-          <DocumentAskPanel doc={data.document} mentions={data.mentions} />
+        {hasRelatedEntities && (
+          <section id="related-entities" aria-label="Related entities">
+            <SectionHeading
+              eyebrow="Entities"
+              title="Mentioned in this record"
+            />
+            <RelatedEntities entities={data.relatedEntities} />
+          </section>
+        )}
 
-          <OcrPanel doc={data.document} mentions={data.mentions} />
-
-          {hasRelatedEntities && (
-            <section id="related-entities" aria-label="Related entities">
-              <SectionHeading
-                eyebrow="Entities"
-                title="Mentioned in this record"
-              />
-              <RelatedEntities entities={data.relatedEntities} />
-            </section>
-          )}
-
-          {hasRelatedDocuments && (
-            <section id="related-records" aria-label="Related documents">
-              <SectionHeading
-                eyebrow="Related records"
-                title="Appear in the same topics or entities"
-              />
-              <EntityDocumentList documents={data.relatedDocuments} />
-            </section>
-          )}
-        </div>
-
-        <aside
-          className={styles.readerAside}
-        >
-          <DocumentJumpNav
-            returnHref={returnHref}
-            hasResearchContext={hasResearchContext}
-            hasReleaseHistory={hasReleaseHistory}
-            hasTimelineEvents={hasTimelineEvents}
-            hasRelatedEntities={hasRelatedEntities}
-            hasRelatedDocuments={hasRelatedDocuments}
-          />
-          <DocumentReaderActions
-            saveItem={researchItem}
-            naid={data.document.naid}
-            title={data.document.title}
-            pageCount={data.document.pageCount}
-            chunkCount={data.document.chunkCount}
-            hasOcr={data.document.hasOcr}
-            citation={data.document.citation}
-            sourceHref={sourceHref}
-          />
-          <DocumentReadingGuide guide={readingGuide} />
-          <div id="metadata">
-            <MetadataPanel doc={data.document} />
-          </div>
-          <div id="source">
-            <SourceLinks doc={data.document} />
-          </div>
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function DocumentJumpNav({
-  returnHref,
-  hasResearchContext,
-  hasReleaseHistory,
-  hasTimelineEvents,
-  hasRelatedEntities,
-  hasRelatedDocuments,
-}: {
-  returnHref: string | null;
-  hasResearchContext: boolean;
-  hasReleaseHistory: boolean;
-  hasTimelineEvents: boolean;
-  hasRelatedEntities: boolean;
-  hasRelatedDocuments: boolean;
-}) {
-  const links = [
-    hasReleaseHistory ? { href: "#release-history", label: "Release history" } : null,
-    hasResearchContext ? { href: "#research-context", label: "Research context" } : null,
-    hasTimelineEvents ? { href: "#timeline-moments", label: "Timeline moments" } : null,
-    { href: "#ask-this-document", label: "Ask this document" },
-    { href: "#ocr-text", label: "OCR text" },
-    hasRelatedEntities ? { href: "#related-entities", label: "Entities" } : null,
-    hasRelatedDocuments ? { href: "#related-records", label: "Related records" } : null,
-    { href: "#metadata", label: "Metadata" },
-    { href: "#source", label: "Source" },
-  ].filter(Boolean) as Array<{ href: string; label: string }>;
-
-  return (
-    <nav
-      aria-label="Document sections"
-      className={styles.jumpNav}
-    >
-      <div className="eyebrow" style={{ marginBottom: 10 }}>
-        On this record
-      </div>
-      <ul className={styles.jumpList}>
-        {links.map((link) => (
-          <li key={link.href}>
-            <a
-              href={link.href}
-              className={styles.jumpLink}
-            >
-              <span>{link.label}</span>
-              <ArrowDownIcon />
-            </a>
-          </li>
-        ))}
-      </ul>
-      {returnHref && (
-        <Link
-          href={returnHref}
-          className={styles.returnLink}
-        >
-          Back to results
-        </Link>
-      )}
-    </nav>
-  );
-}
-
-function DocumentReaderActions({
-  saveItem,
-  naid,
-  title,
-  pageCount,
-  chunkCount,
-  hasOcr,
-  citation,
-  sourceHref,
-}: {
-  saveItem: SavedResearchInput;
-  naid: string;
-  title: string;
-  pageCount?: number | null;
-  chunkCount?: number | null;
-  hasOcr?: boolean;
-  citation?: string | null;
-  sourceHref?: string | null;
-}) {
-  const encodedTitle = encodeURIComponent(title);
-  const actions = [
-    sourceHref
-      ? {
-          href: sourceHref,
-          label: "Open source",
-          detail: "Archive scan or catalog",
-          external: true,
-        }
-      : null,
-    {
-      href: `/search?q=${encodedTitle}&mode=document`,
-      label: "Search title",
-      detail: "Find matching records",
-      external: false,
-    },
-    {
-      href: `/search?q=${encodeURIComponent(naid)}&mode=document`,
-      label: "Search NAID",
-      detail: naid,
-      external: false,
-    },
-    hasOcr
-      ? {
-          href: "#ocr-text",
-          label: "Read OCR",
-          detail: formatDocumentMeasure(pageCount, chunkCount),
-          external: false,
-        }
-      : null,
-    citation
-      ? {
-          href: "#source",
-          label: "Copy citation",
-          detail: "Available in source tools",
-          external: false,
-        }
-      : null,
-  ].filter(Boolean) as Array<{
-    href: string;
-    label: string;
-    detail: string;
-    external: boolean;
-  }>;
-
-  return (
-    <section
-      aria-label="Reader actions"
-      className={styles.readerActions}
-    >
-      <div className="eyebrow" style={{ marginBottom: 10 }}>
-        Reader actions
-      </div>
-      <div className={styles.saveWrap}>
-        <SaveResearchButton item={saveItem} compact />
-      </div>
-      <div className={styles.readerActionGrid}>
-        {actions.map((action) =>
-          action.external ? (
-            <a
-              key={action.label}
-              href={action.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.readerAction}
-            >
-              <ReaderActionContent label={action.label} detail={action.detail} />
-            </a>
-          ) : (
-            <Link key={action.label} href={action.href} className={styles.readerAction}>
-              <ReaderActionContent label={action.label} detail={action.detail} />
-            </Link>
-          ),
+        {hasRelatedDocuments && (
+          <section id="related-records" aria-label="Related documents">
+            <SectionHeading
+              eyebrow="Related records"
+              title="Appear in the same topics or entities"
+            />
+            <EntityDocumentList documents={data.relatedDocuments} />
+          </section>
         )}
       </div>
-    </section>
-  );
-}
-
-function ReaderActionContent({
-  label,
-  detail,
-}: {
-  label: string;
-  detail: string;
-}) {
-  return (
-    <>
-      <span className={styles.readerActionText}>
-        <span className={styles.readerActionLabel}>
-          {label}
-        </span>
-        <span className={`muted ${styles.readerActionDetail}`}>
-          {detail}
-        </span>
-      </span>
-      <ArrowRightIcon />
-    </>
-  );
-}
-
-function formatDocumentMeasure(
-  pageCount?: number | null,
-  chunkCount?: number | null,
-): string {
-  const parts = [];
-  if (pageCount) parts.push(`${pageCount.toLocaleString()} pages`);
-  if (chunkCount) parts.push(`${chunkCount.toLocaleString()} chunks`);
-  return parts.length > 0 ? parts.join(" / ") : "OCR text";
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-      style={{ color: "var(--text-muted)", flexShrink: 0 }}
-    >
-      <path
-        d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ArrowDownIcon() {
-  return (
-    <svg
-      width="14"
-      height="14"
-      viewBox="0 0 16 16"
-      fill="none"
-      aria-hidden="true"
-      style={{ color: "var(--text-muted)", flexShrink: 0 }}
-    >
-      <path
-        d="M8 3.5v8"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M4.75 8.75 8 12l3.25-3.25"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    </div>
   );
 }
 

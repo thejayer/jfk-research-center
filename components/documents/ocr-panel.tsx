@@ -17,10 +17,12 @@ export function OcrPanel({
       <section
         className={`${styles.ocrPanel} ${styles.ocrEmpty}`}
         id="ocr-text"
+        aria-labelledby="ocr-text-title"
       >
-        <div className="eyebrow" style={{ marginBottom: 8 }}>
-          OCR / Extracted Text
-        </div>
+        <div className="eyebrow">Document transcript</div>
+        <h2 id="ocr-text-title" className={styles.ocrTitle}>
+          OCR / Extracted text
+        </h2>
         <p className="muted" style={{ fontSize: "0.95rem", maxWidth: "56ch" }}>
           This record does not have OCR text available. It may be a
           photograph, still image, or unprocessed holding; consult the
@@ -37,12 +39,14 @@ export function OcrPanel({
     <section
       className={`${styles.ocrPanel} ocr-panel-section`}
       id="ocr-text"
+      aria-labelledby="ocr-text-title"
     >
       <div className={styles.ocrHeader}>
         <div>
-          <div className="eyebrow" style={{ marginBottom: 4 }}>
+          <div className="eyebrow">Document transcript</div>
+          <h2 id="ocr-text-title" className={styles.ocrTitle}>
             OCR reader
-          </div>
+          </h2>
           <div className="muted" style={{ fontSize: "0.84rem" }}>
             Machine-generated text; may contain transcription errors.
           </div>
