@@ -66,6 +66,8 @@ export default async function SearchPage({
   });
   const groupCounts = buildSearchGroupCounts(response, mediaResults.length);
   const trimmedQuery = q.trim();
+  const hasSearchCriteria =
+    Boolean(trimmedQuery) || hasSelectedFilters(filters);
 
   return (
     <div className={styles.page}>
@@ -83,17 +85,22 @@ export default async function SearchPage({
           }}
         />
       )}
-      <div className="container">
-        <SearchHero
-          q={q}
-          mode={effectiveMode}
-          group={group}
-          total={response.total}
-          manifest={manifest}
-        />
-      </div>
+      {!hasSearchCriteria && (
+        <div className="container">
+          <SearchHero
+            mode={effectiveMode}
+            group={group}
+            total={response.total}
+            manifest={manifest}
+          />
+        </div>
+      )}
 
-      <div className={styles.commandBand}>
+      <div
+        className={`${styles.commandBand} ${
+          hasSearchCriteria ? styles.commandBandQueried : ""
+        }`}
+      >
         <div className={`container ${styles.commandInner}`}>
           <SearchBar autoFocus />
           <ModeTabs
@@ -106,12 +113,16 @@ export default async function SearchPage({
         </div>
       </div>
 
-      <div className={`container ${styles.scopeWrap}`}>
-        <ScopeBanner manifest={manifest} />
-      </div>
+      {!hasSearchCriteria && (
+        <div className={`container ${styles.scopeWrap}`}>
+          <ScopeBanner manifest={manifest} />
+        </div>
+      )}
 
       <div
-        className={`container ${styles.workspace}`}
+        className={`container ${styles.workspace} ${
+          hasSearchCriteria ? styles.workspaceQueried : ""
+        }`}
       >
           <div
             className={styles.layout}
@@ -135,6 +146,7 @@ export default async function SearchPage({
                 mode={effectiveMode}
                 total={response.total}
                 manifest={manifest}
+                hasSearchCriteria={hasSearchCriteria}
               />
               {(q || hasSelectedFilters(filters)) && (
                 <SearchGroupTabs
@@ -269,19 +281,16 @@ function buildSearchGroupCounts(
 }
 
 function SearchHero({
-  q,
   mode,
   group,
   total,
   manifest,
 }: {
-  q: string;
   mode: import("@/lib/search").SearchMode;
   group: SearchGroup;
   total: number;
   manifest: import("@/lib/api-types").CorpusManifest;
 }) {
-  const query = q.trim();
   const quickLinks = [
     ["Oswald", "/search?q=Oswald"],
     ["Mexico City", "/search?q=Mexico+City"],
@@ -298,13 +307,7 @@ function SearchHero({
             <span className="eyebrow">Archive search</span>
           </div>
           <h1 className={styles.heroTitle}>
-            {query ? (
-              <>
-                Search results for <mark>{query}</mark>
-              </>
-            ) : (
-              "Search the JFK record."
-            )}
+            Search the JFK record.
           </h1>
           <p className={styles.heroLead}>
             Use document, passage, semantic, entity, topic, media, timeline,
@@ -880,13 +883,17 @@ function ResultHeading({
   mode,
   total,
   manifest,
+  hasSearchCriteria,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
   total: number;
   manifest: import("@/lib/api-types").CorpusManifest;
+  hasSearchCriteria: boolean;
 }) {
-  if (!q) {
+  const query = q.trim();
+
+  if (!hasSearchCriteria) {
     return (
       <div className={styles.emptyHeadingBlock}>
         <div
@@ -895,9 +902,9 @@ function ResultHeading({
         >
           Ready to search
         </div>
-        <h1 className={styles.emptyTitle}>
+        <h2 className={styles.emptyTitle}>
           Search the release by person, agency, phrase, date, or record number.
-        </h1>
+        </h2>
         <div className={styles.archiveStatGrid}>
           <ArchiveStat label="OCR records" value={manifest.recordsWithOcr} />
           <ArchiveStat label="OCR passages" value={manifest.ocrPassages} />
@@ -924,11 +931,20 @@ function ResultHeading({
         | {formatNumber(total)}
       </div>
       <h1 className={styles.resultTitle}>
-        Results for{" "}
-        <mark>
-          {q}
-        </mark>
+        {query ? (
+          <>
+            Results for <mark>{query}</mark>
+          </>
+        ) : (
+          "Filtered search results"
+        )}
       </h1>
+      <p className={styles.resultScope}>
+        {formatNumber(total)} {formatModeLabel(mode).toLowerCase()} matches
+        within {formatNumber(manifest.totalRecords)} indexed records
+        {" · "}
+        {formatNumber(manifest.recordsWithOcr)} records include searchable OCR.
+      </p>
     </div>
   );
 }

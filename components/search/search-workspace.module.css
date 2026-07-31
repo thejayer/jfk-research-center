@@ -181,11 +181,21 @@
   -webkit-backdrop-filter: saturate(1.15) blur(10px);
 }
 
+.commandBandQueried {
+  margin-top: 0;
+}
+
 .commandInner {
   display: grid;
   gap: 12px;
   padding-top: 16px;
   padding-bottom: 16px;
+}
+
+.commandBandQueried .commandInner {
+  gap: 8px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 .modeTabs {
@@ -244,6 +254,10 @@
   margin-bottom: 80px;
 }
 
+.workspaceQueried {
+  margin-top: 18px;
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -277,16 +291,16 @@
 
 .groupTabs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
-  gap: 8px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 108px), 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .groupTab {
-  display: grid;
-  min-height: 76px;
-  gap: 4px;
-  padding: 10px 12px;
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
@@ -314,6 +328,7 @@
 
 .groupTabHead {
   display: flex;
+  width: 100%;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
@@ -325,9 +340,7 @@
 }
 
 .groupTabDetail {
-  color: var(--text-muted);
-  font-size: 0.74rem;
-  line-height: 1.35;
+  display: none;
 }
 
 .groupTabActive .groupTabDetail {
@@ -335,7 +348,7 @@
 }
 
 .headingBlock {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .emptyHeadingBlock {
@@ -355,6 +368,14 @@
   color: var(--accent);
   border-radius: 4px;
   padding: 0 6px;
+}
+
+.resultScope {
+  max-width: 72ch;
+  margin: 7px 0 0;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .emptyTitle {
@@ -798,6 +819,50 @@
     flex-basis: 100%;
     margin-left: 0;
     padding-top: 4px;
+  }
+
+  .commandBandQueried .modeTotal {
+    flex-basis: auto;
+    margin-left: auto;
+    padding: 0 6px;
+  }
+
+  .workspaceQueried {
+    margin-top: 14px;
+  }
+
+  .workspaceQueried .layout {
+    gap: 0;
+  }
+
+  .workspaceQueried .headingBlock {
+    margin-bottom: 10px;
+  }
+
+  .workspaceQueried .resultTitle {
+    font-size: 1.35rem;
+  }
+
+  .workspaceQueried .resultScope {
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .workspaceQueried .triage {
+    display: none;
+  }
+
+  .groupTabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .groupTab {
+    min-height: 40px;
+    padding: 7px 8px;
+  }
+
+  .groupTabLabel {
+    font-size: 0.8rem;
   }
 
   .mediaHeader {
