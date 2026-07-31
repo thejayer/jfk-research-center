@@ -48,12 +48,20 @@ function MastheadStrip() {
           overflow: "hidden",
         }}
       >
-        <span>JFK Assassination Records Collection / U.S. National Archives</span>
+        <span className="masthead-collection-label">
+          <span className="masthead-collection-label-long">
+            JFK Assassination Records Collection / U.S. National Archives
+          </span>
+          <span className="masthead-collection-label-short">
+            JFK records / NARA
+          </span>
+        </span>
         <span
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: 16,
+            flexShrink: 0,
           }}
         >
           <span className="masthead-release-note">
@@ -82,7 +90,19 @@ function MastheadStrip() {
         </span>
       </div>
       <style>{`
+        .masthead-collection-label-short {
+          display: none;
+        }
+
         @media (max-width: 720px) {
+          .masthead-collection-label-long {
+            display: none;
+          }
+
+          .masthead-collection-label-short {
+            display: inline;
+          }
+
           .masthead-release-note {
             display: none;
           }
