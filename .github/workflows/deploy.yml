@@ -25,7 +25,7 @@ jobs:
       - run: npx tsc --noEmit
 
   deploy:
-    needs: typecheck
+    needs: [typecheck, axe]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -59,7 +59,7 @@ jobs:
             --quiet
 
   axe:
-    needs: deploy
+    needs: typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -81,12 +81,14 @@ jobs:
       - name: Install Playwright system deps (cache hit path)
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: npx playwright-core install-deps chromium
-      - name: Run axe-core audit against deployed site
-        run: node scripts/axe-audit.mjs "https://researchjfk.ai"
-      - name: Upload axe report
+      - name: Run accessibility and responsive regression gate
+        run: npm run audit:a11y
+      - name: Upload accessibility regression report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: axe-report
-          path: axe-report.json
+          name: accessibility-regression-report
+          path: |
+            axe-report.json
+            axe-artifacts/
           if-no-files-found: warn

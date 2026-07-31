@@ -1074,8 +1074,11 @@ a.surface-card:focus-visible,
 }
 .oq-status-partially_resolved {
   background: color-mix(in srgb, #d97706 14%, transparent);
-  color: #b45309;
+  color: #92400e;
   border: 1px solid color-mix(in srgb, #d97706 40%, transparent);
+}
+[data-theme="dark"] .oq-status-partially_resolved {
+  color: #fbbf24;
 }
 .oq-status-resolved {
   background: color-mix(in srgb, var(--accent) 14%, transparent);

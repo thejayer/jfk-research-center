@@ -14,3 +14,4 @@ __pycache__/
 .idea/
 .vscode/
 axe-report.json
+axe-artifacts/
