@@ -10,8 +10,10 @@ vi.mock("next/headers", () => ({
 }));
 
 import {
+  ApiRequestError,
   buildInternalFetchHeaders,
   fetchMediaAsset,
+  fetchSearch,
 } from "../api-client";
 import {
   JFK_INTERNAL_REQUEST_MARKER_HEADER,
@@ -77,6 +79,49 @@ describe("api-client media helpers", () => {
     );
 
     await expect(fetchMediaAsset("missing-media")).resolves.toBeNull();
+  });
+});
+
+describe("api-client search errors", () => {
+  beforeEach(() => {
+    vi.stubEnv("JFK_API_BASE_URL", "");
+    nextHeaders.headers.mockResolvedValue(new Headers({ host: "example.test" }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it("throws a typed error when warehouse search returns 503", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: "warehouse search failed" }, { status: 503 }),
+      ),
+    );
+
+    await expect(fetchSearch("oswald")).rejects.toMatchObject({
+      name: "ApiRequestError",
+      status: 503,
+      path: "/api/search?q=oswald",
+    });
+    await expect(fetchSearch("oswald")).rejects.toBeInstanceOf(ApiRequestError);
+  });
+
+  it("throws on a 500 warehouse failure so the search page can render a fallback", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ error: "warehouse search failed" }, { status: 500 }),
+      ),
+    );
+
+    await expect(fetchSearch("")).rejects.toMatchObject({
+      status: 500,
+      path: "/api/search",
+    });
   });
 });
 

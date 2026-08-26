@@ -103,6 +103,7 @@ import {
   topicToCard as mockTopicToCard,
 } from "./mock-data";
 import { normalizeSourceUrl } from "./source-urls";
+import { isBigQueryBytesBilledExceeded } from "./bigquery-errors";
 import {
   isArchiveIdentifierQuery,
   readBigQueryMaximumBytesBilled,
@@ -117,11 +118,34 @@ import {
   semanticCandidateLimit,
   SEARCH_FACET_YEAR_BOUNDS,
 } from "./search-facets";
+import { aggregateQuerySearchFacets } from "./search-facet-aggregates";
+import type { SearchFacetDocument } from "./search-facet-aggregates";
+import {
+  buildCorpusAgencyFacetSql,
+  buildCorpusEntityFacetSql,
+  buildCorpusTopicFacetSql,
+  buildCorpusYearFacetSql,
+  buildDocumentSearchCountSql,
+  buildDocumentSearchSql,
+  buildEntityMembershipSql,
+  buildFilterOnlyDocumentsSql,
+  buildOcrHitDocumentIdSql,
+  buildOcrSnippetSql,
+  buildQueryMatchedDocumentsSql,
+  buildTopicMembershipSql,
+  type TopicTableRef,
+  type WarehouseTableRef,
+} from "./warehouse-search-sql";
 
 const PROJECT = process.env.JFK_BQ_PROJECT || "jfk-vault";
 const DATASET_CURATED = "jfk_curated";
 const DATASET_MVP = "jfk_mvp";
 const DATA_SOURCE = process.env.JFK_DATA_SOURCE?.toLowerCase();
+const WAREHOUSE_TABLES: WarehouseTableRef = {
+  project: PROJECT,
+  curatedDataset: DATASET_CURATED,
+  mvpDataset: DATASET_MVP,
+};
 
 function useMockData(): boolean {
   return DATA_SOURCE === "mock";
@@ -140,14 +164,29 @@ async function query<T = Record<string, unknown>>(
   params: Record<string, unknown> = {},
 ): Promise<T[]> {
   const maximumBytesBilled = readBigQueryMaximumBytesBilled();
+  const types = bigQueryParamTypes(params);
   const [rows] = await bq().query({
     query: sql,
     params,
     location: "US",
     labels: warehouseJobLabels(),
+    ...(types ? { types } : {}),
     ...(maximumBytesBilled ? { maximumBytesBilled } : {}),
   });
   return rows as T[];
+}
+
+/** Empty arrays need an explicit BigQuery type or the job is rejected. */
+function bigQueryParamTypes(
+  params: Record<string, unknown>,
+): Record<string, string | string[]> | undefined {
+  const types: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value) && value.length === 0) {
+      types[key] = ["STRING"];
+    }
+  }
+  return Object.keys(types).length > 0 ? types : undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -624,6 +663,13 @@ const TOPIC_DISPLAY_ORDER = [
 const MVP_QUERYABLE_TOPIC_SLUGS = TOPIC_DISPLAY_ORDER.filter(
   (s) => s !== "physical-evidence",
 );
+
+function queryableTopicTables(): TopicTableRef[] {
+  return MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => ({
+    slug,
+    table: TOPIC_CATALOG[slug]!.mvpTable,
+  }));
+}
 
 // ---------------------------------------------------------------------------
 // HOME
@@ -1492,6 +1538,7 @@ async function fetchSearchUncached({
   const params: Record<string, unknown> = {
     qNorm,
     qLike: qNorm ? `%${qNorm.toLowerCase()}%` : "%",
+    ocrHitIds: [] as string[],
   };
 
   const where: string[] = [];
@@ -1532,48 +1579,25 @@ async function fetchSearchUncached({
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  // Shared CTE: compute per-doc match_confidence based on where the query
-  // landed — title (high) > description (medium) > OCR chunks (low). The
-  // results query and the total-count query both read from `scored`.
-  const cteSql = `
-    WITH doc_with_ocr_hit AS (
-      SELECT document_id, ANY_VALUE(chunk_text) AS hit_text
-        FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
-       WHERE source_type IN ('abbyy_ocr', 'docai_ocr') AND @qNorm != '' AND LOWER(chunk_text) LIKE @qLike
-       GROUP BY document_id
-    ),
-    scored AS (
-      SELECT r.*, o.hit_text AS ocr_hit_text,
-        CASE
-          WHEN @qNorm = '' THEN CAST(NULL AS STRING)
-          WHEN LOWER(r.title) LIKE @qLike THEN 'high'
-          WHEN LOWER(r.description) LIKE @qLike THEN 'medium'
-          WHEN o.document_id IS NOT NULL THEN 'low'
-        END AS match_confidence
-      FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-      LEFT JOIN doc_with_ocr_hit o USING (document_id)
-    )
-  `;
+  const ocrHitIds = qNorm ? await fetchOcrHitDocumentIds(params.qLike as string) : [];
+  params.ocrHitIds = ocrHitIds;
 
   const [results, filterData] = await Promise.all([
     query<
       RecordRow & {
-        ocr_hit_text: string | null;
         match_confidence: ConfidenceLevel | null;
         total_count: number;
       }
     >(
-      `${cteSql}
-       SELECT scored.*, COUNT(*) OVER() AS total_count FROM scored
-       ${whereSql}
-       ORDER BY
-         CASE match_confidence WHEN 'high' THEN 0 WHEN 'medium' THEN 1 WHEN 'low' THEN 2 ELSE 3 END,
-         start_date DESC NULLS LAST
-       LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+      buildDocumentSearchSql(
+        WAREHOUSE_TABLES,
+        whereSql,
+        Number(limit),
+        Number(offset),
+      ),
       params,
     ),
-    loadSearchFacets(qNorm, filters),
+    loadSearchFacets(qNorm, filters, ocrHitIds),
   ]);
 
   const total =
@@ -1581,16 +1605,20 @@ async function fetchSearchUncached({
     (offset > 0
       ? (
           await query<{ n: number }>(
-            `${cteSql}
-             SELECT COUNT(*) AS n FROM scored ${whereSql}`,
+            buildDocumentSearchCountSql(WAREHOUSE_TABLES, whereSql),
             params,
           )
         )[0]?.n ?? 0
       : 0);
 
+  const snippets = await fetchOcrSnippets(
+    results.map((row) => row.document_id),
+    params.qLike as string,
+  );
+
   const docResults: SearchResult[] = results.map((r) => {
-    const snippet = r.ocr_hit_text
-      ? truncateAround(r.ocr_hit_text, [qNorm], 260)
+    const snippet = snippets.get(r.document_id)
+      ? truncateAround(snippets.get(r.document_id)!, [qNorm], 260)
       : undefined;
     return {
       kind: "document",
@@ -2180,27 +2208,116 @@ function cooccurrencePairKey(source: string, target: string): string {
   return `${source}--${target}`;
 }
 
-type SearchFacetCountRow = {
-  facet_group: "agency" | "year" | "entity" | "topic" | "confidence";
-  facet_value: string;
-  n: number;
-};
-
 let corpusSearchFacetsPromise: Promise<SearchFacetData> | null = null;
+let entityMembershipPromise: Promise<Map<string, string[]>> | null = null;
+let topicMembershipPromise: Promise<Map<string, string[]>> | null = null;
+
+async function fetchOcrHitDocumentIds(qLike: string): Promise<string[]> {
+  try {
+    const rows = await query<{ document_id: string }>(
+      buildOcrHitDocumentIdSql(WAREHOUSE_TABLES),
+      { qLike },
+    );
+    return rows.map((row) => row.document_id);
+  } catch (error) {
+    if (isBigQueryBytesBilledExceeded(error)) {
+      console.warn("[warehouse] OCR document-id scan skipped: bytes billed cap");
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function fetchOcrSnippets(
+  documentIds: string[],
+  qLike: string,
+): Promise<Map<string, string>> {
+  if (documentIds.length === 0 || qLike === "%") return new Map();
+  try {
+    const rows = await query<{ document_id: string; hit_text: string | null }>(
+      buildOcrSnippetSql(WAREHOUSE_TABLES),
+      { documentIds, qLike },
+    );
+    return new Map(
+      rows
+        .filter((row) => row.hit_text)
+        .map((row) => [row.document_id, row.hit_text as string]),
+    );
+  } catch (error) {
+    if (isBigQueryBytesBilledExceeded(error)) {
+      console.warn("[warehouse] OCR snippet scan skipped: bytes billed cap");
+      return new Map();
+    }
+    throw error;
+  }
+}
+
+async function loadEntityMembership(): Promise<Map<string, string[]>> {
+  if (!entityMembershipPromise) {
+    entityMembershipPromise = query<{ document_id: string; entity_id: string }>(
+      buildEntityMembershipSql(WAREHOUSE_TABLES),
+    )
+      .then((rows) => {
+        const membership = new Map<string, string[]>();
+        for (const row of rows) {
+          const list = membership.get(row.document_id) ?? [];
+          list.push(row.entity_id);
+          membership.set(row.document_id, list);
+        }
+        return membership;
+      })
+      .catch((error) => {
+        if (isBigQueryBytesBilledExceeded(error)) {
+          console.warn("[warehouse] entity membership scan skipped: bytes billed cap");
+          return new Map<string, string[]>();
+        }
+        entityMembershipPromise = null;
+        throw error;
+      });
+  }
+  return entityMembershipPromise;
+}
+
+async function loadTopicMembership(): Promise<Map<string, string[]>> {
+  if (!topicMembershipPromise) {
+    topicMembershipPromise = query<{ document_id: string; topic_slug: string }>(
+      buildTopicMembershipSql(WAREHOUSE_TABLES, queryableTopicTables()),
+    )
+      .then((rows) => {
+        const membership = new Map<string, string[]>();
+        for (const row of rows) {
+          const list = membership.get(row.document_id) ?? [];
+          list.push(row.topic_slug);
+          membership.set(row.document_id, list);
+        }
+        return membership;
+      })
+      .catch((error) => {
+        if (isBigQueryBytesBilledExceeded(error)) {
+          console.warn("[warehouse] topic membership scan skipped: bytes billed cap");
+          return new Map<string, string[]>();
+        }
+        topicMembershipPromise = null;
+        throw error;
+      });
+  }
+  return topicMembershipPromise;
+}
 
 async function loadSearchFacets(
   qNorm: string,
   filters: SearchFilterInput,
+  ocrHitIds?: string[],
 ): Promise<SearchFacetData> {
   if (searchFacetCountScope(qNorm, filters) !== "corpus") {
-    return querySearchFacets(qNorm, filters);
+    return querySearchFacets(qNorm, filters, ocrHitIds);
   }
 
   // The empty search page is common and its corpus distribution is stable for
   // the lifetime of a Cloud Run instance. Avoid paying for the same aggregate
   // on every visit; reset after a failure so a transient BQ error can recover.
   if (!corpusSearchFacetsPromise) {
-    corpusSearchFacetsPromise = querySearchFacets(qNorm, filters).catch((error) => {
+    corpusSearchFacetsPromise = queryCorpusSearchFacets().catch((error) => {
       corpusSearchFacetsPromise = null;
       throw error;
     });
@@ -2208,180 +2325,113 @@ async function loadSearchFacets(
   return corpusSearchFacetsPromise;
 }
 
-async function querySearchFacets(
-  qNorm: string,
-  filters: SearchFilterInput,
-): Promise<SearchFacetData> {
-  const params: Record<string, unknown> = {
-    qNorm,
-    qLike: qNorm ? `%${qNorm.toLowerCase()}%` : "%",
-  };
-  const where = ["(@qNorm = '' OR f.match_confidence IS NOT NULL)"];
+async function queryCorpusSearchFacets(): Promise<SearchFacetData> {
+  const [years, agencies, entityMeta, entityCountRows, topicCountRows] =
+    await Promise.all([
+      query<{ y: string; n: number }>(buildCorpusYearFacetSql(WAREHOUSE_TABLES)),
+      query<{ agency: string; n: number }>(
+        buildCorpusAgencyFacetSql(WAREHOUSE_TABLES),
+      ),
+      loadEntities(),
+      query<{ entity_id: string; n: number }>(
+        buildCorpusEntityFacetSql(WAREHOUSE_TABLES),
+      ),
+      query<{ slug: string; n: number }>(
+        buildCorpusTopicFacetSql(WAREHOUSE_TABLES, queryableTopicTables()),
+      ),
+    ]);
 
-  if (filters.agencies?.length) {
-    where.push("(f.facet_group = 'agency' OR f.agency IN UNNEST(@agencies))");
-    params.agencies = filters.agencies;
-  }
-  if (typeof filters.yearFrom === "number") {
-    where.push(
-      "(f.facet_group = 'year' OR EXTRACT(YEAR FROM f.start_date) >= @yearFrom)",
-    );
-    params.yearFrom = filters.yearFrom;
-  }
-  if (typeof filters.yearTo === "number") {
-    where.push(
-      "(f.facet_group = 'year' OR EXTRACT(YEAR FROM f.start_date) <= @yearTo)",
-    );
-    params.yearTo = filters.yearTo;
-  }
-  if (filters.entities?.length) {
-    where.push(`(f.facet_group = 'entity' OR EXISTS (
-      SELECT 1 FROM UNNEST(f.entity_ids) AS entity_id
-      WHERE entity_id IN UNNEST(@entities)
-    ))`);
-    params.entities = filters.entities;
-  }
-  if (filters.topics?.length) {
-    where.push(`(f.facet_group = 'topic' OR EXISTS (
-      SELECT 1 FROM UNNEST(f.topic_slugs) AS topic_slug
-      WHERE topic_slug IN UNNEST(@topics)
-    ))`);
-    params.topics = filters.topics;
-  }
-  if (filters.confidence?.length) {
-    where.push(
-      "(f.facet_group = 'confidence' OR f.match_confidence IN UNNEST(@confidences))",
-    );
-    params.confidences = filters.confidence;
-  }
-
-  const topicMembershipUnion = MVP_QUERYABLE_TOPIC_SLUGS.map(
-    (slug) =>
-      `SELECT document_id, '${slug}' AS topic_slug
-         FROM \`${PROJECT}.${DATASET_MVP}.${TOPIC_CATALOG[slug]!.mvpTable}\``,
-  ).join(" UNION ALL ");
-  const ocrHitSql = qNorm
-    ? `SELECT document_id
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
-        WHERE source_type IN ('abbyy_ocr', 'docai_ocr')
-          AND LOWER(chunk_text) LIKE @qLike
-        GROUP BY document_id`
-    : "SELECT CAST(NULL AS STRING) AS document_id WHERE FALSE";
-
-  const [rows, entityMeta] = await Promise.all([
-    query<SearchFacetCountRow>(
-      `WITH doc_with_ocr_hit AS (
-         ${ocrHitSql}
-       ),
-       entity_membership AS (
-         SELECT document_id, ARRAY_AGG(DISTINCT entity_id) AS entity_ids
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
-          GROUP BY document_id
-       ),
-       topic_membership_rows AS (
-         ${topicMembershipUnion}
-       ),
-       topic_membership AS (
-         SELECT document_id, ARRAY_AGG(DISTINCT topic_slug) AS topic_slugs
-           FROM topic_membership_rows
-          GROUP BY document_id
-       ),
-       scored AS (
-         SELECT
-           r.document_id,
-           r.agency,
-           r.start_date,
-           IFNULL(e.entity_ids, ARRAY<STRING>[]) AS entity_ids,
-           IFNULL(t.topic_slugs, ARRAY<STRING>[]) AS topic_slugs,
-           CASE
-             WHEN @qNorm = '' THEN CAST(NULL AS STRING)
-             WHEN LOWER(r.title) LIKE @qLike THEN 'high'
-             WHEN LOWER(r.description) LIKE @qLike THEN 'medium'
-             WHEN o.document_id IS NOT NULL THEN 'low'
-           END AS match_confidence
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-         LEFT JOIN doc_with_ocr_hit o USING (document_id)
-         LEFT JOIN entity_membership e USING (document_id)
-         LEFT JOIN topic_membership t USING (document_id)
-       ),
-       facet_memberships AS (
-         SELECT s.*, f.facet_group, f.facet_value
-         FROM scored s
-         CROSS JOIN UNNEST(ARRAY_CONCAT(
-           IF(
-             s.agency IS NULL OR TRIM(s.agency) = '',
-             ARRAY<STRUCT<facet_group STRING, facet_value STRING>>[],
-             [STRUCT('agency' AS facet_group, s.agency AS facet_value)]
-           ),
-           IF(
-             s.start_date IS NULL OR
-               EXTRACT(YEAR FROM s.start_date) NOT BETWEEN
-                 ${SEARCH_FACET_YEAR_BOUNDS.min} AND ${SEARCH_FACET_YEAR_BOUNDS.max},
-             ARRAY<STRUCT<facet_group STRING, facet_value STRING>>[],
-             [STRUCT(
-               'year' AS facet_group,
-               CAST(EXTRACT(YEAR FROM s.start_date) AS STRING) AS facet_value
-             )]
-           ),
-           IF(
-             s.match_confidence IS NULL,
-             ARRAY<STRUCT<facet_group STRING, facet_value STRING>>[],
-             [STRUCT('confidence' AS facet_group, s.match_confidence AS facet_value)]
-           ),
-           ARRAY(
-             SELECT AS STRUCT 'entity' AS facet_group, entity_id AS facet_value
-             FROM UNNEST(s.entity_ids) AS entity_id
-           ),
-           ARRAY(
-             SELECT AS STRUCT 'topic' AS facet_group, topic_slug AS facet_value
-             FROM UNNEST(s.topic_slugs) AS topic_slug
-           )
-         )) AS f
-       )
-       SELECT f.facet_group, f.facet_value, COUNT(DISTINCT f.document_id) AS n
-       FROM facet_memberships f
-       WHERE ${where.join(" AND ")}
-       GROUP BY f.facet_group, f.facet_value
-       ORDER BY f.facet_group, n DESC, f.facet_value`,
-      params,
-    ),
-    loadEntities(),
-  ]);
-
-  const countsByGroup: Record<SearchFacetCountRow["facet_group"], Record<string, number>> = {
-    agency: {},
-    year: {},
-    entity: {},
-    topic: {},
-    confidence: {},
-  };
-  for (const row of rows) {
-    countsByGroup[row.facet_group][row.facet_value] = Number(row.n);
-  }
+  const yearCounts: Record<string, number> = {};
+  for (const row of years) yearCounts[row.y] = Number(row.n);
+  const agencyCounts = Object.fromEntries(
+    agencies.map((row) => [row.agency, Number(row.n)]),
+  );
+  const entityCounts = Object.fromEntries(
+    entityCountRows.map((row) => [row.entity_id, Number(row.n)]),
+  );
+  const topicCounts = Object.fromEntries(
+    topicCountRows.map((row) => [row.slug, Number(row.n)]),
+  );
 
   return {
-    countScope: searchFacetCountScope(qNorm, filters),
+    countScope: "corpus",
     years: denseSearchFacetYears(),
-    yearCounts: countsByGroup.year,
+    yearCounts,
     yearBounds: SEARCH_FACET_YEAR_BOUNDS,
-    agencies: rankedFacetValues(countsByGroup.agency, filters.agencies ?? []),
-    agencyCounts: countsByGroup.agency,
-    topics: rankedFacetValues(countsByGroup.topic, filters.topics ?? []),
+    agencies: rankedFacetValues(agencyCounts),
+    agencyCounts,
+    topics: rankedFacetValues(topicCounts),
     topicLabels: Object.fromEntries(
       MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => [slug, TOPIC_CATALOG[slug]!.title]),
     ),
-    topicCounts: countsByGroup.topic,
-    entities: rankedFacetValues(countsByGroup.entity, filters.entities ?? []),
+    topicCounts,
+    entities: rankedFacetValues(entityCounts),
     entityLabels: Object.fromEntries(
       entityMeta.map((entity) => [entity.entity_id, entity.entity_name]),
     ),
-    entityCounts: countsByGroup.entity,
-    confidence: rankedFacetValues(
-      countsByGroup.confidence,
-      filters.confidence ?? [],
-    ) as ConfidenceLevel[],
-    confidenceCounts: countsByGroup.confidence,
+    entityCounts,
+    confidence: [],
+    confidenceCounts: {},
   };
+}
+
+async function querySearchFacets(
+  qNorm: string,
+  filters: SearchFilterInput,
+  ocrHitIds?: string[],
+): Promise<SearchFacetData> {
+  const qLike = qNorm ? `%${qNorm.toLowerCase()}%` : "%";
+  const resolvedOcrHitIds =
+    ocrHitIds ?? (qNorm ? await fetchOcrHitDocumentIds(qLike) : []);
+
+  const [matchedRows, entityMeta, entityMembership, topicMembership] =
+    await Promise.all([
+      query<{
+        document_id: string;
+        agency: string | null;
+        start_date: { value: string } | string | null;
+        match_confidence: ConfidenceLevel | null;
+      }>(
+        qNorm
+          ? buildQueryMatchedDocumentsSql(WAREHOUSE_TABLES)
+          : buildFilterOnlyDocumentsSql(WAREHOUSE_TABLES),
+        qNorm
+          ? {
+              qNorm,
+              qLike,
+              ocrHitIds: resolvedOcrHitIds,
+            }
+          : {},
+      ),
+      loadEntities(),
+      loadEntityMembership(),
+      loadTopicMembership(),
+    ]);
+
+  const documents: SearchFacetDocument[] = matchedRows.map((row) => {
+    const start = readDate(row.start_date);
+    const year = start ? Number(start.slice(0, 4)) : null;
+    return {
+      documentId: row.document_id,
+      agency: row.agency,
+      year: Number.isFinite(year) ? year : null,
+      matchConfidence: row.match_confidence,
+      entityIds: entityMembership.get(row.document_id) ?? [],
+      topicSlugs: topicMembership.get(row.document_id) ?? [],
+    };
+  });
+
+  return aggregateQuerySearchFacets({
+    query: qNorm,
+    filters,
+    documents,
+    entityLabels: Object.fromEntries(
+      entityMeta.map((entity) => [entity.entity_id, entity.entity_name]),
+    ),
+    topicLabels: Object.fromEntries(
+      MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => [slug, TOPIC_CATALOG[slug]!.title]),
+    ),
+  });
 }
 
 // ---------------------------------------------------------------------------
