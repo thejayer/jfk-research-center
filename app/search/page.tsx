@@ -6,7 +6,7 @@ import {
   buildSearchUrl,
   SEARCH_PAGE_SIZE,
 } from "@/lib/search";
-import type { MediaAsset } from "@/lib/api-types";
+import type { MediaAsset, SearchResponse } from "@/lib/api-types";
 import { searchMediaAssets } from "@/lib/media-assets";
 import type { SearchGroup } from "@/lib/constants";
 import { SearchBar } from "@/components/search/search-bar";
@@ -17,6 +17,7 @@ import { SearchResultCard } from "@/components/search/search-result-card";
 import { MentionSnippet } from "@/components/search/mention-snippet";
 import { ActiveTopicChip } from "@/components/search/active-topic-chip";
 import { PaginationControls } from "@/components/search/pagination-controls";
+import { SearchUnavailable } from "@/components/search/search-unavailable";
 import { ScopeBanner } from "@/components/layout/scope-banner";
 import { formatNumber } from "@/lib/format";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
@@ -52,12 +53,36 @@ export default async function SearchPage({
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
   const offset = effectiveMode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
   const returnHref = buildSearchUrl(q, effectiveMode, filters, page, group);
-  const mediaIndexPromise = fetchMediaIndex();
-  const [response, manifest] = await Promise.all([
-    fetchSearch(q, effectiveMode, filters, offset),
-    fetchCorpusManifest(),
+  const mediaIndexPromise = fetchMediaIndex().catch(() => ({ assets: [] }));
+  const manifestPromise = fetchCorpusManifest();
+  let response: SearchResponse | null = null;
+  try {
+    response = await fetchSearch(q, effectiveMode, filters, offset);
+  } catch {
+    const manifest = await manifestPromise.catch(() => null);
+    const trimmedQuery = q.trim();
+    return (
+      <div className={styles.page}>
+        <div className={styles.commandBand}>
+          <div className={`container ${styles.commandInner}`}>
+            <SearchBar autoFocus />
+          </div>
+        </div>
+        {manifest ? (
+          <div className={`container ${styles.scopeWrap}`}>
+            <ScopeBanner manifest={manifest} />
+          </div>
+        ) : null}
+        <div className="container" style={{ paddingTop: 36, paddingBottom: 80 }}>
+          <SearchUnavailable query={trimmedQuery} retryHref={returnHref} />
+        </div>
+      </div>
+    );
+  }
+  const [manifest, mediaIndex] = await Promise.all([
+    manifestPromise,
+    mediaIndexPromise,
   ]);
-  const mediaIndex = await mediaIndexPromise.catch(() => ({ assets: [] }));
   const triage = buildSearchTriage(response.results);
   const mediaResults = searchMediaAssets(mediaIndex.assets, {
     q,

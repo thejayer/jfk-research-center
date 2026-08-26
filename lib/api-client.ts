@@ -19,6 +19,7 @@ import {
   JFK_REQUEST_ID_HEADER,
   JFK_TRAFFIC_CLASS_HEADER,
 } from "./cost-request";
+import { ApiRequestError } from "./api-request-error";
 import type {
   BibliographyIndex,
   CaseTimelineIndex,
@@ -79,7 +80,7 @@ async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
   });
   if (res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(`API request failed: ${res.status} ${path}`);
+    throw new ApiRequestError(res.status, path);
   }
   return (await res.json()) as T;
 }
@@ -358,3 +359,5 @@ function isDealeyPlazaWitness(data: unknown): data is DealeyPlazaWitness {
     (typeof witness.role === "string" || witness.role === null)
   );
 }
+
+export { ApiRequestError, isApiRequestError } from "./api-request-error";

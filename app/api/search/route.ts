@@ -72,7 +72,10 @@ export async function GET(req: NextRequest) {
     console.error("[api/search] failed:", err);
     return NextResponse.json(
       { error: "warehouse search failed" },
-      { status: 500 },
+      {
+        status: 503,
+        headers: { "cache-control": "no-store" },
+      },
     );
   }
 }

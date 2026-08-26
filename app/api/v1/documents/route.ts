@@ -70,6 +70,6 @@ export async function GET(req: NextRequest) {
     return jsonResponse(data, { cacheSeconds: 300 });
   } catch (err) {
     console.error("[api/v1/documents] failed:", err);
-    return errorResponse("document search failed");
+    return errorResponse("document search failed", 503);
   }
 }
