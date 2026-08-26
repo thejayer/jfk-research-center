@@ -2267,11 +2267,13 @@ async function loadEntityMembership(): Promise<Map<string, string[]>> {
         return membership;
       })
       .catch((error) => {
+        // Reset so a later request retries instead of serving empty facets
+        // for the life of this Cloud Run instance.
+        entityMembershipPromise = null;
         if (isBigQueryBytesBilledExceeded(error)) {
           console.warn("[warehouse] entity membership scan skipped: bytes billed cap");
           return new Map<string, string[]>();
         }
-        entityMembershipPromise = null;
         throw error;
       });
   }
@@ -2293,11 +2295,13 @@ async function loadTopicMembership(): Promise<Map<string, string[]>> {
         return membership;
       })
       .catch((error) => {
+        // Reset so a later request retries instead of serving empty facets
+        // for the life of this Cloud Run instance.
+        topicMembershipPromise = null;
         if (isBigQueryBytesBilledExceeded(error)) {
           console.warn("[warehouse] topic membership scan skipped: bytes billed cap");
           return new Map<string, string[]>();
         }
-        topicMembershipPromise = null;
         throw error;
       });
   }

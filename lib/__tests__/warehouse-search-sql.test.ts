@@ -7,6 +7,7 @@ import {
   buildOcrHitDocumentIdSql,
   buildQueryMatchedDocumentsSql,
   buildTopicMembershipSql,
+  OCR_HIT_DOCUMENT_ID_LIMIT,
   sqlMentionsOcrChunks,
   sqlSelectsStarFromRecords,
 } from "../warehouse-search-sql";
@@ -35,6 +36,12 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlMentionsOcrChunks(sql)).toBe(true);
     expect(sql).toMatch(/SELECT\s+document_id/i);
     expect(sql).not.toMatch(/ANY_VALUE\(chunk_text\)/i);
+  });
+
+  it("bounds OCR hit document ids well above current corpus coverage", () => {
+    expect(OCR_HIT_DOCUMENT_ID_LIMIT).toBeGreaterThan(2165);
+    const sql = buildOcrHitDocumentIdSql(tables);
+    expect(sql).toContain(`LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`);
   });
 
   it("scores query-scoped facet documents without scanning OCR text", () => {

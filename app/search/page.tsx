@@ -53,7 +53,7 @@ export default async function SearchPage({
   // Semantic mode is top-k-capped by Vertex VECTOR_SEARCH; offset ignored.
   const offset = effectiveMode === "semantic" ? 0 : (page - 1) * SEARCH_PAGE_SIZE;
   const returnHref = buildSearchUrl(q, effectiveMode, filters, page, group);
-  const mediaIndexPromise = fetchMediaIndex();
+  const mediaIndexPromise = fetchMediaIndex().catch(() => ({ assets: [] }));
   const manifestPromise = fetchCorpusManifest();
   let response: SearchResponse | null = null;
   try {
@@ -81,7 +81,7 @@ export default async function SearchPage({
   }
   const [manifest, mediaIndex] = await Promise.all([
     manifestPromise,
-    mediaIndexPromise.catch(() => ({ assets: [] })),
+    mediaIndexPromise,
   ]);
   const triage = buildSearchTriage(response.results);
   const mediaResults = searchMediaAssets(mediaIndex.assets, {

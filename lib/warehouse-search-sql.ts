@@ -35,13 +35,21 @@ export function entitiesTable({ project, curatedDataset }: WarehouseTableRef): s
   return `\`${project}.${curatedDataset}.jfk_entities\``;
 }
 
-/** Document IDs whose OCR/DocAI text matches the query. Does not select chunk_text. */
+/**
+ * Caps OCR-hit document IDs passed as `@ocrHitIds` on later jobs.
+ * Corpus OCR coverage is ~2,165 unique RIFs; 10k is well above that
+ * so ranking is unchanged for real queries while staying far under
+ * BigQuery's 10 MB request-body limit.
+ */
+export const OCR_HIT_DOCUMENT_ID_LIMIT = 10_000;
+
 export function buildOcrHitDocumentIdSql(tables: WarehouseTableRef): string {
   return `SELECT document_id
      FROM ${chunksTable(tables)}
     WHERE source_type IN ('abbyy_ocr', 'docai_ocr')
       AND LOWER(chunk_text) LIKE @qLike
-    GROUP BY document_id`;
+    GROUP BY document_id
+    LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`;
 }
 
 /** OCR snippets for a page of already-selected documents. */
