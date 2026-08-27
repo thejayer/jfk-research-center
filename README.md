@@ -127,7 +127,8 @@ in `lib/api-types.ts`.
 
 Pages consume these via `lib/api-client.ts`, which accepts an optional
 `JFK_API_BASE_URL` environment variable for pointing at a non-local API
-host (e.g. a Cloud Run deployment).
+host (e.g. a Cloud Run deployment). Production Cloud Run sets it to
+`https://researchjfk.ai`.
 
 ## Warehouse pipeline
 
