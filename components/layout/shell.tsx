@@ -1,4 +1,9 @@
 import type { ReactNode } from "react";
+import { fetchCorpusManifest } from "@/lib/api-client";
+import {
+  MASTHEAD_STATUS_NOTE,
+  mastheadReleaseNote,
+} from "@/lib/corpus-coverage";
 import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
 import { KeyboardShortcuts } from "./keyboard-shortcuts";
@@ -22,8 +27,13 @@ export function Shell({ children }: { children: ReactNode }) {
   );
 }
 
-function MastheadStrip() {
-  const currentYear = new Date().getFullYear();
+async function MastheadStrip() {
+  let releaseNote = mastheadReleaseNote(null);
+  try {
+    releaseNote = mastheadReleaseNote(await fetchCorpusManifest());
+  } catch {
+    // Keep the conservative fallback so a warehouse miss cannot imply 2026.
+  }
 
   return (
     <div
@@ -64,9 +74,7 @@ function MastheadStrip() {
             flexShrink: 0,
           }}
         >
-          <span className="masthead-release-note">
-            Releases indexed 2017-{currentYear}
-          </span>
+          <span className="masthead-release-note">{releaseNote}</span>
           <span
             style={{
               display: "inline-flex",
@@ -85,7 +93,7 @@ function MastheadStrip() {
                   "0 0 0 3px color-mix(in srgb, var(--cat-investigation) 22%, transparent)",
               }}
             />
-            Index live
+            {MASTHEAD_STATUS_NOTE}
           </span>
         </span>
       </div>

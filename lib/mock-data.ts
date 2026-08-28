@@ -52,6 +52,7 @@ import type {
   DealeyPlazaResponse,
   DealeyPlazaWitness,
 } from "./api-types";
+import { ocrCoverageSentence } from "./corpus-coverage";
 import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
 import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
 import {
@@ -1612,7 +1613,12 @@ export function buildHomeResponse(): HomeResponse {
         "2026": 0,
       },
       recordsWith2025Ocr: 2162,
-      coverageNote: "",
+      coverageNote: ocrCoverageSentence({
+        totalRecords: totalDocs,
+        recordsWithOcr: 2162,
+        releasesIndexed: ["2017-2018", "2021", "2022", "2023", "2025"],
+        releasesPending: ["2026"],
+      }),
     },
   };
 }

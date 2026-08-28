@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchCorpusManifest } from "@/lib/api-client";
+import { ocrCoverageSentence } from "@/lib/corpus-coverage";
 import { formatNumber } from "@/lib/format";
 import {
   AboutHero,
@@ -154,8 +155,8 @@ export default async function EditorialPolicyPage() {
           <p>
             It is not a complete mirror of the JFK Assassination Records
             Collection; it is a curated subset of{" "}
-            {formatNumber(manifest.totalRecords)} records, with full-text OCR on{" "}
-            {formatNumber(manifest.recordsWithOcr)} of them. The{" "}
+            {formatNumber(manifest.totalRecords)} records.{" "}
+            {ocrCoverageSentence(manifest)} The{" "}
             <Link href="/about/methodology">methodology page</Link> details
             scope, pipeline, and known limitations. It is not a conspiracy site,
             and it is not a defense of orthodoxy; generalizing from what this
