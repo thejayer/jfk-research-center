@@ -1,5 +1,9 @@
 import Link from "next/link";
 import type { CorpusManifest } from "@/lib/api-types";
+import {
+  ocrCoverageSentence,
+  pendingReleasesSentence,
+} from "@/lib/corpus-coverage";
 import { formatNumber } from "@/lib/format";
 
 /**
@@ -45,28 +49,25 @@ export function ScopeBanner({ manifest }: { manifest: CorpusManifest }) {
       {manifest.recordsWithOcr > 0 && (
         <>
           {" "}
-          <span className="num">{formatNumber(manifest.recordsWithOcr)}</span>{" "}
-          records have full-text OCR indexed
+          {ocrCoverageSentence(manifest)}
           {manifest.recordsWith2025Ocr > 0 && (
             <>
               {" "}
-              - of those,{" "}
+              Of those,{" "}
               <span className="num">
                 {formatNumber(manifest.recordsWith2025Ocr)}
               </span>{" "}
               are sourced from the 2025 re-release (NARA has not yet published
               an XLSX manifest for 2025; each document&rsquo;s prior-release
-              history is shown on its page)
+              history is shown on its page).
             </>
           )}
-          .
         </>
       )}
       {pending.length > 0 && (
         <>
           {" "}
-          Releases <em>not yet indexed</em>:{" "}
-          <span className="num">{pending.join(", ")}</span>.
+          {pendingReleasesSentence(manifest)}
         </>
       )}{" "}
       <Link

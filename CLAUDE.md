@@ -278,8 +278,18 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-05-02 (timeline rework + mobile nav + responsive polish)
+**Last updated:** 2026-08-28 (OCR / release-coverage copy honesty)
 
+- **Coverage copy honesty (2026-08-28).** User-facing masthead, search
+  empty/mode chrome, and `/about/methodology` now describe OCR as a
+  fraction of indexed records and list only the releases in
+  `corpusManifest`. Shared helpers live in `lib/corpus-coverage.ts` and
+  read the same `totalRecords` / `recordsWithOcr` / `releasesIndexed` /
+  `releasesPending` fields the homepage counters already use — do not
+  hardcode a unique-RIF OCR count. The masthead no longer derives a
+  year range from `Date.getFullYear()` (which implied 2026 was
+  indexed) and no longer says "Index live." No ingest, DocAI, or paid
+  OCR work was done in this pass.
 - **Timeline rework (2026-05-02).** Three pain points reported on the
   zoomable view: decade level was opaque dots with no labels, the "72h
   Dallas" jump-target felt grafted onto the chart, and the side panel

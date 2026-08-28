@@ -77,6 +77,7 @@ import type {
   TopicDetail,
   TopicResponse,
 } from "./api-types";
+import { ocrCoverageSentence } from "./corpus-coverage";
 import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
 import { formatDate } from "./format";
 import { buildMediaIndexResponse } from "./media-assets";
@@ -771,7 +772,12 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
       releasesPending: [],
       recordsByRelease: {},
       recordsWith2025Ocr: 0,
-      coverageNote: "",
+      coverageNote: ocrCoverageSentence({
+        totalRecords: 0,
+        recordsWithOcr: 0,
+        releasesIndexed: [],
+        releasesPending: [],
+      }),
     };
   }
   const knownReleases: { set: string; flag: boolean; count: number }[] = [
@@ -787,16 +793,25 @@ export async function fetchCorpusManifest(): Promise<CorpusManifest> {
     typeof latest === "object" && latest ? latest.value : (latest as string | null);
   const recordsByRelease: Record<string, number> = {};
   for (const k of knownReleases) recordsByRelease[k.set] = k.count;
+  const releasesIndexed = knownReleases.filter((k) => k.flag).map((k) => k.set);
+  const releasesPending = knownReleases.filter((k) => !k.flag).map((k) => k.set);
+  const totalRecords = Number(r.total_records ?? 0);
+  const recordsWithOcr = Number(r.records_with_ocr ?? 0);
   return {
-    totalRecords: Number(r.total_records ?? 0),
-    recordsWithOcr: Number(r.records_with_ocr ?? 0),
+    totalRecords,
+    recordsWithOcr,
     ocrPassages: Number(r.ocr_passages ?? 0),
     latestIndexedReleaseDate: latestStr ?? null,
-    releasesIndexed: knownReleases.filter((k) => k.flag).map((k) => k.set),
-    releasesPending: knownReleases.filter((k) => !k.flag).map((k) => k.set),
+    releasesIndexed,
+    releasesPending,
     recordsByRelease,
     recordsWith2025Ocr: Number(r.records_with_2025_ocr ?? 0),
-    coverageNote: "",
+    coverageNote: ocrCoverageSentence({
+      totalRecords,
+      recordsWithOcr,
+      releasesIndexed,
+      releasesPending,
+    }),
   };
 }
 

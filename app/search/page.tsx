@@ -19,6 +19,11 @@ import { ActiveTopicChip } from "@/components/search/active-topic-chip";
 import { PaginationControls } from "@/components/search/pagination-controls";
 import { SearchUnavailable } from "@/components/search/search-unavailable";
 import { ScopeBanner } from "@/components/layout/scope-banner";
+import {
+  ocrCoverageSentence,
+  searchEmptyBody,
+  searchModeCoverageSentence,
+} from "@/lib/corpus-coverage";
 import { formatNumber } from "@/lib/format";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 import { MediaAssetCard } from "@/components/media/media-asset-card";
@@ -30,7 +35,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Search",
   description:
-    "Full-text search across the JFK archival collection, across record titles, descriptions, and OCR passages.",
+    "Search JFK record titles, descriptions, and the ABBYY OCR subset of the indexed collection.",
   robots: {
     index: false,
     follow: false,
@@ -134,6 +139,7 @@ export default async function SearchPage({
             filters={filters}
             total={response.total}
             semanticDisabled={semanticDisabled}
+            manifest={manifest}
           />
         </div>
       </div>
@@ -204,6 +210,7 @@ export default async function SearchPage({
                   topicLabels={response.filters.topicLabels}
                   entityLabels={response.filters.entityLabels}
                   semanticDisabled={semanticDisabled}
+                  manifest={manifest}
                 />
               ) : effectiveMode === "document" ? (
                 <div>
@@ -336,7 +343,8 @@ function SearchHero({
           </h1>
           <p className={styles.heroLead}>
             Use document, passage, semantic, entity, topic, media, timeline,
-            and open-question lanes without losing the query or active filters.
+            and open-question lanes without losing the query or active filters.{" "}
+            {ocrCoverageSentence(manifest)}
           </p>
           <div className={styles.heroActions} aria-label="Suggested searches">
             <span className="muted">Try</span>
@@ -840,44 +848,59 @@ function ModeTabs({
   filters,
   total,
   semanticDisabled,
+  manifest,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
   filters: import("@/lib/search").ParsedSearch["filters"];
   total: number;
   semanticDisabled: boolean;
+  manifest: import("@/lib/api-types").CorpusManifest;
 }) {
   return (
-    <div
-      role="tablist"
-      aria-label="Search mode"
-      className={styles.modeTabs}
-    >
-      <TabLink
-        label="Documents"
-        active={mode === "document"}
-        href={buildSearchUrl(q, "document", filters)}
-      />
-      <TabLink
-        label="Mentions"
-        active={mode === "mention"}
-        href={buildSearchUrl(q, "mention", filters)}
-      />
-      {!semanticDisabled && (
+    <div>
+      <div
+        role="tablist"
+        aria-label="Search mode"
+        className={styles.modeTabs}
+      >
         <TabLink
-          label="Semantic"
-          active={mode === "semantic"}
-          href={buildSearchUrl(q, "semantic", filters)}
+          label="Documents"
+          active={mode === "document"}
+          href={buildSearchUrl(q, "document", filters)}
         />
-      )}
-      {q && (
-        <span
-          className={`muted ${styles.modeTotal}`}
-          data-search-result-total="true"
-        >
-          {formatNumber(total)} results
-        </span>
-      )}
+        <TabLink
+          label="Mentions"
+          active={mode === "mention"}
+          href={buildSearchUrl(q, "mention", filters)}
+        />
+        {!semanticDisabled && (
+          <TabLink
+            label="Semantic"
+            active={mode === "semantic"}
+            href={buildSearchUrl(q, "semantic", filters)}
+          />
+        )}
+        {q && (
+          <span
+            className={`muted ${styles.modeTotal}`}
+            data-search-result-total="true"
+          >
+            {formatNumber(total)} results
+          </span>
+        )}
+      </div>
+      <p
+        className="muted"
+        style={{
+          margin: "8px 0 0",
+          maxWidth: "72ch",
+          fontSize: "0.8rem",
+          lineHeight: 1.5,
+        }}
+      >
+        {searchModeCoverageSentence({ mode, manifest })}
+      </p>
     </div>
   );
 }
@@ -930,6 +953,10 @@ function ResultHeading({
         <h2 className={styles.emptyTitle}>
           Search the release by person, agency, phrase, date, or record number.
         </h2>
+        <p className={styles.resultScope}>
+          {ocrCoverageSentence(manifest)} Passage and mention search only run
+          against that OCR subset.
+        </p>
         <div className={styles.archiveStatGrid}>
           <ArchiveStat label="OCR records" value={manifest.recordsWithOcr} />
           <ArchiveStat label="OCR passages" value={manifest.ocrPassages} />
@@ -968,7 +995,7 @@ function ResultHeading({
         {formatNumber(total)} {formatModeLabel(mode).toLowerCase()} matches
         within {formatNumber(manifest.totalRecords)} indexed records
         {" · "}
-        {formatNumber(manifest.recordsWithOcr)} records include searchable OCR.
+        {ocrCoverageSentence(manifest)}
       </p>
     </div>
   );
@@ -999,6 +1026,7 @@ function SearchEmptyPanel({
   topicLabels,
   entityLabels,
   semanticDisabled,
+  manifest,
 }: {
   q: string;
   mode: "document" | "mention" | "semantic";
@@ -1006,6 +1034,7 @@ function SearchEmptyPanel({
   topicLabels: Record<string, string>;
   entityLabels: Record<string, string>;
   semanticDisabled: boolean;
+  manifest: import("@/lib/api-types").CorpusManifest;
 }) {
   const hasFilters = hasSelectedFilters(filters);
   const trimmedQuery = q.trim();
@@ -1035,7 +1064,9 @@ function SearchEmptyPanel({
           }}
         >
           {trimmedQuery
-            ? "No records matched this search."
+            ? mode === "mention" || mode === "semantic"
+              ? "No OCR mentions matched this search."
+              : "No records matched this search."
             : "Start with a name, agency, phrase, or NAID."}
         </h2>
         <p
@@ -1046,9 +1077,11 @@ function SearchEmptyPanel({
             lineHeight: 1.6,
           }}
         >
-          {trimmedQuery
-            ? "Try a broader term, switch search modes, or remove filters. Names and agencies often appear in OCR passages even when the document title does not match."
-            : "Search across document titles, archival descriptions, OCR passages, and semantic matches from the same place."}
+          {searchEmptyBody({
+            hasQuery: Boolean(trimmedQuery),
+            mode,
+            manifest,
+          })}
         </p>
 
         {hasFilters && (
@@ -1140,7 +1173,7 @@ function buildEmptySuggestions({
           detail:
             mode === "semantic"
               ? "Look for exact title and description matches."
-              : "Find related OCR passages even without exact words.",
+              : "Search related passages in the OCR subset, even without exact words.",
           href: buildSearchUrl(
             fallbackQuery,
             mode === "semantic" ? "document" : "semantic",
@@ -1149,7 +1182,7 @@ function buildEmptySuggestions({
         },
     {
       label: "Search mentions",
-      detail: "Jump straight to OCR passages and entity hits.",
+      detail: "Search the ABBYY OCR subset for passages and entity hits.",
       href: buildSearchUrl(fallbackQuery, "mention", filters),
     },
     {

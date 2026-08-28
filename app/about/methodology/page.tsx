@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchCorpusManifest } from "@/lib/api-client";
+import {
+  methodologyPendingLimitation,
+  ocrCoverageSentence,
+  ocrSearchLimitationSentence,
+} from "@/lib/corpus-coverage";
 import { formatNumber } from "@/lib/format";
 import {
   AboutHero,
@@ -44,6 +49,7 @@ const NAV_ITEMS: AboutNavItem[] = [
 
 export default async function MethodologyPage() {
   const manifest = await fetchCorpusManifest();
+  const pendingLimitation = methodologyPendingLimitation(manifest);
 
   return (
     <div className="container" style={{ paddingTop: 40, paddingBottom: 80 }}>
@@ -82,10 +88,9 @@ export default async function MethodologyPage() {
             <strong>{formatNumber(manifest.totalRecords)}</strong> records - a
             curated subset of the roughly 300,000 documents in the{" "}
             <em>JFK Assassination Records Collection</em> held at the U.S.
-            National Archives. Of those,{" "}
-            <strong>{formatNumber(manifest.recordsWithOcr)}</strong> have
-            full-text OCR attached, producing{" "}
-            <strong>{formatNumber(manifest.ocrPassages)}</strong> indexed OCR
+            National Archives. {ocrCoverageSentence(manifest)} Those OCR
+            records produce{" "}
+            <strong>{formatNumber(manifest.ocrPassages)}</strong> indexed
             passages. The remainder are metadata-only.
           </p>
           <p>
@@ -171,17 +176,22 @@ export default async function MethodologyPage() {
         <AboutSection id="limitations" title="Known limitations">
           <ul style={{ paddingLeft: 24, lineHeight: 1.7 }}>
             <li>
-              The 2025 and 2026 declassification releases have not yet been
-              fully ingested; users seeking those documents should consult{" "}
-              <a
-                href="https://www.archives.gov/research/jfk/release-2025"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                archives.gov/research/jfk/release-2025
-              </a>
-              .
+              {ocrCoverageSentence(manifest)}{" "}
+              {ocrSearchLimitationSentence(manifest)}
             </li>
+            {pendingLimitation ? (
+              <li>
+                {pendingLimitation} Consult the{" "}
+                <a
+                  href="https://www.archives.gov/research/jfk"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  National Archives JFK collection
+                </a>{" "}
+                for documents outside this index.
+              </li>
+            ) : null}
             <li>
               OCR quality varies by document; expect noise in older typewritten
               or hand-annotated pages.

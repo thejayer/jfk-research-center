@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchCorpusManifest } from "@/lib/api-client";
+import { ocrCoverageSentence } from "@/lib/corpus-coverage";
 import { formatNumber } from "@/lib/format";
 import {
   AboutHero,
@@ -98,6 +99,9 @@ export default async function AboutHubPage() {
           },
         ]}
       />
+      <p className="muted" style={{ marginTop: 16, maxWidth: "72ch", lineHeight: 1.6 }}>
+        {ocrCoverageSentence(manifest)}
+      </p>
 
       <section aria-label="About pages" style={{ marginTop: 38 }}>
         <div
