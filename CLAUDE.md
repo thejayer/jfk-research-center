@@ -213,7 +213,7 @@ bq query --use_legacy_sql=false \
 # Avoid `gcloud run deploy --source=.` — that uses regional us-central1
 # Cloud Build and can sit QUEUED until the job times out.
 IMAGE=us-central1-docker.pkg.dev/jfk-vault/cloud-run-source-deploy/jfk-research-center:$(git rev-parse --short HEAD)
-gcloud builds submit --tag="$IMAGE" --project=jfk-vault .
+gcloud builds submit --tag="$IMAGE" --gcs-log-dir=gs://jfk-vault_cloudbuild/logs --project=jfk-vault .
 gcloud run deploy jfk-research-center \
   --image="$IMAGE" --region=us-central1 --project=jfk-vault \
   --allow-unauthenticated --port=8080 \

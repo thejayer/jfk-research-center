@@ -42,12 +42,16 @@ jobs:
       # --source=. submits a *regional* Cloud Build in us-central1, which
       # can sit QUEUED until queueTtl expires and never start. Global
       # Cloud Build (no --region) starts immediately; then deploy --image.
+      # --gcs-log-dir writes logs to the project Cloud Build bucket the SA
+      # already uses for source uploads. Streaming the *default* logs
+      # bucket requires project Viewer and fails the job after SUCCESS.
       - name: Build image (global Cloud Build)
         run: |
           IMAGE="us-central1-docker.pkg.dev/jfk-vault/cloud-run-source-deploy/jfk-research-center:${GITHUB_SHA}"
           echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
           gcloud builds submit \
             --tag="${IMAGE}" \
+            --gcs-log-dir=gs://jfk-vault_cloudbuild/logs \
             --project=jfk-vault \
             .
 
