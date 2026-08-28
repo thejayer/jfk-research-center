@@ -100,6 +100,7 @@ import {
   buildTopicResponse,
   listEntities as listMockEntities,
   listTopics as listMockTopics,
+  listDocuments as listMockDocuments,
   entityToCard as mockEntityToCard,
   topicToCard as mockTopicToCard,
 } from "./mock-data";
@@ -1431,6 +1432,60 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
     relatedEntities,
     relatedDocuments: related.map((r) => rowToCard(r)),
   };
+}
+
+const DOCUMENT_SITEMAP_TTL_MS = 24 * 60 * 60 * 1000;
+const DOCUMENT_SITEMAP_ERROR_TTL_MS = 5 * 60 * 1000;
+
+let documentSitemapCache: { expiresAt: number; ids: string[] } | null = null;
+
+/**
+ * Document IDs for the public sitemap.
+ *
+ * ID-only read of `jfk_records` (no OCR/chunk scan). Cached in-process so
+ * crawler hits to /sitemap.xml do not re-query BigQuery on every request.
+ *
+ * @returns Canonical document_id values, or an empty list when the warehouse
+ *   is unavailable.
+ */
+export async function fetchDocumentSitemapIds(): Promise<string[]> {
+  if (useMockData()) {
+    return listMockDocuments().map((doc) => doc.id);
+  }
+
+  const now = Date.now();
+  if (documentSitemapCache && documentSitemapCache.expiresAt > now) {
+    return documentSitemapCache.ids;
+  }
+
+  try {
+    const rows = await query<{ document_id: string }>(
+      `SELECT document_id
+         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
+        WHERE document_id IS NOT NULL`,
+    );
+    const ids = rows
+      .map((row) => row.document_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    documentSitemapCache = {
+      ids,
+      expiresAt: now + DOCUMENT_SITEMAP_TTL_MS,
+    };
+    return ids;
+  } catch (error) {
+    console.error("fetchDocumentSitemapIds failed", error);
+    if (documentSitemapCache) return documentSitemapCache.ids;
+    documentSitemapCache = {
+      ids: [],
+      expiresAt: now + DOCUMENT_SITEMAP_ERROR_TTL_MS,
+    };
+    return [];
+  }
+}
+
+/** Clears the in-process document sitemap cache. Used by tests. */
+export function clearDocumentSitemapCacheForTests(): void {
+  documentSitemapCache = null;
 }
 
 export async function fetchCompare(recordId: string): Promise<CompareResponse | null> {
