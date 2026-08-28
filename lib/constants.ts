@@ -8,6 +8,9 @@ import type { PublicApiRateWindow } from "./public-api-access";
 
 export const SITE_NAME = "JFK Research Center";
 
+/** Public apex origin. Do not emit www URLs. */
+export const PUBLIC_SITE_ORIGIN = "https://researchjfk.ai";
+
 export const PUBLIC_ROUTE_CACHE_CONTROL =
   "public, s-maxage=300, stale-while-revalidate=1800";
 
