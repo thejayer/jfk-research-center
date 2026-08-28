@@ -131,7 +131,7 @@ export const ROADMAP: RoadmapItem[] = [
     status: "shipped",
     phase: "Phase 5-E",
     description:
-      "Read-only, CORS-open endpoints for documents, entities, topics, timeline, and semantic search.",
+      "Read-only public API for documents, entities, topics, timeline, and semantic search. Warehouse and Vertex routes require an API key; OpenAPI stays anonymous.",
   },
 
   // ---- Hotfix cycle (April 2026) ----
@@ -199,10 +199,10 @@ export const ROADMAP: RoadmapItem[] = [
   {
     surface: "API keys + rate limits",
     label: "Public API key + rate limit layer",
-    status: "in_progress",
+    status: "shipped",
     phase: "Phase 5-E follow-up",
     description:
-      "Policy inventory for anonymous, metered, and keyed public API access before enforcement is wired into the route layer.",
+      "API-key and rate-limit enforcement on warehouse and Vertex /api/v1 routes. OpenAPI remains anonymous; first-party /api/* site routes are unchanged.",
     trackingUrl:
       "https://linear.app/commerce-street/issue/COM-60/plan-public-api-key-and-rate-limit-layer",
   },

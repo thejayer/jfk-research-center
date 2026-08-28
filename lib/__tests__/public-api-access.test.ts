@@ -4,6 +4,17 @@ import {
   publicApiEndpointPolicies,
 } from "../public-api-access";
 
+const WAREHOUSE_OR_VERTEX_PATHS = [
+  "/api/v1/documents",
+  "/api/v1/documents/{naid}",
+  "/api/v1/entities",
+  "/api/v1/entities/{id}",
+  "/api/v1/topics",
+  "/api/v1/topics/{slug}",
+  "/api/v1/timeline",
+  "/api/v1/search/semantic",
+] as const;
+
 describe("publicApiEndpointPolicies", () => {
   it("covers the current public v1 route inventory once each", () => {
     const keys = publicApiEndpointPolicies.map(
@@ -24,7 +35,18 @@ describe("publicApiEndpointPolicies", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it("keeps the expensive semantic route keyed in the target design", () => {
+  it("requires keys on every warehouse and Vertex route", () => {
+    for (const path of WAREHOUSE_OR_VERTEX_PATHS) {
+      const policy = findPublicApiEndpointPolicy("GET", path);
+      expect(policy, path).not.toBeNull();
+      expect(policy?.currentAccess, path).toBe("key_required");
+      expect(policy?.targetAccess, path).toBe("key_required");
+      expect(policy?.anonymousLimit, path).toBeNull();
+      expect(policy?.keyedLimit?.requests, path).toBeGreaterThan(0);
+    }
+  });
+
+  it("keeps the expensive semantic route keyed with a Vertex kill switch", () => {
     const policy = findPublicApiEndpointPolicy(
       "GET",
       "/api/v1/search/semantic",
@@ -35,14 +57,6 @@ describe("publicApiEndpointPolicies", () => {
     expect(policy?.targetAccess).toBe("key_required");
     expect(policy?.anonymousLimit).toBeNull();
     expect(policy?.killSwitch).toBe("JFK_API_DISABLE_SEMANTIC_SEARCH");
-  });
-
-  it("keeps document search anonymously metered", () => {
-    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
-
-    expect(policy?.currentAccess).toBe("anonymous_metered");
-    expect(policy?.targetAccess).toBe("anonymous_metered");
-    expect(policy?.anonymousLimit?.requests).toBe(60);
   });
 
   it("keeps static discovery anonymous", () => {

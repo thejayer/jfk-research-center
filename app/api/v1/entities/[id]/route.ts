@@ -6,6 +6,7 @@ import {
   notFoundResponse,
   preflight,
 } from "@/lib/api-v1";
+import { denyUnauthorizedPublicApi } from "@/lib/public-api-enforcement";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
@@ -15,9 +16,12 @@ export const OPTIONS = preflight;
  * `id` is the entity slug (e.g. "oswald", "warren-commission").
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const denied = await denyUnauthorizedPublicApi(req);
+  if (denied) return denied;
+
   const { id } = await params;
   try {
     const data = await fetchEntity(id);

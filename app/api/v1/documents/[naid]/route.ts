@@ -6,6 +6,7 @@ import {
   notFoundResponse,
   preflight,
 } from "@/lib/api-v1";
+import { denyUnauthorizedPublicApi } from "@/lib/public-api-enforcement";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
@@ -15,9 +16,12 @@ export const OPTIONS = preflight;
  * Returns the full document record plus related entities and related docs.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ naid: string }> },
 ) {
+  const denied = await denyUnauthorizedPublicApi(req);
+  if (denied) return denied;
+
   const { naid } = await params;
   try {
     const data = await fetchDocument(naid);

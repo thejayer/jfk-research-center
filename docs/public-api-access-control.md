@@ -1,60 +1,69 @@
 # Public API Access Control
 
 COM-60 defined the access-control layer for the public `/api/v1/*` API. COM-167
-adds the first enforcement pass so expensive search surfaces have guardrails
-before semantic search and future `/ask` use are expanded.
+added the first enforcement pass. Warehouse and Vertex endpoints now require an
+API key; the OpenAPI contract stays readable without one.
 
 ## Current State
 
-The v1 API is read-only and CORS-open. Low-cost catalog endpoints stay
-anonymous, document search is anonymously metered, and semantic search requires
-an API key. The routes expose the same warehouse-backed data used by public
-pages, with cache headers tuned for slow release-cadence data.
+The v1 API is read-only. CORS stays open so browser clients can send
+`Authorization` or `X-JFKRC-API-Key`, but that is not anonymous access.
+Warehouse and Vertex routes require a configured API key and are rate-limited
+per key. `GET /api/v1/openapi.json` remains anonymous so the contract is
+discoverable. First-party site pages continue to use `/api/search` and
+`/api/document`, which are not gated by this layer.
 
 Current routes:
 
 | Route | Current access | Target access | Cost class | Cache | Notes |
 |---|---|---|---|---:|---|
 | `GET /api/v1/openapi.json` | Anonymous | Anonymous | Static | 3600s | Keep public for client discovery. |
-| `GET /api/v1/documents` | Anonymous metered | Anonymous metered | Warehouse | 300s | Query/filter combinations can create large BigQuery work. |
-| `GET /api/v1/documents/{naid}` | Anonymous | Anonymous | Warehouse | 600s | Bounded record lookup. |
-| `GET /api/v1/entities` | Anonymous | Anonymous | Warehouse | 600s | Small catalog surface. |
-| `GET /api/v1/entities/{id}` | Anonymous | Anonymous | Warehouse | 600s | Bounded slug lookup. |
-| `GET /api/v1/topics` | Anonymous | Anonymous | Warehouse | 600s | Small catalog surface. |
-| `GET /api/v1/topics/{slug}` | Anonymous | Anonymous | Warehouse | 600s | Bounded slug lookup. |
-| `GET /api/v1/timeline` | Anonymous | Anonymous | Warehouse | 600s | Bounded timeline index with local filtering. |
+| `GET /api/v1/documents` | Key required | Key required | Warehouse | 300s | Query/filter combinations can create large BigQuery work. |
+| `GET /api/v1/documents/{naid}` | Key required | Key required | Warehouse | 600s | Bounded record lookup. |
+| `GET /api/v1/entities` | Key required | Key required | Warehouse | 600s | Small catalog surface; still warehouse-backed. |
+| `GET /api/v1/entities/{id}` | Key required | Key required | Warehouse | 600s | Bounded slug lookup. |
+| `GET /api/v1/topics` | Key required | Key required | Warehouse | 600s | Small catalog surface; still warehouse-backed. |
+| `GET /api/v1/topics/{slug}` | Key required | Key required | Warehouse | 600s | Bounded slug lookup. |
+| `GET /api/v1/timeline` | Key required | Key required | Warehouse | 600s | Bounded timeline index with local filtering. |
 | `GET /api/v1/search/semantic` | Key required | Key required | Vertex | 60s | Generates embeddings for novel queries; requires a configured API key. |
 
 The typed version of this inventory lives in `lib/public-api-access.ts` and is
-covered by `lib/__tests__/public-api-access.test.ts`.
+covered by `lib/__tests__/public-api-access.test.ts`. Every listed route calls
+`enforcePublicApiAccess` (via `denyUnauthorizedPublicApi`) before warehouse or
+Vertex work.
 
 ## Target Policy
 
 Use three access modes:
 
-- `anonymous`: public, cacheable, low-risk read endpoints.
-- `anonymous_metered`: public endpoints allowed without a key, but with lower
-  rate windows because query parameters affect warehouse cost.
-- `key_required`: endpoints that should require an API key before public scale
-  because they hit Vertex AI, future model calls, or other high-cost paths.
+- `anonymous`: public, cacheable, low-risk read endpoints (OpenAPI only).
+- `anonymous_metered`: reserved for any future public endpoint allowed without
+  a key but with a lower rate window.
+- `key_required`: warehouse, Vertex, and other high-cost paths. Callers must
+  present an active API key.
 
-Initial target rate windows:
+Initial rate windows:
 
 | Tier | Window |
 |---|---:|
-| Default anonymous reads | 120 requests/hour/IP |
-| Anonymous document search | 60 requests/hour/IP |
+| Default anonymous reads | 120 requests/hour/IP (OpenAPI) |
+| Default keyed warehouse reads | 120 requests/hour/key |
 | Keyed semantic search | 120 requests/hour/key |
 
 These are starting points, not contractual public quotas.
+
+Production also keeps the existing Cloud Run / middleware cost gates and Cloud
+Armor throttle on `/api/v1/documents`. Those sit in front of this layer; do
+not remove them.
 
 ## Key Model
 
 Use opaque API keys, not user accounts, for the first version.
 
 The first implementation accepts a comma-separated `JFK_API_KEYS` environment
-variable and treats every configured key as an active `researcher` key. This is
-enough to protect high-cost routes while the backing store is still simple.
+variable and treats every configured key as an active `researcher` key. Deploy
+passes that value from the GitHub Actions secret of the same name into Cloud
+Run. Do not commit production keys.
 
 Longer term, store per-key metadata in a small backing store such as Firestore:
 
@@ -121,11 +130,13 @@ Kill switches should fail closed with `503` and a short public error message.
    COM-167.
 3. Update OpenAPI with security schemes and `429` / `401` / `403` responses.
    Done in COM-167.
-4. Turn on metering for `GET /api/v1/documents`. Done in COM-167.
+4. Turn on metering for `GET /api/v1/documents`. Done in COM-167; superseded
+   by key-required warehouse access.
 5. Require keys for `GET /api/v1/search/semantic`. Done in COM-167.
-6. Replace the environment/in-memory key and counter store with durable
+6. Require keys for all warehouse `/api/v1` routes. Done.
+7. Replace the environment/in-memory key and counter store with durable
    hashed-key metadata and distributed counters.
-7. Reuse the same policy layer for `/ask` before public launch.
+8. Reuse the same policy layer for `/ask` before public launch.
 
 ## Non-Goals
 

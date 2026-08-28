@@ -35,9 +35,11 @@ The deferred `/ask` assistant is gated on
 citation contract, refusal behavior, and regression checks required before any
 public chat UI ships.
 
-The public `/api/v1/*` API remains unauthenticated today. Its planned API key,
-rate-limit, and kill-switch policy is tracked in
-`docs/public-api-access-control.md`.
+Warehouse and Vertex routes under `/api/v1/*` require an API key
+(`Authorization: Bearer <key>` or `X-JFKRC-API-Key`) and are rate-limited.
+`GET /api/v1/openapi.json` stays anonymous so the contract is readable.
+Configure keys with the comma-separated `JFK_API_KEYS` environment variable.
+See `docs/public-api-access-control.md`.
 
 ## Running locally
 

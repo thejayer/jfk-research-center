@@ -283,8 +283,16 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-08-28 (OCR / release-coverage copy honesty)
+**Last updated:** 2026-08-28 (public /api/v1 key requirement)
 
+- **Public /api/v1 key + rate limits (2026-08-28).** Warehouse and Vertex
+  `/api/v1` routes now require an API key (`Authorization: Bearer` or
+  `X-JFKRC-API-Key`) and apply keyed rate limits from
+  `lib/public-api-access.ts`. `GET /api/v1/openapi.json` stays anonymous.
+  Deploy reads `JFK_API_KEYS` from the GitHub Actions secret of the same
+  name; Austin still needs to store the live key after merge. First-party
+  `/api/search` and `/api/document` are unchanged. Middleware crawler
+  blocks, cost rate limits, and Cloud Armor on `/api/v1/documents` stay.
 - **Coverage copy honesty (2026-08-28).** User-facing masthead, search
   empty/mode chrome, and `/about/methodology` now describe OCR as a
   fraction of indexed records and list only the releases in
@@ -809,9 +817,10 @@ gcloud run deploy jfk-research-center \
     to the aggregated `entity_cooccurrence` table + medium+ filter
     for consistency with `/graph`, but that would regress peer
     coverage for entities with only low-confidence mappings.
-- **Phase 5-E public API v1 (2026-04-19).** Read-only, CORS-open,
-  unauthenticated endpoints at `/api/v1/*` re-exposing the warehouse
-  data under a stable contract:
+- **Phase 5-E public API v1 (2026-04-19).** Read-only endpoints at
+  `/api/v1/*` re-exposing the warehouse data under a stable contract.
+  Warehouse and Vertex routes require an API key; OpenAPI stays
+  anonymous. CORS remains open for credentialed browser clients:
   - `GET /api/v1/documents` (q, topic×, entity×, agency×, yearFrom,
     yearTo, confidence×, limit 1-200)
   - `GET /api/v1/documents/{naid}`
@@ -823,7 +832,8 @@ gcloud run deploy jfk-research-center \
     derived from request origin.
   - `GET /api/docs` — HTML docs page with endpoint list + examples.
   Shared helper `lib/api-v1.ts` wraps CORS + cache headers +
-  preflight. PW-5E-2 (Firestore API keys + rate limits) is deferred.
+  preflight. Env-backed keys (`JFK_API_KEYS`) and in-memory rate
+  limits are live; durable hashed-key storage remains a follow-up.
 - **Phase 5-C co-occurrence graph (2026-04-19).** `/graph` renders a
   force-directed entity network using `d3-force` + hand-rolled SVG
   (no react-force-graph-2d dep). `sql/32_entity_cooccurrence.sql`
@@ -1234,12 +1244,11 @@ bq query --use_legacy_sql=false \
   — mostly external coordination with Google's public-dataset program
   rather than coding work. Revisit once 5-E public API is live and
   stable so the mirror has a natural home for researchers.
-- **5-E API keys + rate limits (PW-5E-2 follow-up).** Public v1 API
-  shipped without keys or rate limits — fine for now while traffic is
-  negligible, but Vertex-hit endpoints (`/search/semantic`) could get
-  abused. When ready: Firestore-backed keys (free tier 1000 req/day,
-  no-auth below some lower public threshold), per-key counters, kill
-  switch on per-endpoint spend. See gameplan PW-5E-2.
+- **5-E API keys + rate limits (PW-5E-2 follow-up).** Env-backed
+  `JFK_API_KEYS` + in-memory counters now gate every warehouse and
+  Vertex `/api/v1` route (401/403/429). Remaining follow-up is durable
+  hashed-key metadata (Firestore), distributed counters, and
+  per-endpoint spend kill switches. See gameplan PW-5E-2.
 - **Axe-core a11y gate (shipped 2026-04-26, PRs #27 + #28).** PR #27
   cleared all serious/critical violations across the audited pages
   (`/`, `/search`, `/timeline`, `/entity/*`, `/topic/*`,

@@ -2,6 +2,7 @@ import { type NextRequest } from "next/server";
 import { fetchCaseTimeline } from "@/lib/warehouse";
 import { errorResponse, jsonResponse, preflight } from "@/lib/api-v1";
 import type { CaseTimelineCategory } from "@/lib/api-types";
+import { denyUnauthorizedPublicApi } from "@/lib/public-api-enforcement";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
@@ -16,6 +17,9 @@ export const OPTIONS = preflight;
  * filtered events for convenience.
  */
 export async function GET(req: NextRequest) {
+  const denied = await denyUnauthorizedPublicApi(req);
+  if (denied) return denied;
+
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");

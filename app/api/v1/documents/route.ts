@@ -7,8 +7,7 @@ import {
   parseIntOrNull,
   preflight,
 } from "@/lib/api-v1";
-import { findPublicApiEndpointPolicy } from "@/lib/public-api-access";
-import { enforcePublicApiAccess } from "@/lib/public-api-enforcement";
+import { denyUnauthorizedPublicApi } from "@/lib/public-api-enforcement";
 import {
   warehouseRequestContextFromHeaders,
   withWarehouseRequestContext,
@@ -30,12 +29,9 @@ export const OPTIONS = preflight;
  * consumers get the same facet data the web UI uses.
  */
 export async function GET(req: NextRequest) {
+  const denied = await denyUnauthorizedPublicApi(req);
+  if (denied) return denied;
   const url = new URL(req.url);
-  const policy = findPublicApiEndpointPolicy("GET", url.pathname);
-  if (policy) {
-    const access = await enforcePublicApiAccess(req, policy);
-    if (!access.ok) return access.response;
-  }
 
   const limit = Math.max(
     1,
