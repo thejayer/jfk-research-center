@@ -37,9 +37,9 @@ Live: **https://researchjfk.ai**
   has `gh` CLI authenticated as `thejayer`. Make commits with
   `austincwiley@gmail.com` as the author (set as the local
   `user.email`). `gh` token carries `repo` scope, enough to push +
-  manage the repo. Cloud Run still deploys from `--source=.` (local
-  tree → GCS tar → Cloud Build → Artifact Registry), not from
-  GitHub; git is for history and recovery, not CI.
+  manage the repo. Cloud Run CI builds the Dockerfile via global
+  Cloud Build into Artifact Registry, then `gcloud run deploy --image`;
+  git is for history and recovery, not the Cloud Run source path.
 
 ---
 
@@ -209,8 +209,13 @@ bq query --use_legacy_sql=false \
   'SELECT * FROM `jfk-vault.jfk_staging.dq_unmatched_abbyy` LIMIT 20'
 
 # --- Deploy ---
+# Global Cloud Build (no --region), then deploy the tagged image.
+# Avoid `gcloud run deploy --source=.` — that uses regional us-central1
+# Cloud Build and can sit QUEUED until the job times out.
+IMAGE=us-central1-docker.pkg.dev/jfk-vault/cloud-run-source-deploy/jfk-research-center:$(git rev-parse --short HEAD)
+gcloud builds submit --tag="$IMAGE" --project=jfk-vault .
 gcloud run deploy jfk-research-center \
-  --source=. --region=us-central1 --project=jfk-vault \
+  --image="$IMAGE" --region=us-central1 --project=jfk-vault \
   --allow-unauthenticated --port=8080 \
   --memory=1Gi --cpu=1 --max-instances=3 --min-instances=0 \
   --set-env-vars="JFK_BQ_PROJECT=jfk-vault" --quiet
@@ -1303,7 +1308,7 @@ bq query --use_legacy_sql=false \
   env, `@/*` alias matches the TS paths config. Adapter/warehouse
   tests would need a BigQuery mock — not written yet.
 - **CI/CD**: `.github/workflows/deploy.yml` runs on push to `main`:
-  typecheck → `gcloud run deploy --source=.`. Auths via the
+  typecheck → axe → global `gcloud builds submit` → `gcloud run deploy --image`. Auths via the
   `GCP_SA_KEY` repo secret (JSON key for `jfk-deployer@jfk-vault`).
   If you rotate or revoke the key, regenerate with
   `gcloud iam service-accounts keys create` and update the secret via

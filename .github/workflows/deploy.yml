@@ -27,7 +27,7 @@ jobs:
   deploy:
     needs: [typecheck, axe]
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -39,6 +39,18 @@ jobs:
         with:
           project_id: jfk-vault
 
+      # --source=. submits a *regional* Cloud Build in us-central1, which
+      # can sit QUEUED until queueTtl expires and never start. Global
+      # Cloud Build (no --region) starts immediately; then deploy --image.
+      - name: Build image (global Cloud Build)
+        run: |
+          IMAGE="us-central1-docker.pkg.dev/jfk-vault/cloud-run-source-deploy/jfk-research-center:${GITHUB_SHA}"
+          echo "IMAGE=${IMAGE}" >> "$GITHUB_ENV"
+          gcloud builds submit \
+            --tag="${IMAGE}" \
+            --project=jfk-vault \
+            .
+
       - name: Deploy to Cloud Run
         env:
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
@@ -48,7 +60,7 @@ jobs:
         # plus a repo secret so a fresh rollout is self-contained.
         run: |
           gcloud run deploy jfk-research-center \
-            --source=. \
+            --image="${IMAGE}" \
             --region=us-central1 \
             --project=jfk-vault \
             --allow-unauthenticated \
