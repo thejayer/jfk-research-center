@@ -6,8 +6,7 @@ import {
   parseIntOrNull,
   preflight,
 } from "@/lib/api-v1";
-import { findPublicApiEndpointPolicy } from "@/lib/public-api-access";
-import { enforcePublicApiAccess } from "@/lib/public-api-enforcement";
+import { denyUnauthorizedPublicApi } from "@/lib/public-api-enforcement";
 import { isSemanticSearchDisabled } from "@/lib/cost-controls";
 import {
   warehouseRequestContextFromHeaders,
@@ -32,11 +31,8 @@ export async function GET(req: NextRequest) {
     return errorResponse("semantic search temporarily disabled", 503);
   }
 
-  const policy = findPublicApiEndpointPolicy("GET", url.pathname);
-  if (policy) {
-    const access = await enforcePublicApiAccess(req, policy);
-    if (!access.ok) return access.response;
-  }
+  const denied = await denyUnauthorizedPublicApi(req);
+  if (denied) return denied;
 
   const q = (url.searchParams.get("q") ?? "").trim();
   if (!q) return errorResponse("query param `q` is required", 400);

@@ -6,15 +6,19 @@ import {
   notFoundResponse,
   preflight,
 } from "@/lib/api-v1";
+import { denyUnauthorizedPublicApi } from "@/lib/public-api-enforcement";
 
 export const dynamic = "force-dynamic";
 export const OPTIONS = preflight;
 
 /** GET /api/v1/topics/{slug} — full topic record. */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
+  const denied = await denyUnauthorizedPublicApi(req);
+  if (denied) return denied;
+
   const { slug } = await params;
   try {
     const data = await fetchTopic(slug);

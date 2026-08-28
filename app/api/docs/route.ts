@@ -285,9 +285,11 @@ function renderHtml(base: string, origin: string): string {
     <h1>API v1</h1>
     <p class="lede">
       Read-only HTTP endpoints over the curated JFK Assassination Records
-      collection. All endpoints return JSON, are CORS-open, and require no
-      authentication. Rate limits and API keys are coming in a future
-      release; until then please be a considerate neighbor.
+      collection. Warehouse and Vertex endpoints return JSON and require
+      an API key via <code>Authorization: Bearer &lt;key&gt;</code> or
+      <code>X-JFKRC-API-Key</code>. CORS stays open so browser clients
+      can send those headers. The OpenAPI spec at
+      <code>/api/v1/openapi.json</code> remains readable without a key.
     </p>
     <div class="links">
       <a href="${esc(origin)}/api/v1/openapi.json">OpenAPI spec (JSON)</a>

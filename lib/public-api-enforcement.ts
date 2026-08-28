@@ -1,5 +1,9 @@
 import { errorResponse } from "./api-v1";
-import type { PublicApiEndpointPolicy, PublicApiRateWindow } from "./public-api-access";
+import {
+  findPublicApiEndpointPolicy,
+  type PublicApiEndpointPolicy,
+  type PublicApiRateWindow,
+} from "./public-api-access";
 
 export type PublicApiKeyStatus = "active" | "paused" | "revoked";
 
@@ -91,6 +95,20 @@ export async function enforcePublicApiAccess(
   return { ok: true, keyRecord, rateLimit };
 }
 
+/**
+ * Looks up the /api/v1 policy for this request and applies it.
+ * Returns a denial Response, or null when the request may continue.
+ */
+export async function denyUnauthorizedPublicApi(
+  req: Request,
+  opts: PublicApiEnforcementOptions = {},
+): Promise<Response | null> {
+  const policy = findPublicApiEndpointPolicy("GET", new URL(req.url).pathname);
+  if (!policy) return null;
+  const access = await enforcePublicApiAccess(req, policy, opts);
+  return access.ok ? null : access.response;
+}
+
 export function readApiKey(req: Request): string | null {
   const authorization = req.headers.get("authorization");
   const bearer = authorization?.match(AUTH_BEARER_RE)?.[1]?.trim();
@@ -137,8 +155,14 @@ export class InMemoryPublicApiEnforcementStore
   }
 }
 
+class EnvBackedPublicApiEnforcementStore extends InMemoryPublicApiEnforcementStore {
+  async lookupApiKey(rawKey: string): Promise<PublicApiKeyRecord | null> {
+    return readConfiguredKeys(readProcessEnv())[rawKey] ?? null;
+  }
+}
+
 export const defaultPublicApiEnforcementStore =
-  new InMemoryPublicApiEnforcementStore(readConfiguredKeys(readProcessEnv()));
+  new EnvBackedPublicApiEnforcementStore();
 
 function denied(
   message: string,

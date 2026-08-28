@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { findPublicApiEndpointPolicy } from "../public-api-access";
 import {
+  denyUnauthorizedPublicApi,
   enforcePublicApiAccess,
   InMemoryPublicApiEnforcementStore,
   readApiKey,
@@ -8,6 +9,17 @@ import {
 } from "../public-api-enforcement";
 
 const NOW = Date.UTC(2026, 0, 1, 12);
+
+const WAREHOUSE_PATHS = [
+  "/api/v1/documents",
+  "/api/v1/documents/104-10535-10001",
+  "/api/v1/entities",
+  "/api/v1/entities/oswald",
+  "/api/v1/topics",
+  "/api/v1/topics/mexico-city",
+  "/api/v1/timeline",
+  "/api/v1/search/semantic",
+] as const;
 
 describe("public API enforcement", () => {
   it("reads API keys from bearer auth and script-friendly headers", () => {
@@ -28,25 +40,24 @@ describe("public API enforcement", () => {
     ).toBe("header-key");
   });
 
-  it("requires a key before semantic search work can run", async () => {
-    const policy = findPublicApiEndpointPolicy(
-      "GET",
-      "/api/v1/search/semantic",
-    );
-    expect(policy).not.toBeNull();
+  it("requires a key on every warehouse and Vertex route", async () => {
+    for (const path of WAREHOUSE_PATHS) {
+      const policy = findPublicApiEndpointPolicy("GET", path);
+      expect(policy, path).not.toBeNull();
 
-    const result = await enforcePublicApiAccess(
-      new Request("https://example.test/api/v1/search/semantic?q=oswald"),
-      policy!,
-      { now: NOW, store: throwingStore() },
-    );
+      const result = await enforcePublicApiAccess(
+        new Request(`https://example.test${path}`),
+        policy!,
+        { now: NOW, store: throwingStore() },
+      );
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.response.status).toBe(401);
-      await expect(result.response.json()).resolves.toEqual({
-        error: "api key required",
-      });
+      expect(result.ok, path).toBe(false);
+      if (!result.ok) {
+        expect(result.response.status, path).toBe(401);
+        await expect(result.response.json()).resolves.toEqual({
+          error: "api key required",
+        });
+      }
     }
   });
 
@@ -77,25 +88,27 @@ describe("public API enforcement", () => {
     if (!paused.ok) expect(paused.response.status).toBe(403);
   });
 
-  it("allows active keys on keyed semantic policies", async () => {
-    const policy = findPublicApiEndpointPolicy(
-      "GET",
-      "/api/v1/search/semantic",
-    );
-    expect(policy).not.toBeNull();
-
-    const result = await enforcePublicApiAccess(keyedRequest("active"), policy!, {
-      now: NOW,
-      store: new InMemoryPublicApiEnforcementStore({
-        active: { keyId: "active", status: "active", tier: "researcher" },
-      }),
+  it("allows active keys on keyed warehouse and semantic policies", async () => {
+    const store = new InMemoryPublicApiEnforcementStore({
+      active: { keyId: "active", status: "active", tier: "researcher" },
     });
 
-    expect(result).toMatchObject({
-      ok: true,
-      keyRecord: { keyId: "active", status: "active" },
-      rateLimit: { count: 1 },
-    });
+    for (const path of ["/api/v1/documents", "/api/v1/search/semantic"]) {
+      const policy = findPublicApiEndpointPolicy("GET", path);
+      expect(policy).not.toBeNull();
+
+      const result = await enforcePublicApiAccess(
+        keyedRequest("active", path),
+        policy!,
+        { now: NOW, store },
+      );
+
+      expect(result).toMatchObject({
+        ok: true,
+        keyRecord: { keyId: "active", status: "active" },
+        rateLimit: { count: expect.any(Number) },
+      });
+    }
   });
 
   it("short-circuits kill switches before key lookup or counters", async () => {
@@ -115,20 +128,26 @@ describe("public API enforcement", () => {
     if (!result.ok) expect(result.response.status).toBe(503);
   });
 
-  it("meters anonymous document search and returns Retry-After on overflow", async () => {
+  it("meters keyed warehouse calls and returns Retry-After on overflow", async () => {
     const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
     expect(policy).not.toBeNull();
 
-    const store = new InMemoryPublicApiEnforcementStore();
+    const store = new InMemoryPublicApiEnforcementStore({
+      active: { keyId: "active", status: "active", tier: "researcher" },
+    });
+    const limited = {
+      ...policy!,
+      keyedLimit: { requests: 1, windowSeconds: 60 },
+    };
     const first = await enforcePublicApiAccess(
-      new Request("https://example.test/api/v1/documents?q=oswald"),
-      { ...policy!, anonymousLimit: { requests: 1, windowSeconds: 60 } },
-      { now: NOW, clientIp: "203.0.113.10", store },
+      keyedRequest("active", "/api/v1/documents?q=oswald"),
+      limited,
+      { now: NOW, store },
     );
     const second = await enforcePublicApiAccess(
-      new Request("https://example.test/api/v1/documents?q=oswald"),
-      { ...policy!, anonymousLimit: { requests: 1, windowSeconds: 60 } },
-      { now: NOW + 10_000, clientIp: "203.0.113.10", store },
+      keyedRequest("active", "/api/v1/documents?q=oswald"),
+      limited,
+      { now: NOW + 10_000, store },
     );
 
     expect(first).toMatchObject({ ok: true, rateLimit: { count: 1 } });
@@ -139,8 +158,24 @@ describe("public API enforcement", () => {
     }
   });
 
+  it("lets anonymous callers read the OpenAPI contract", async () => {
+    const denied = await denyUnauthorizedPublicApi(
+      new Request("https://example.test/api/v1/openapi.json"),
+      { now: NOW, store: new InMemoryPublicApiEnforcementStore() },
+    );
+    expect(denied).toBeNull();
+  });
+
+  it("denies unauthenticated warehouse calls through the route helper", async () => {
+    const denied = await denyUnauthorizedPublicApi(
+      new Request("https://example.test/api/v1/entities"),
+      { now: NOW, store: throwingStore() },
+    );
+    expect(denied?.status).toBe(401);
+  });
+
   it("ignores spoofable proxy IP headers unless explicitly trusted", async () => {
-    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
+    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/openapi.json");
     expect(policy).not.toBeNull();
 
     const limitedPolicy = {
@@ -149,12 +184,12 @@ describe("public API enforcement", () => {
     };
     const store = new InMemoryPublicApiEnforcementStore();
     const first = await enforcePublicApiAccess(
-      forwardedRequest("198.51.100.10"),
+      forwardedOpenApiRequest("198.51.100.10"),
       limitedPolicy,
       { now: NOW, store },
     );
     const second = await enforcePublicApiAccess(
-      forwardedRequest("198.51.100.11"),
+      forwardedOpenApiRequest("198.51.100.11"),
       limitedPolicy,
       { now: NOW + 10_000, store },
     );
@@ -165,7 +200,7 @@ describe("public API enforcement", () => {
   });
 
   it("uses proxy IP headers only when the deployment opts in", async () => {
-    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/documents");
+    const policy = findPublicApiEndpointPolicy("GET", "/api/v1/openapi.json");
     expect(policy).not.toBeNull();
 
     const limitedPolicy = {
@@ -174,7 +209,7 @@ describe("public API enforcement", () => {
     };
     const store = new InMemoryPublicApiEnforcementStore();
     const first = await enforcePublicApiAccess(
-      forwardedRequest("198.51.100.10"),
+      forwardedOpenApiRequest("198.51.100.10"),
       limitedPolicy,
       {
         now: NOW,
@@ -183,7 +218,7 @@ describe("public API enforcement", () => {
       },
     );
     const second = await enforcePublicApiAccess(
-      forwardedRequest("198.51.100.11"),
+      forwardedOpenApiRequest("198.51.100.11"),
       limitedPolicy,
       {
         now: NOW + 10_000,
@@ -197,14 +232,14 @@ describe("public API enforcement", () => {
   });
 });
 
-function keyedRequest(key: string): Request {
-  return new Request("https://example.test/api/v1/search/semantic?q=oswald", {
+function keyedRequest(key: string, path = "/api/v1/search/semantic?q=oswald"): Request {
+  return new Request(`https://example.test${path}`, {
     headers: { authorization: `Bearer ${key}` },
   });
 }
 
-function forwardedRequest(ip: string): Request {
-  return new Request("https://example.test/api/v1/documents?q=oswald", {
+function forwardedOpenApiRequest(ip: string): Request {
+  return new Request("https://example.test/api/v1/openapi.json", {
     headers: { "x-forwarded-for": `${ip}, 203.0.113.1` },
   });
 }

@@ -1,14 +1,13 @@
 /**
  * Shared helpers for `/api/v1/*` public endpoints.
  *
- * The public API intentionally re-exposes the same warehouse-backed
- * responses the private `/api/*` routes use; it just adds permissive
- * CORS so researchers and scripts can consume the data from anywhere,
- * plus conservative cache headers since the underlying data changes
- * slowly (per-release cadence, not per-request).
+ * The public API re-exposes the same warehouse-backed responses the
+ * first-party `/api/*` routes use, with permissive CORS so scripts and
+ * browser clients can call it from anywhere. Warehouse and Vertex
+ * endpoints require an API key; CORS is not anonymous access.
  *
  * Access-control policy lives in docs/public-api-access-control.md and
- * lib/public-api-access.ts. Expensive v1 routes apply that policy before
+ * lib/public-api-access.ts. Every v1 route applies that policy before
  * doing warehouse or Vertex work.
  */
 

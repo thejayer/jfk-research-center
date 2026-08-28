@@ -169,6 +169,11 @@ export const publicApiSearchAnonymousLimit: PublicApiRateWindow = {
   windowSeconds: 3600,
 };
 
+export const publicApiDefaultKeyedLimit: PublicApiRateWindow = {
+  requests: 120,
+  windowSeconds: 3600,
+};
+
 export const publicApiSemanticKeyedLimit: PublicApiRateWindow = {
   requests: 120,
   windowSeconds: 3600,
