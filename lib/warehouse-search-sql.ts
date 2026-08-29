@@ -68,6 +68,35 @@ export function searchDocumentSelectSql(alias = "r"): string {
  */
 export const OCR_HIT_DOCUMENT_ID_LIMIT = 10_000;
 
+/**
+ * NAID / RIF-shaped ids we are willing to interpolate as BigQuery
+ * string literals. `IN UNNEST(@documentIds)` does not cluster-prune
+ * `search_ocr_chunks`; a literal `IN ('104-…', …)` does.
+ */
+export const DOCUMENT_ID_LITERAL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+export function literalDocumentIds(documentIds: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of documentIds) {
+    const id = raw.trim();
+    if (!DOCUMENT_ID_LITERAL_PATTERN.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+    if (out.length >= OCR_HIT_DOCUMENT_ID_LIMIT) break;
+  }
+  return out;
+}
+
+export function sqlDocumentIdInList(
+  column: string,
+  documentIds: readonly string[],
+): string {
+  const ids = literalDocumentIds(documentIds);
+  if (ids.length === 0) return "FALSE";
+  return `${column} IN (${ids.map((id) => `'${id}'`).join(", ")})`;
+}
+
 function ocrTokenDocumentIdSubquery(
   tables: WarehouseTableRef,
   tokenCount: number,
@@ -107,10 +136,18 @@ export function buildOcrHitDocumentIdSql(
 }
 
 /** OCR snippets for a page of already-selected documents. */
-export function buildOcrSnippetSql(tables: WarehouseTableRef): string {
+export function buildOcrSnippetSql(
+  tables: WarehouseTableRef,
+  documentIds: readonly string[] = [],
+): string {
+  const idFilter = sqlDocumentIdInList("document_id", documentIds);
+  if (idFilter === "FALSE") {
+    return `SELECT CAST(NULL AS STRING) AS document_id, CAST(NULL AS STRING) AS hit_text
+     WHERE FALSE`;
+  }
   return `SELECT document_id, ANY_VALUE(chunk_text) AS hit_text
      FROM ${ocrChunksTable(tables)}
-    WHERE document_id IN UNNEST(@documentIds)
+    WHERE ${idFilter}
       AND LOWER(chunk_text) LIKE @qLike
     GROUP BY document_id`;
 }
@@ -188,21 +225,29 @@ export function buildFilterOnlyDocumentsSql(tables: WarehouseTableRef): string {
 export function buildMentionSearchSql(
   tables: WarehouseTableRef,
   whereSql: string,
-  tokenCount: number,
+  documentIds: readonly string[],
   limit: number,
   offset: number,
 ): string {
-  const tokenFilter =
-    tokenCount > 0
-      ? `c.document_id IN (${ocrTokenDocumentIdSubquery(tables, tokenCount)})`
-      : "FALSE";
+  const idFilter = sqlDocumentIdInList("c.document_id", documentIds);
+  if (idFilter === "FALSE") {
+    return `SELECT CAST(NULL AS STRING) AS document_id,
+              CAST(NULL AS STRING) AS naid,
+              CAST(NULL AS STRING) AS title,
+              CAST(NULL AS STRING) AS chunk_id,
+              CAST(NULL AS INT64) AS chunk_order,
+              CAST(NULL AS STRING) AS chunk_text,
+              CAST(NULL AS STRING) AS page_label,
+              CAST(0 AS INT64) AS total_count
+         WHERE FALSE`;
+  }
   return `SELECT r.document_id, r.naid, r.title,
               c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
               COUNT(*) OVER() AS total_count
          FROM ${ocrChunksTable(tables)} c
          JOIN ${recordsTable(tables)} r
            USING (document_id)
-        WHERE ${tokenFilter}
+        WHERE ${idFilter}
           AND ${whereSql}
         ORDER BY c.document_id, c.chunk_order
         LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
@@ -211,17 +256,17 @@ export function buildMentionSearchSql(
 export function buildMentionSearchCountSql(
   tables: WarehouseTableRef,
   whereSql: string,
-  tokenCount: number,
+  documentIds: readonly string[],
 ): string {
-  const tokenFilter =
-    tokenCount > 0
-      ? `c.document_id IN (${ocrTokenDocumentIdSubquery(tables, tokenCount)})`
-      : "FALSE";
+  const idFilter = sqlDocumentIdInList("c.document_id", documentIds);
+  if (idFilter === "FALSE") {
+    return `SELECT CAST(0 AS INT64) AS n WHERE FALSE`;
+  }
   return `SELECT COUNT(*) AS n
          FROM ${ocrChunksTable(tables)} c
          JOIN ${recordsTable(tables)} r
            USING (document_id)
-        WHERE ${tokenFilter}
+        WHERE ${idFilter}
           AND ${whereSql}`;
 }
 
@@ -320,4 +365,25 @@ export function sqlSelectsStarFromRecords(sql: string): boolean {
 
 export function sqlSelectsReleaseHistory(sql: string): boolean {
   return /release_history/i.test(sql);
+}
+
+/** True when a clustering-column filter is a literal IN list or equality. */
+export function sqlHasSelectiveDocumentIdFilter(sql: string): boolean {
+  return (
+    /document_id\s+IN\s*\(\s*'[^']+'/i.test(sql) ||
+    /document_id\s*=\s*@id\b/i.test(sql) ||
+    /document_id\s*=\s*'[^']+'/i.test(sql)
+  );
+}
+
+/**
+ * True when a query LIKEs OCR text without a pruneable document_id
+ * predicate. `IN UNNEST(@…)` and `IN (SELECT …)` do not count — those
+ * are the live 128 MiB leak on search_ocr_chunks.
+ */
+export function sqlLikeScansOcrWithoutDocumentIdFilter(sql: string): boolean {
+  if (!/chunk_text/i.test(sql) || !/\bLIKE\b/i.test(sql)) return false;
+  if (/UNNEST\s*\(\s*@/i.test(sql)) return true;
+  if (/document_id\s+IN\s*\(\s*SELECT\b/i.test(sql)) return true;
+  return !sqlHasSelectiveDocumentIdFilter(sql);
 }
