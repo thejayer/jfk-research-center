@@ -105,12 +105,16 @@ import {
   topicToCard as mockTopicToCard,
 } from "./mock-data";
 import { normalizeSourceUrl } from "./source-urls";
-import { isBigQueryBytesBilledExceeded } from "./bigquery-errors";
+import {
+  isBigQueryBytesBilledExceeded,
+  isBigQueryNotFound,
+} from "./bigquery-errors";
 import {
   isArchiveIdentifierQuery,
   readBigQueryMaximumBytesBilled,
 } from "./cost-controls";
 import { searchCacheKey, withSearchCache } from "./search-cache";
+import { extractSearchTokens, ocrTokenRangeParams } from "./search-tokens";
 import { warehouseJobLabels } from "./warehouse-request-context";
 import {
   denseSearchFacetYears,
@@ -127,14 +131,20 @@ import {
   buildCorpusEntityFacetSql,
   buildCorpusTopicFacetSql,
   buildCorpusYearFacetSql,
+  buildDocumentPageChunksSql,
   buildDocumentSearchCountSql,
   buildDocumentSearchSql,
   buildEntityMembershipSql,
   buildFilterOnlyDocumentsSql,
+  buildIdentifierSearchSql,
+  buildMentionSearchCountSql,
+  buildMentionSearchSql,
   buildOcrHitDocumentIdSql,
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
   buildTopicMembershipSql,
+  chunksTable,
+  recordsTable,
   type TopicTableRef,
   type WarehouseTableRef,
 } from "./warehouse-search-sql";
@@ -460,13 +470,21 @@ type EntityRow = {
   sort_order: number;
 };
 
+let cachedEntities: { expiresAt: number; rows: EntityRow[] } | null = null;
+
 async function loadEntities(): Promise<EntityRow[]> {
-  return query<EntityRow>(
+  const now = Date.now();
+  if (cachedEntities && cachedEntities.expiresAt > now) {
+    return cachedEntities.rows;
+  }
+  const rows = await query<EntityRow>(
     `SELECT entity_id, entity_name, entity_type, aliases, summary,
             description, headline, born, died, active_years, sort_order
        FROM \`${PROJECT}.${DATASET_CURATED}.jfk_entities\`
       ORDER BY sort_order`,
   );
+  cachedEntities = { rows, expiresAt: now + 5 * 60_000 };
+  return rows;
 }
 
 function entityRowToDetail(
@@ -1332,20 +1350,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
          JOIN candidates USING (document_id)`,
       { id: canonicalId },
     ),
-    query<{
-      chunk_id: string;
-      chunk_order: number;
-      chunk_text: string;
-      page_label: string | null;
-      source_type: string;
-    }>(
-      `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\`
-        WHERE document_id = @id
-        ORDER BY chunk_order
-        LIMIT 12`,
-      { id: canonicalId },
-    ),
+    fetchDocumentOcrChunks(canonicalId),
     fetchDocumentTopics(canonicalId),
   ]);
 
@@ -1649,7 +1654,7 @@ async function fetchSearchUncached({
   }
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-  const ocrHitIds = qNorm ? await fetchOcrHitDocumentIds(params.qLike as string) : [];
+  const ocrHitIds = qNorm ? await fetchOcrHitDocumentIds(qNorm) : [];
   params.ocrHitIds = ocrHitIds;
 
   const [results, filterData] = await Promise.all([
@@ -1736,13 +1741,12 @@ async function fetchMentionSearch({
     };
   }
 
+  const tokens = extractSearchTokens(qNorm);
   const params: Record<string, unknown> = {
     qLike: `%${qNorm.toLowerCase()}%`,
+    ...ocrTokenRangeParams(tokens),
   };
-  const mentionWhere = [
-    "c.source_type IN ('abbyy_ocr', 'docai_ocr')",
-    "LOWER(c.chunk_text) LIKE @qLike",
-  ];
+  const mentionWhere = ["LOWER(c.chunk_text) LIKE @qLike"];
   if (filters.agencies?.length) {
     mentionWhere.push("r.agency IN UNNEST(@agencies)");
     params.agencies = filters.agencies;
@@ -1768,45 +1772,21 @@ async function fetchMentionSearch({
   }
   const mentionWhereSql = mentionWhere.join(" AND ");
 
+  const ocrHitIds = await fetchOcrHitDocumentIds(qNorm);
   const [ocrRows, facets] = await Promise.all([
-    query<{
-      document_id: string;
-      naid: string;
-      title: string;
-      chunk_id: string;
-      chunk_order: number;
-      chunk_text: string;
-      page_label: string | null;
-      total_count: number;
-    }>(
-      `SELECT r.document_id, r.naid, r.title,
-              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
-              COUNT(*) OVER() AS total_count
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-         JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-           USING (document_id)
-        WHERE ${mentionWhereSql}
-        ORDER BY c.document_id, c.chunk_order
-        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+    fetchMentionRows({
+      whereSql: mentionWhereSql,
+      tokenCount: tokens.length,
       params,
-    ),
-    loadSearchFacets(qNorm, filters),
+      limit,
+      offset,
+    }),
+    loadSearchFacets(qNorm, filters, ocrHitIds),
   ]);
 
   const total =
     ocrRows[0]?.total_count ??
-    (offset > 0
-      ? (
-          await query<{ n: number }>(
-            `SELECT COUNT(*) AS n
-               FROM \`${PROJECT}.${DATASET_CURATED}.jfk_text_chunks\` c
-               JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-                 USING (document_id)
-              WHERE ${mentionWhereSql}`,
-            params,
-          )
-        )[0]?.n ?? 0
-      : 0);
+    (offset > 0 ? await fetchMentionTotal(mentionWhereSql, tokens.length, params) : 0);
   const results: SearchResult[] = ocrRows.map((row) => ({
     kind: "mention",
     mention: {
@@ -1881,11 +1861,12 @@ async function fetchIdentifierSearch({
       total_count: number;
     }
   >(
-    `SELECT r.*, 'high' AS match_confidence, COUNT(*) OVER() AS total_count
-       FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-      WHERE ${where.join(" AND ")}
-      ORDER BY r.start_date DESC NULLS LAST
-      LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+    buildIdentifierSearchSql(
+      WAREHOUSE_TABLES,
+      where.join(" AND "),
+      Number(limit),
+      Number(offset),
+    ),
     params,
   );
   const total = rows[0]?.total_count ?? 0;
@@ -2282,19 +2263,85 @@ let corpusSearchFacetsPromise: Promise<SearchFacetData> | null = null;
 let entityMembershipPromise: Promise<Map<string, string[]>> | null = null;
 let topicMembershipPromise: Promise<Map<string, string[]>> | null = null;
 
-async function fetchOcrHitDocumentIds(qLike: string): Promise<string[]> {
+type MentionRow = {
+  document_id: string;
+  naid: string;
+  title: string;
+  chunk_id: string;
+  chunk_order: number;
+  chunk_text: string;
+  page_label: string | null;
+  total_count: number;
+};
+
+async function fetchMentionRows({
+  whereSql,
+  tokenCount,
+  params,
+  limit,
+  offset,
+}: {
+  whereSql: string;
+  tokenCount: number;
+  params: Record<string, unknown>;
+  limit: number;
+  offset: number;
+}): Promise<MentionRow[]> {
   try {
-    const rows = await query<{ document_id: string }>(
-      buildOcrHitDocumentIdSql(WAREHOUSE_TABLES),
-      { qLike },
+    return await query<MentionRow>(
+      buildMentionSearchSql(
+        WAREHOUSE_TABLES,
+        whereSql,
+        tokenCount,
+        Number(limit),
+        Number(offset),
+      ),
+      params,
     );
-    return rows.map((row) => row.document_id);
   } catch (error) {
-    if (isBigQueryBytesBilledExceeded(error)) {
-      console.warn("[warehouse] OCR document-id scan skipped: bytes billed cap");
-      return [];
-    }
-    throw error;
+    if (!isBigQueryNotFound(error)) throw error;
+    console.warn(
+      "[warehouse] clustered mention path unavailable; falling back to jfk_text_chunks",
+    );
+    return query<MentionRow>(
+      `SELECT r.document_id, r.naid, r.title,
+              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
+              COUNT(*) OVER() AS total_count
+         FROM ${chunksTable(WAREHOUSE_TABLES)} c
+         JOIN ${recordsTable(WAREHOUSE_TABLES)} r
+           USING (document_id)
+        WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
+          AND ${whereSql}
+        ORDER BY c.document_id, c.chunk_order
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+      params,
+    );
+  }
+}
+
+async function fetchMentionTotal(
+  whereSql: string,
+  tokenCount: number,
+  params: Record<string, unknown>,
+): Promise<number> {
+  try {
+    const rows = await query<{ n: number }>(
+      buildMentionSearchCountSql(WAREHOUSE_TABLES, whereSql, tokenCount),
+      params,
+    );
+    return rows[0]?.n ?? 0;
+  } catch (error) {
+    if (!isBigQueryNotFound(error)) throw error;
+    const rows = await query<{ n: number }>(
+      `SELECT COUNT(*) AS n
+         FROM ${chunksTable(WAREHOUSE_TABLES)} c
+         JOIN ${recordsTable(WAREHOUSE_TABLES)} r
+           USING (document_id)
+        WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
+          AND ${whereSql}`,
+      params,
+    );
+    return rows[0]?.n ?? 0;
   }
 }
 
@@ -2314,11 +2361,65 @@ async function fetchOcrSnippets(
         .map((row) => [row.document_id, row.hit_text as string]),
     );
   } catch (error) {
-    if (isBigQueryBytesBilledExceeded(error)) {
-      console.warn("[warehouse] OCR snippet scan skipped: bytes billed cap");
+    if (isBigQueryBytesBilledExceeded(error) || isBigQueryNotFound(error)) {
+      console.warn("[warehouse] OCR snippet scan skipped");
       return new Map();
     }
     throw error;
+  }
+}
+
+async function fetchOcrHitDocumentIds(qNorm: string): Promise<string[]> {
+  const tokens = extractSearchTokens(qNorm);
+  if (tokens.length === 0) return [];
+  try {
+    const rows = await query<{ document_id: string }>(
+      buildOcrHitDocumentIdSql(WAREHOUSE_TABLES, tokens.length),
+      ocrTokenRangeParams(tokens),
+    );
+    return rows.map((row) => row.document_id);
+  } catch (error) {
+    if (isBigQueryBytesBilledExceeded(error) || isBigQueryNotFound(error)) {
+      console.warn(
+        "[warehouse] OCR token lookup skipped:",
+        isBigQueryNotFound(error)
+          ? "search_ocr_document_tokens missing (run sql/33)"
+          : "bytes billed cap",
+      );
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function fetchDocumentOcrChunks(documentId: string): Promise<
+  Array<{
+    chunk_id: string;
+    chunk_order: number;
+    chunk_text: string;
+    page_label: string | null;
+    source_type: string;
+  }>
+> {
+  try {
+    return await query(buildDocumentPageChunksSql(WAREHOUSE_TABLES), {
+      id: documentId,
+    });
+  } catch (error) {
+    if (!isBigQueryNotFound(error) && !isBigQueryBytesBilledExceeded(error)) {
+      throw error;
+    }
+    console.warn(
+      "[warehouse] clustered OCR chunks unavailable; falling back to jfk_text_chunks",
+    );
+    return query(
+      `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type
+         FROM ${chunksTable(WAREHOUSE_TABLES)}
+        WHERE document_id = @id
+        ORDER BY chunk_order
+        LIMIT 12`,
+      { id: documentId },
+    );
   }
 }
 
@@ -2456,7 +2557,7 @@ async function querySearchFacets(
 ): Promise<SearchFacetData> {
   const qLike = qNorm ? `%${qNorm.toLowerCase()}%` : "%";
   const resolvedOcrHitIds =
-    ocrHitIds ?? (qNorm ? await fetchOcrHitDocumentIds(qLike) : []);
+    ocrHitIds ?? (qNorm ? await fetchOcrHitDocumentIds(qNorm) : []);
 
   const [matchedRows, entityMeta, entityMembership, topicMembership] =
     await Promise.all([

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isBigQueryBytesBilledExceeded } from "../bigquery-errors";
+import {
+  isBigQueryBytesBilledExceeded,
+  isBigQueryNotFound,
+} from "../bigquery-errors";
 
 describe("isBigQueryBytesBilledExceeded", () => {
   it("detects the BigQuery bytes-billed cap reason", () => {
@@ -29,5 +32,23 @@ describe("isBigQueryBytesBilledExceeded", () => {
       false,
     );
     expect(isBigQueryBytesBilledExceeded(null)).toBe(false);
+  });
+});
+
+describe("isBigQueryNotFound", () => {
+  it("detects a missing-table job error", () => {
+    expect(
+      isBigQueryNotFound({
+        code: 404,
+        errors: [
+          {
+            reason: "notFound",
+            message: "Not found: Table jfk-vault:jfk_curated.search_ocr_document_tokens",
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(isBigQueryNotFound(new Error("Not found: Table foo"))).toBe(true);
+    expect(isBigQueryNotFound(new Error("bytes billed"))).toBe(false);
   });
 });

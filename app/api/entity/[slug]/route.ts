@@ -1,15 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { fetchEntity } from "@/lib/warehouse";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "@/lib/warehouse-request-context";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
   try {
-    const res = await fetchEntity(slug);
+    const res = await withWarehouseRequestContext(
+      warehouseRequestContextFromHeaders(req.headers, "api_entity"),
+      () => fetchEntity(slug),
+    );
     if (!res) {
       return NextResponse.json({ error: "Entity not found" }, { status: 404 });
     }

@@ -2,14 +2,22 @@ import { describe, expect, it } from "vitest";
 import {
   buildCorpusAgencyFacetSql,
   buildCorpusTopicFacetSql,
+  buildDocumentPageChunksSql,
   buildDocumentSearchSql,
   buildFilterOnlyDocumentsSql,
+  buildIdentifierSearchSql,
+  buildMentionSearchSql,
   buildOcrHitDocumentIdSql,
+  buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
   buildTopicMembershipSql,
   OCR_HIT_DOCUMENT_ID_LIMIT,
+  SEARCH_DOCUMENT_COLUMNS,
   sqlMentionsOcrChunks,
+  sqlScansLegacyTextChunks,
+  sqlSelectsReleaseHistory,
   sqlSelectsStarFromRecords,
+  sqlUsesOcrTokenTable,
 } from "../warehouse-search-sql";
 
 const tables = {
@@ -24,30 +32,84 @@ const topics = [
 ];
 
 describe("warehouse search SQL cost envelope", () => {
-  it("keeps document search off the OCR chunk table", () => {
+  it("keeps document search off OCR chunk tables and off SELECT r.*", () => {
     const sql = buildDocumentSearchSql(tables, "WHERE match_confidence IS NOT NULL", 50, 0);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sqlSelectsStarFromRecords(sql)).toBe(false);
+    expect(sqlSelectsReleaseHistory(sql)).toBe(false);
     expect(sql).toContain("UNNEST(@ocrHitIds)");
-    expect(sqlSelectsStarFromRecords(sql)).toBe(true);
+    for (const column of SEARCH_DOCUMENT_COLUMNS) {
+      expect(sql).toContain(`r.${column}`);
+    }
   });
 
-  it("selects only document ids from OCR, not every matching chunk body", () => {
-    const sql = buildOcrHitDocumentIdSql(tables);
-    expect(sqlMentionsOcrChunks(sql)).toBe(true);
-    expect(sql).toMatch(/SELECT\s+document_id/i);
-    expect(sql).not.toMatch(/ANY_VALUE\(chunk_text\)/i);
+  it("loads OCR document ids from the clustered token table, not chunk_text", () => {
+    const sql = buildOcrHitDocumentIdSql(tables, 1);
+    expect(sqlUsesOcrTokenTable(sql)).toBe(true);
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sql).toContain("token >= @ocrTok0 AND token < @ocrTok0End");
+    expect(sql).not.toMatch(/LIKE/i);
+    expect(sql).toContain(`LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`);
+  });
+
+  it("intersects multi-token OCR lookups so each range can prune a cluster", () => {
+    const sql = buildOcrHitDocumentIdSql(tables, 2);
+    expect(sql).toContain("INTERSECT DISTINCT");
+    expect(sql).toContain("@ocrTok1");
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
   });
 
   it("bounds OCR hit document ids well above current corpus coverage", () => {
     expect(OCR_HIT_DOCUMENT_ID_LIMIT).toBeGreaterThan(2165);
-    const sql = buildOcrHitDocumentIdSql(tables);
-    expect(sql).toContain(`LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`);
+  });
+
+  it("restricts mention search to token-hit documents on the clustered OCR projection", () => {
+    const sql = buildMentionSearchSql(
+      tables,
+      "LOWER(c.chunk_text) LIKE @qLike",
+      1,
+      50,
+      0,
+    );
+    expect(sqlUsesOcrTokenTable(sql)).toBe(true);
+    expect(sql).toContain("search_ocr_chunks");
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sql).toContain("token >= @ocrTok0 AND token < @ocrTok0End");
+  });
+
+  it("loads result-page OCR snippets from the clustered projection", () => {
+    const sql = buildOcrSnippetSql(tables);
+    expect(sql).toContain("search_ocr_chunks");
+    expect(sql).toContain("UNNEST(@documentIds)");
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+  });
+
+  it("reads document-page OCR from the clustered projection by document_id", () => {
+    const sql = buildDocumentPageChunksSql(tables);
+    expect(sql).toContain("search_ocr_chunks");
+    expect(sql).toContain("document_id = @id");
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+  });
+
+  it("keeps identifier search on slim record columns", () => {
+    const sql = buildIdentifierSearchSql(
+      tables,
+      "r.document_id = @qNorm",
+      50,
+      0,
+    );
+    expect(sqlSelectsStarFromRecords(sql)).toBe(false);
+    expect(sqlSelectsReleaseHistory(sql)).toBe(false);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
   });
 
   it("scores query-scoped facet documents without scanning OCR text", () => {
     const sql = buildQueryMatchedDocumentsSql(tables);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sql).toContain("UNNEST(@ocrHitIds)");
+    expect(sqlSelectsStarFromRecords(sql)).toBe(false);
+    expect(sql).toMatch(/SELECT r\.document_id/);
   });
 
   it("loads filter-only facet documents from record metadata without OCR", () => {

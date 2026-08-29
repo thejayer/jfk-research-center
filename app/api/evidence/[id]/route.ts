@@ -1,15 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { fetchPhysicalEvidenceItem } from "@/lib/warehouse";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "@/lib/warehouse-request-context";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   try {
-    const data = await fetchPhysicalEvidenceItem(id);
+    const data = await withWarehouseRequestContext(
+      warehouseRequestContextFromHeaders(req.headers, "api_evidence"),
+      () => fetchPhysicalEvidenceItem(id),
+    );
     if (!data) {
       return NextResponse.json({ error: "not found" }, { status: 404 });
     }

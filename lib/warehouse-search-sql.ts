@@ -2,10 +2,9 @@
  * BigQuery SQL builders for warehouse-backed search.
  *
  * Search jobs must stay under JFK_BQ_MAX_BYTES_BILLED (256 MiB in production).
- * The July 2026 query-aware facet SQL failed that cap by scanning OCR text and
- * full-width jfk_mvp.* copies in one job. These builders keep each job narrow:
- * document_id-only topic membership, metadata scoring on jfk_records, and OCR
- * scans that never share a job with SELECT r.*.
+ * Document search must not scan jfk_text_chunks.chunk_text. OCR document IDs
+ * come from the clustered token table (sql/33). Record jobs select only the
+ * card columns — never r.* / release_history.
  */
 
 export type WarehouseTableRef = {
@@ -19,12 +18,34 @@ export type TopicTableRef = {
   table: string;
 };
 
+/** Columns needed to render a search result card. Not r.* / release_history. */
+export const SEARCH_DOCUMENT_COLUMNS = [
+  "document_id",
+  "naid",
+  "title",
+  "description",
+  "record_group",
+  "agency",
+  "start_date",
+  "document_type",
+  "has_ocr",
+  "release_set",
+] as const;
+
 export function recordsTable({ project, curatedDataset }: WarehouseTableRef): string {
   return `\`${project}.${curatedDataset}.jfk_records\``;
 }
 
 export function chunksTable({ project, curatedDataset }: WarehouseTableRef): string {
   return `\`${project}.${curatedDataset}.jfk_text_chunks\``;
+}
+
+export function ocrTokenTable({ project, curatedDataset }: WarehouseTableRef): string {
+  return `\`${project}.${curatedDataset}.search_ocr_document_tokens\``;
+}
+
+export function ocrChunksTable({ project, curatedDataset }: WarehouseTableRef): string {
+  return `\`${project}.${curatedDataset}.search_ocr_chunks\``;
 }
 
 export function entityMapTable({ project, curatedDataset }: WarehouseTableRef): string {
@@ -35,6 +56,10 @@ export function entitiesTable({ project, curatedDataset }: WarehouseTableRef): s
   return `\`${project}.${curatedDataset}.jfk_entities\``;
 }
 
+export function searchDocumentSelectSql(alias = "r"): string {
+  return SEARCH_DOCUMENT_COLUMNS.map((column) => `${alias}.${column}`).join(",\n              ");
+}
+
 /**
  * Caps OCR-hit document IDs passed as `@ocrHitIds` on later jobs.
  * Corpus OCR coverage is ~2,165 unique RIFs; 10k is well above that
@@ -43,21 +68,49 @@ export function entitiesTable({ project, curatedDataset }: WarehouseTableRef): s
  */
 export const OCR_HIT_DOCUMENT_ID_LIMIT = 10_000;
 
-export function buildOcrHitDocumentIdSql(tables: WarehouseTableRef): string {
+function ocrTokenDocumentIdSubquery(
+  tables: WarehouseTableRef,
+  tokenCount: number,
+): string {
+  if (tokenCount <= 0) {
+    return `SELECT document_id FROM UNNEST(CAST([] AS ARRAY<STRING>)) AS document_id`;
+  }
+  if (tokenCount === 1) {
+    return `SELECT document_id
+          FROM ${ocrTokenTable(tables)}
+         WHERE token >= @ocrTok0 AND token < @ocrTok0End
+         GROUP BY document_id
+         LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`;
+  }
+  const branches = Array.from({ length: tokenCount }, (_, index) => {
+    return `SELECT document_id
+          FROM ${ocrTokenTable(tables)}
+         WHERE token >= @ocrTok${index} AND token < @ocrTok${index}End
+         GROUP BY document_id`;
+  });
+  return `SELECT document_id FROM (
+        ${branches.join("\n        INTERSECT DISTINCT\n        ")}
+        )
+        LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`;
+}
+
+/**
+ * OCR-hit document IDs from the clustered token table.
+ * `tokenCount` must match the @ocrTokN / @ocrTokNEnd params.
+ */
+export function buildOcrHitDocumentIdSql(
+  tables: WarehouseTableRef,
+  tokenCount = 1,
+): string {
   return `SELECT document_id
-     FROM ${chunksTable(tables)}
-    WHERE source_type IN ('abbyy_ocr', 'docai_ocr')
-      AND LOWER(chunk_text) LIKE @qLike
-    GROUP BY document_id
-    LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`;
+     FROM (${ocrTokenDocumentIdSubquery(tables, tokenCount)})`;
 }
 
 /** OCR snippets for a page of already-selected documents. */
 export function buildOcrSnippetSql(tables: WarehouseTableRef): string {
   return `SELECT document_id, ANY_VALUE(chunk_text) AS hit_text
-     FROM ${chunksTable(tables)}
-    WHERE source_type IN ('abbyy_ocr', 'docai_ocr')
-      AND document_id IN UNNEST(@documentIds)
+     FROM ${ocrChunksTable(tables)}
+    WHERE document_id IN UNNEST(@documentIds)
       AND LOWER(chunk_text) LIKE @qLike
     GROUP BY document_id`;
 }
@@ -82,7 +135,7 @@ export function buildDocumentSearchSql(
   offset: number,
 ): string {
   return `WITH scored AS (
-         SELECT r.*,
+         SELECT ${searchDocumentSelectSql("r")},
                 ${buildDocumentMatchConfidenceSql()} AS match_confidence
            FROM ${recordsTable(tables)} r
        )
@@ -105,7 +158,7 @@ export function buildDocumentSearchCountSql(
   whereSql: string,
 ): string {
   return `WITH scored AS (
-         SELECT r.*,
+         SELECT ${searchDocumentSelectSql("r")},
                 ${buildDocumentMatchConfidenceSql()} AS match_confidence
            FROM ${recordsTable(tables)} r
        )
@@ -130,6 +183,69 @@ export function buildFilterOnlyDocumentsSql(tables: WarehouseTableRef): string {
               r.start_date,
               CAST(NULL AS STRING) AS match_confidence
          FROM ${recordsTable(tables)} r`;
+}
+
+export function buildMentionSearchSql(
+  tables: WarehouseTableRef,
+  whereSql: string,
+  tokenCount: number,
+  limit: number,
+  offset: number,
+): string {
+  const tokenFilter =
+    tokenCount > 0
+      ? `c.document_id IN (${ocrTokenDocumentIdSubquery(tables, tokenCount)})`
+      : "FALSE";
+  return `SELECT r.document_id, r.naid, r.title,
+              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
+              COUNT(*) OVER() AS total_count
+         FROM ${ocrChunksTable(tables)} c
+         JOIN ${recordsTable(tables)} r
+           USING (document_id)
+        WHERE ${tokenFilter}
+          AND ${whereSql}
+        ORDER BY c.document_id, c.chunk_order
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
+}
+
+export function buildMentionSearchCountSql(
+  tables: WarehouseTableRef,
+  whereSql: string,
+  tokenCount: number,
+): string {
+  const tokenFilter =
+    tokenCount > 0
+      ? `c.document_id IN (${ocrTokenDocumentIdSubquery(tables, tokenCount)})`
+      : "FALSE";
+  return `SELECT COUNT(*) AS n
+         FROM ${ocrChunksTable(tables)} c
+         JOIN ${recordsTable(tables)} r
+           USING (document_id)
+        WHERE ${tokenFilter}
+          AND ${whereSql}`;
+}
+
+export function buildDocumentPageChunksSql(tables: WarehouseTableRef): string {
+  return `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type
+         FROM ${ocrChunksTable(tables)}
+        WHERE document_id = @id
+        ORDER BY chunk_order
+        LIMIT 12`;
+}
+
+export function buildIdentifierSearchSql(
+  tables: WarehouseTableRef,
+  whereSql: string,
+  limit: number,
+  offset: number,
+): string {
+  return `SELECT ${searchDocumentSelectSql("r")},
+              'high' AS match_confidence,
+              COUNT(*) OVER() AS total_count
+         FROM ${recordsTable(tables)} r
+        WHERE ${whereSql}
+        ORDER BY r.start_date DESC NULLS LAST
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 }
 
 export function buildCorpusYearFacetSql(tables: WarehouseTableRef): string {
@@ -187,9 +303,21 @@ export function buildEntityMembershipSql(tables: WarehouseTableRef): string {
 }
 
 export function sqlMentionsOcrChunks(sql: string): boolean {
-  return /jfk_text_chunks/i.test(sql) || /chunk_text/i.test(sql);
+  return /jfk_text_chunks/i.test(sql) || /search_ocr_chunks/i.test(sql);
+}
+
+export function sqlScansLegacyTextChunks(sql: string): boolean {
+  return /jfk_text_chunks/i.test(sql);
+}
+
+export function sqlUsesOcrTokenTable(sql: string): boolean {
+  return /search_ocr_document_tokens/i.test(sql);
 }
 
 export function sqlSelectsStarFromRecords(sql: string): boolean {
   return /SELECT\s+r\.\*/i.test(sql);
+}
+
+export function sqlSelectsReleaseHistory(sql: string): boolean {
+  return /release_history/i.test(sql);
 }
