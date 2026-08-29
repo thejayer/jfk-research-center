@@ -35,7 +35,8 @@ export function OcrPanel({
 
   const terms = Array.from(new Set(mentions.flatMap((m) => m.matchedTerms)));
   const chunksWithAnchors = mentions.filter((mention) => mention.chunkOrder != null);
-  const firstOcrPage = doc.ocrPages?.[0] ??
+  const firstFromWarehouse = doc.ocrPages?.[0];
+  const firstOcrPage = firstFromWarehouse ??
     (doc.ocrExcerpt
       ? {
           pageLabel: "p. 1",
@@ -43,6 +44,7 @@ export function OcrPanel({
           chunkOrder: doc.ocrFirstChunkOrder ?? 1,
         }
       : null);
+  const readerChunkCount = firstFromWarehouse ? (doc.chunkCount ?? 1) : 1;
 
   return (
     <section
@@ -152,9 +154,13 @@ export function OcrPanel({
           key={doc.id}
           doc={doc}
           initialPage={firstOcrPage}
-          chunkCount={doc.chunkCount ?? 1}
+          chunkCount={readerChunkCount}
           firstChunkOrder={doc.ocrFirstChunkOrder ?? firstOcrPage.chunkOrder ?? null}
-          lastChunkOrder={doc.ocrLastChunkOrder ?? firstOcrPage.chunkOrder ?? null}
+          lastChunkOrder={
+            firstFromWarehouse
+              ? (doc.ocrLastChunkOrder ?? firstOcrPage.chunkOrder ?? null)
+              : (firstOcrPage.chunkOrder ?? null)
+          }
           prevChunkOrder={doc.ocrPrevChunkOrder ?? null}
           nextChunkOrder={doc.ocrNextChunkOrder ?? null}
           terms={terms}
