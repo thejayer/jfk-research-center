@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const warehouse = vi.hoisted(() => ({
   fetchSearch: vi.fn(),
   fetchDocument: vi.fn(),
+  fetchDocumentOcrPage: vi.fn(),
   fetchAllEntities: vi.fn(),
   fetchEntity: vi.fn(),
   fetchAllTopics: vi.fn(),
@@ -14,6 +15,7 @@ const warehouse = vi.hoisted(() => ({
 vi.mock("@/lib/warehouse", () => warehouse);
 
 import { GET as getSearch } from "@/app/api/search/route";
+import { GET as getDocumentOcr } from "@/app/api/document/[id]/ocr/route";
 import { GET as getDocuments } from "@/app/api/v1/documents/route";
 import { GET as getDocument } from "@/app/api/v1/documents/[naid]/route";
 import { GET as getEntities } from "@/app/api/v1/entities/route";
@@ -161,6 +163,22 @@ describe("public /api/v1 route enforcement", () => {
 
     const keyed = await getDocuments(request("/api/v1/documents?q=oswald"));
     expect(keyed.status).toBe(401);
+
+    warehouse.fetchDocumentOcrPage.mockResolvedValue({
+      documentId: "104-10086-10152",
+      page: { pageLabel: "p. 1", text: "full page", chunkOrder: 0 },
+      prevChunkOrder: null,
+      nextChunkOrder: 1,
+      chunkCount: 4,
+      firstChunkOrder: 0,
+      lastChunkOrder: 3,
+    });
+    const publicOcr = await getDocumentOcr(
+      request("/api/document/104-10086-10152/ocr?chunk=0"),
+      { params: Promise.resolve({ id: "104-10086-10152" }) },
+    );
+    expect(publicOcr.status).toBe(200);
+    expect(warehouse.fetchDocumentOcrPage).toHaveBeenCalled();
   });
 
   it("serves OpenAPI without a key and documents the key requirement", async () => {

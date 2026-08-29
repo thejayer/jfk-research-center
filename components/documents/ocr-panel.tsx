@@ -2,6 +2,7 @@ import type { DocumentDetail, MentionExcerpt } from "@/lib/api-types";
 import { formatNumber, highlightHTML } from "@/lib/format";
 import { ChunkActions } from "./chunk-actions";
 import { ChunkHashHandler } from "./chunk-hash-handler";
+import { OcrPageReader } from "./ocr-page-reader";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import styles from "./document-reader.module.css";
 
@@ -34,6 +35,14 @@ export function OcrPanel({
 
   const terms = Array.from(new Set(mentions.flatMap((m) => m.matchedTerms)));
   const chunksWithAnchors = mentions.filter((mention) => mention.chunkOrder != null);
+  const firstOcrPage = doc.ocrPages?.[0] ??
+    (doc.ocrExcerpt
+      ? {
+          pageLabel: "p. 1",
+          text: doc.ocrExcerpt,
+          chunkOrder: doc.ocrFirstChunkOrder ?? 1,
+        }
+      : null);
 
   return (
     <section
@@ -129,12 +138,26 @@ export function OcrPanel({
         </div>
       )}
 
-      {doc.ocrExcerpt && (
-        <blockquote
-          className={styles.ocrExcerpt}
-          dangerouslySetInnerHTML={{
-            __html: `"${highlightHTML(doc.ocrExcerpt, terms)}"`,
-          }}
+      {doc.ocrBodyUnavailable && !firstOcrPage && (
+        <p className="muted" style={{ fontSize: "0.95rem", maxWidth: "62ch" }}>
+          This record has machine-generated OCR, but the page-at-a-time
+          transcript table is not available yet. The reader will not
+          substitute a short search-card excerpt. Apply{" "}
+          <code>sql/35_search_ocr_pages.sql</code> and reload.
+        </p>
+      )}
+
+      {firstOcrPage && (
+        <OcrPageReader
+          key={doc.id}
+          doc={doc}
+          initialPage={firstOcrPage}
+          chunkCount={doc.chunkCount ?? 1}
+          firstChunkOrder={doc.ocrFirstChunkOrder ?? firstOcrPage.chunkOrder ?? null}
+          lastChunkOrder={doc.ocrLastChunkOrder ?? firstOcrPage.chunkOrder ?? null}
+          prevChunkOrder={doc.ocrPrevChunkOrder ?? null}
+          nextChunkOrder={doc.ocrNextChunkOrder ?? null}
+          terms={terms}
         />
       )}
 
@@ -148,7 +171,7 @@ export function OcrPanel({
             {mentions.map((mention) => {
               const anchorId =
                 mention.chunkOrder != null
-                  ? `chunk-${mention.chunkOrder}`
+                  ? `mention-chunk-${mention.chunkOrder}`
                   : `chunk-${mention.id}`;
               return (
                 <div

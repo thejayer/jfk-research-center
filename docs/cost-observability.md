@@ -50,10 +50,12 @@ layers:
   first-chunk window per OCR document (~1–2 MB). A full scan of that table
   is the on-demand 10 MiB floor, not 128 MiB. The excerpt is not a
   LIKE-over-full-body hit; cards fall back to title/description if the
-  thin table is missing. `/api/document` page OCR still reads
-  `search_ocr_chunks` (separate 137 MiB leak). Until sql/33 is applied,
-  document search degrades to title/description only (Oswald-class totals
-  drop the OCR-only band) rather than scanning chunks again.
+  thin table is missing. `/api/document` OCR no longer reads
+  `search_ocr_chunks` / `jfk_text_chunks`. First page and later pages
+  come from `search_ocr_page_meta` + partitioned `search_ocr_pages`
+  (sql/35). Until sql/33 is applied, document search degrades to
+  title/description only (Oswald-class totals drop the OCR-only band)
+  rather than scanning chunks again.
 - Privacy-safe request ids and hashed request fingerprints are propagated
   through a signed server-side loopback request and attached to BigQuery jobs
   as labels. `/api/search` is `api_search`; `/api/document`, `/api/entity`,
@@ -228,6 +230,64 @@ bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=pretty
 # After deploy, uncached Oswald snippet jobs should reference
 # search_ocr_card_excerpts (not search_ocr_chunks) and bill ~10 MiB.
 # INFORMATION_SCHEMA.JOBS_BY_PROJECT route=api_search. sql/91 query 3.
+```
+
+## APPLY BEFORE MERGE — document page OCR (sql/35)
+
+`search_ocr_chunks` is one 143 MB cluster block. Any `SELECT chunk_text`
+from that table (or `jfk_text_chunks`) bills ~137 MiB even with
+`document_id = @id`. Do **not** use `search_ocr_card_excerpts` (500
+chars) as the document reader body.
+
+Apply **before** deploying the app revision:
+
+```bash
+bq query --project_id=jfk-vault --use_legacy_sql=false --format=none \
+  < sql/35_search_ocr_pages.sql
+```
+
+Dry-run the cheap path (must be ~10 MiB, not 137):
+
+```bash
+# Meta has no chunk_text.
+bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
+  "SELECT document_id, chunk_count, doc_shard
+     FROM \`jfk-vault.jfk_curated.search_ocr_page_meta\`
+    WHERE document_id = '104-10086-10152'"
+
+# One page. Replace SHARD and FIRST_ORDER with values from the meta row.
+# require_partition_filter=true — omit doc_shard and the job fails.
+bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
+  "SELECT chunk_order, page_label, LENGTH(chunk_text) AS n
+     FROM \`jfk-vault.jfk_curated.search_ocr_pages\`
+    WHERE doc_shard = SHARD
+      AND document_id = '104-10086-10152'
+      AND chunk_order = FIRST_ORDER"
+```
+
+After Cloud Run picks up the revision:
+
+```bash
+# First-party document + first OCR page. Public (no API key).
+curl -sS "https://researchjfk.ai/api/document/104-10086-10152" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin)["document"];
+print(d.get("hasOcr"), bool(d.get("ocrExcerpt")), d.get("ocrBodyUnavailable"), d.get("chunkCount"))'
+# Expect hasOcr true, a full first-page ocrExcerpt (not 500 chars),
+# ocrBodyUnavailable falsy, chunkCount > 1 for this record.
+
+curl -sS "https://researchjfk.ai/api/document/104-10086-10152/ocr?chunk=1" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin);
+print(bool(d.get("page",{}).get("text")), d.get("ocrBodyUnavailable"), d.get("chunkCount"))'
+
+# Search and v1 unchanged:
+curl -sS "https://researchjfk.ai/api/search?q=oswald&limit=1"
+curl -sS -o /dev/null -w "%{http_code}\n" "https://researchjfk.ai/api/v1/documents?q=oswald"
+# Expect 401.
+
+# INFORMATION_SCHEMA.JOBS_BY_PROJECT:
+# route=api_document / api_document_ocr must not reference
+# search_ocr_chunks or jfk_text_chunks for the body. Billed bytes
+# per page-or-doc OCR job should be the 10 MiB floor, not 137 MiB.
 ```
 
 ## Workflow Convention

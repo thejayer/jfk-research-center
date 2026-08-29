@@ -31,7 +31,9 @@ import type {
   RedactionReviewStatus,
   DocumentCard,
   DocumentDetail,
+  DocumentOcrPageResponse,
   DocumentResponse,
+  OcrPage,
   EditorialFootnote,
   EntityCard,
   EntityDetail,
@@ -131,7 +133,8 @@ import {
   buildCorpusEntityFacetSql,
   buildCorpusTopicFacetSql,
   buildCorpusYearFacetSql,
-  buildDocumentPageChunksSql,
+  buildDocumentOnePageSql,
+  buildDocumentPageMetaSql,
   buildDocumentSearchCountSql,
   buildDocumentSearchSql,
   buildEntityMembershipSql,
@@ -143,7 +146,6 @@ import {
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
   buildTopicMembershipSql,
-  chunksTable,
   recordsTable,
   type TopicTableRef,
   type WarehouseTableRef,
@@ -412,7 +414,17 @@ function rowToCard(r: RecordRow, snippet?: string | null): DocumentCard {
 
 function rowToDetail(
   r: RecordRow,
-  ocr?: { chunkCount: number; firstChunk: string | null; hasOcrText: boolean },
+  ocr?: {
+    chunkCount: number;
+    firstChunk: string | null;
+    hasOcrText: boolean;
+    ocrPages?: OcrPage[];
+    ocrBodyUnavailable?: boolean;
+    ocrFirstChunkOrder?: number | null;
+    ocrLastChunkOrder?: number | null;
+    ocrPrevChunkOrder?: number | null;
+    ocrNextChunkOrder?: number | null;
+  },
 ): DocumentDetail {
   const card = rowToCard(r);
   return {
@@ -428,6 +440,12 @@ function rowToDetail(
     pageCount: r.num_pages ?? r.pages_released ?? null,
     chunkCount: ocr?.chunkCount ?? 0,
     ocrExcerpt: ocr?.firstChunk ?? null,
+    ocrPages: ocr?.ocrPages,
+    ocrBodyUnavailable: ocr?.ocrBodyUnavailable,
+    ocrFirstChunkOrder: ocr?.ocrFirstChunkOrder,
+    ocrLastChunkOrder: ocr?.ocrLastChunkOrder,
+    ocrPrevChunkOrder: ocr?.ocrPrevChunkOrder,
+    ocrNextChunkOrder: ocr?.ocrNextChunkOrder,
     hasOcr: ocr?.hasOcrText ?? !!r.has_ocr,
     citation: r.record_group
       ? `NAID ${r.naid} · ${r.record_group}`
@@ -1319,7 +1337,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
   if (!doc) return null;
   const canonicalId = doc.document_id;
 
-  const [mapRows, related, ocrChunks, relatedTopics] = await Promise.all([
+  const [mapRows, related, ocrBody, relatedTopics] = await Promise.all([
     query<{
       entity_id: string;
       confidence: ConfidenceLevel;
@@ -1350,7 +1368,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
          JOIN candidates USING (document_id)`,
       { id: canonicalId },
     ),
-    fetchDocumentOcrChunks(canonicalId),
+    fetchDocumentOcrFirstPage(canonicalId),
     fetchDocumentTopics(canonicalId),
   ]);
 
@@ -1362,56 +1380,38 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
     })
     .filter((e): e is EntityCard => !!e);
 
-  const ocrTextChunks = ocrChunks.filter(
-    (c) => c.source_type === "abbyy_ocr" || c.source_type === "docai_ocr",
-  );
-  const hasOcrText = ocrTextChunks.length > 0;
+  const firstPage = ocrBody.kind === "page" ? ocrBody.page : null;
+  const hasOcrText = firstPage !== null;
+  const ocrBodyUnavailable =
+    ocrBody.kind === "unavailable" ||
+    (ocrBody.kind === "none" && !!doc.has_ocr);
+  const hasOcr = hasOcrText || !!doc.has_ocr;
 
-  // When real OCR (abbyy or docai) is available, surface passages that
-  // contain an alias. Otherwise fall back to the entity-map row with the
-  // NARA description/title.
+  // Mentions are matched against the first loaded page only. Later pages
+  // stay on the page-at-a-time reader; do not pull the fat OCR body.
   const mentions: MentionExcerpt[] = [];
+  const mentionRows = hasOcrText ? mapRows : mapRows.slice(0, 6);
 
-  if (hasOcrText) {
-    for (const m of mapRows) {
-      const e = entities.find((x) => x.entity_id === m.entity_id);
-      const aliases = e?.aliases ?? [];
-      const aliasRe = buildAliasRegex(aliases);
-      const hit = aliasRe
-        ? ocrTextChunks.find((c) => aliasRe.test(c.chunk_text))
-        : null;
-      if (hit) {
-        mentions.push({
-          id: `m-${m.entity_id}-${hit.chunk_id}`,
-          documentId: canonicalId,
-          documentTitle: doc.title,
-          documentHref: `/document/${encodeURIComponent(canonicalId)}#chunk-${hit.chunk_order}`,
-          excerpt: truncateAround(hit.chunk_text, aliases, 280),
-          matchedTerms: aliases.slice(0, 3),
-          confidence: m.confidence,
-          source: "ocr",
-          pageLabel: hit.page_label,
-          chunkOrder: hit.chunk_order,
-        });
-      } else {
-        mentions.push({
-          id: `m-${m.entity_id}-${canonicalId}`,
-          documentId: canonicalId,
-          documentTitle: doc.title,
-          documentHref: `/document/${encodeURIComponent(canonicalId)}`,
-          excerpt: doc.description || doc.title,
-          matchedTerms: aliases.slice(0, 3),
-          confidence: m.confidence,
-          source:
-            m.match_source === "title" ? "title" : "description",
-          pageLabel: null,
-        });
-      }
-    }
-  } else {
-    for (const m of mapRows.slice(0, 6)) {
-      const e = entities.find((x) => x.entity_id === m.entity_id);
-      const aliases = e?.aliases ?? [];
+  for (const m of mentionRows) {
+    const e = entities.find((x) => x.entity_id === m.entity_id);
+    const aliases = e?.aliases ?? [];
+    const aliasRe = firstPage ? buildAliasRegex(aliases) : null;
+    const pageHit =
+      aliasRe && firstPage ? aliasRe.test(firstPage.chunk_text) : false;
+    if (pageHit && firstPage) {
+      mentions.push({
+        id: `m-${m.entity_id}-${firstPage.chunk_id}`,
+        documentId: canonicalId,
+        documentTitle: doc.title,
+        documentHref: `/document/${encodeURIComponent(canonicalId)}#chunk-${firstPage.chunk_order}`,
+        excerpt: truncateAround(firstPage.chunk_text, aliases, 280),
+        matchedTerms: aliases.slice(0, 3),
+        confidence: m.confidence,
+        source: "ocr",
+        pageLabel: firstPage.page_label,
+        chunkOrder: firstPage.chunk_order,
+      });
+    } else {
       mentions.push({
         id: `m-${m.entity_id}-${canonicalId}`,
         documentId: canonicalId,
@@ -1428,9 +1428,25 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
 
   return {
     document: rowToDetail(doc, {
-      chunkCount: ocrTextChunks.length,
-      firstChunk: ocrTextChunks[0]?.chunk_text ?? null,
-      hasOcrText,
+      chunkCount: ocrBody.kind === "page" ? ocrBody.meta.chunk_count : 0,
+      firstChunk: firstPage?.chunk_text ?? null,
+      hasOcrText: hasOcr,
+      ocrPages: firstPage
+        ? [
+            {
+              pageLabel: firstPage.page_label || `chunk ${firstPage.chunk_order}`,
+              text: firstPage.chunk_text,
+              chunkOrder: firstPage.chunk_order,
+            },
+          ]
+        : undefined,
+      ocrBodyUnavailable: ocrBodyUnavailable && !hasOcrText,
+      ocrFirstChunkOrder:
+        ocrBody.kind === "page" ? ocrBody.meta.first_chunk_order : null,
+      ocrLastChunkOrder:
+        ocrBody.kind === "page" ? ocrBody.meta.last_chunk_order : null,
+      ocrPrevChunkOrder: firstPage?.prev_chunk_order ?? null,
+      ocrNextChunkOrder: firstPage?.next_chunk_order ?? null,
     }),
     mentions: mentions.slice(0, 8),
     relatedTopics,
@@ -2372,35 +2388,250 @@ async function fetchOcrHitDocumentIds(qNorm: string): Promise<string[]> {
   }
 }
 
-async function fetchDocumentOcrChunks(documentId: string): Promise<
-  Array<{
-    chunk_id: string;
-    chunk_order: number;
-    chunk_text: string;
-    page_label: string | null;
-    source_type: string;
-  }>
-> {
+type DocumentOcrPageMeta = {
+  document_id: string;
+  chunk_count: number;
+  first_chunk_order: number;
+  last_chunk_order: number;
+  doc_shard: number;
+};
+
+type DocumentOcrPageRow = {
+  chunk_id: string;
+  chunk_order: number;
+  chunk_text: string;
+  page_label: string | null;
+  source_type: string;
+  prev_chunk_order: number | null;
+  next_chunk_order: number | null;
+};
+
+type DocumentOcrFirstPage =
+  | { kind: "page"; meta: DocumentOcrPageMeta; page: DocumentOcrPageRow }
+  | { kind: "unavailable" }
+  | { kind: "none" };
+
+const OCR_PAGE_META_TTL_MS = 5 * 60 * 1000;
+const ocrPageMetaCache = new Map<
+  string,
+  { expiresAt: number; meta: DocumentOcrPageMeta | null; unavailable: boolean }
+>();
+
+function asInt(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string" && /^-?\d+$/.test(value)) return Number(value);
+  if (value && typeof value === "object" && "value" in value) {
+    return asInt((value as { value: unknown }).value);
+  }
+  return null;
+}
+
+function normalizePageMeta(
+  row: Record<string, unknown> | DocumentOcrPageMeta,
+): DocumentOcrPageMeta | null {
+  const documentId = String(row.document_id ?? "");
+  const chunkCount = asInt(row.chunk_count);
+  const first = asInt(row.first_chunk_order);
+  const last = asInt(row.last_chunk_order);
+  const shard = asInt(row.doc_shard);
+  if (!documentId || chunkCount == null || first == null || last == null || shard == null) {
+    return null;
+  }
+  return {
+    document_id: documentId,
+    chunk_count: chunkCount,
+    first_chunk_order: first,
+    last_chunk_order: last,
+    doc_shard: shard,
+  };
+}
+
+function normalizePageRow(
+  row: Record<string, unknown> | DocumentOcrPageRow,
+): DocumentOcrPageRow | null {
+  const chunkOrder = asInt(row.chunk_order);
+  const text = typeof row.chunk_text === "string" ? row.chunk_text : null;
+  if (chunkOrder == null || text == null) return null;
+  return {
+    chunk_id: String(row.chunk_id ?? `${chunkOrder}`),
+    chunk_order: chunkOrder,
+    chunk_text: text,
+    page_label: typeof row.page_label === "string" ? row.page_label : null,
+    source_type: typeof row.source_type === "string" ? row.source_type : "abbyy_ocr",
+    prev_chunk_order: asInt(row.prev_chunk_order),
+    next_chunk_order: asInt(row.next_chunk_order),
+  };
+}
+
+async function fetchDocumentOcrPageMeta(
+  documentId: string,
+): Promise<{ kind: "meta"; meta: DocumentOcrPageMeta } | { kind: "none" } | { kind: "unavailable" }> {
+  const cached = ocrPageMetaCache.get(documentId);
+  const now = Date.now();
+  if (cached && cached.expiresAt > now) {
+    if (cached.unavailable) return { kind: "unavailable" };
+    if (!cached.meta) return { kind: "none" };
+    return { kind: "meta", meta: cached.meta };
+  }
   try {
-    return await query(buildDocumentPageChunksSql(WAREHOUSE_TABLES), {
-      id: documentId,
-    });
-  } catch (error) {
-    if (!isBigQueryNotFound(error) && !isBigQueryBytesBilledExceeded(error)) {
-      throw error;
-    }
-    console.warn(
-      "[warehouse] clustered OCR chunks unavailable; falling back to jfk_text_chunks",
-    );
-    return query(
-      `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type
-         FROM ${chunksTable(WAREHOUSE_TABLES)}
-        WHERE document_id = @id
-        ORDER BY chunk_order
-        LIMIT 12`,
+    const rows = await query<Record<string, unknown>>(
+      buildDocumentPageMetaSql(WAREHOUSE_TABLES),
       { id: documentId },
     );
+    const meta = rows[0] ? normalizePageMeta(rows[0]) : null;
+    ocrPageMetaCache.set(documentId, {
+      expiresAt: now + OCR_PAGE_META_TTL_MS,
+      meta,
+      unavailable: false,
+    });
+    return meta ? { kind: "meta", meta } : { kind: "none" };
+  } catch (error) {
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      console.warn(
+        "[warehouse] search_ocr_page_meta unavailable; document OCR will not scan fat chunk tables",
+      );
+      ocrPageMetaCache.set(documentId, {
+        expiresAt: now + OCR_PAGE_META_TTL_MS,
+        meta: null,
+        unavailable: true,
+      });
+      return { kind: "unavailable" };
+    }
+    throw error;
   }
+}
+
+async function fetchDocumentOcrPageRow(
+  documentId: string,
+  shard: number,
+  chunkOrder: number,
+): Promise<DocumentOcrPageRow | "unavailable" | null> {
+  try {
+    const rows = await query<Record<string, unknown>>(
+      buildDocumentOnePageSql(WAREHOUSE_TABLES),
+      { id: documentId, shard, chunkOrder },
+    );
+    const page = rows[0] ? normalizePageRow(rows[0]) : null;
+    return page;
+  } catch (error) {
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      console.warn(
+        "[warehouse] search_ocr_pages unavailable; document OCR will not scan fat chunk tables",
+      );
+      return "unavailable";
+    }
+    throw error;
+  }
+}
+
+async function fetchDocumentOcrFirstPage(
+  documentId: string,
+): Promise<DocumentOcrFirstPage> {
+  const metaResult = await fetchDocumentOcrPageMeta(documentId);
+  if (metaResult.kind !== "meta") return metaResult;
+  const page = await fetchDocumentOcrPageRow(
+    documentId,
+    metaResult.meta.doc_shard,
+    metaResult.meta.first_chunk_order,
+  );
+  if (page === "unavailable") return { kind: "unavailable" };
+  if (!page) return { kind: "unavailable" };
+  return { kind: "page", meta: metaResult.meta, page };
+}
+
+function mockDocumentOcrPage(id: string, chunkOrder?: number | null): DocumentOcrPageResponse | null {
+  const mock = buildDocumentResponse(id);
+  if (!mock) return null;
+  const text = mock.document.ocrExcerpt;
+  if (!text) {
+    return mock.document.hasOcr
+      ? {
+          documentId: mock.document.id,
+          page: null,
+          prevChunkOrder: null,
+          nextChunkOrder: null,
+          chunkCount: 0,
+          firstChunkOrder: null,
+          lastChunkOrder: null,
+          ocrBodyUnavailable: true,
+        }
+      : null;
+  }
+  const order = chunkOrder ?? 1;
+  return {
+    documentId: mock.document.id,
+    page: {
+      pageLabel: "p. 1",
+      text,
+      chunkOrder: order,
+    },
+    prevChunkOrder: null,
+    nextChunkOrder: null,
+    chunkCount: 1,
+    firstChunkOrder: order,
+    lastChunkOrder: order,
+  };
+}
+
+/**
+ * One OCR page for the document reader. Never reads the unpartitioned
+ * OCR body tables. Missing sql/35 degrades honestly.
+ */
+export async function fetchDocumentOcrPage(
+  id: string,
+  chunkOrder?: number | null,
+): Promise<DocumentOcrPageResponse | null> {
+  if (useMockData()) return mockDocumentOcrPage(id, chunkOrder);
+
+  const metaResult = await fetchDocumentOcrPageMeta(id);
+  if (metaResult.kind === "unavailable") {
+    return {
+      documentId: id,
+      page: null,
+      prevChunkOrder: null,
+      nextChunkOrder: null,
+      chunkCount: 0,
+      firstChunkOrder: null,
+      lastChunkOrder: null,
+      ocrBodyUnavailable: true,
+    };
+  }
+  if (metaResult.kind === "none") return null;
+
+  const meta = metaResult.meta;
+  const requested =
+    chunkOrder == null || !Number.isFinite(chunkOrder)
+      ? meta.first_chunk_order
+      : Math.trunc(chunkOrder);
+  const page = await fetchDocumentOcrPageRow(id, meta.doc_shard, requested);
+  if (page === "unavailable") {
+    return {
+      documentId: meta.document_id,
+      page: null,
+      prevChunkOrder: null,
+      nextChunkOrder: null,
+      chunkCount: meta.chunk_count,
+      firstChunkOrder: meta.first_chunk_order,
+      lastChunkOrder: meta.last_chunk_order,
+      ocrBodyUnavailable: true,
+    };
+  }
+  if (!page) return null;
+
+  return {
+    documentId: meta.document_id,
+    page: {
+      pageLabel: page.page_label || `chunk ${page.chunk_order}`,
+      text: page.chunk_text,
+      chunkOrder: page.chunk_order,
+    },
+    prevChunkOrder: page.prev_chunk_order,
+    nextChunkOrder: page.next_chunk_order,
+    chunkCount: meta.chunk_count,
+    firstChunkOrder: meta.first_chunk_order,
+    lastChunkOrder: meta.last_chunk_order,
+  };
 }
 
 async function loadEntityMembership(): Promise<Map<string, string[]>> {

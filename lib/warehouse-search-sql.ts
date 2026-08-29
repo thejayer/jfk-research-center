@@ -4,8 +4,9 @@
  * Search jobs must stay under JFK_BQ_MAX_BYTES_BILLED (256 MiB in production).
  * Document search must not scan jfk_text_chunks or search_ocr_chunks bodies.
  * OCR document IDs come from the token table (sql/33). Card snippets and
- * mention excerpts come from search_ocr_card_excerpts (sql/34). Record jobs
- * select only the card columns — never r.* / release_history.
+ * mention excerpts come from search_ocr_card_excerpts (sql/34). Document
+ * reader pages come from search_ocr_page_meta + search_ocr_pages (sql/35).
+ * Record jobs select only the card columns — never r.* / release_history.
  */
 
 export type WarehouseTableRef = {
@@ -54,6 +55,20 @@ export function ocrCardExcerptsTable({
   curatedDataset,
 }: WarehouseTableRef): string {
   return `\`${project}.${curatedDataset}.search_ocr_card_excerpts\``;
+}
+
+export function ocrPageMetaTable({
+  project,
+  curatedDataset,
+}: WarehouseTableRef): string {
+  return `\`${project}.${curatedDataset}.search_ocr_page_meta\``;
+}
+
+export function ocrPagesTable({
+  project,
+  curatedDataset,
+}: WarehouseTableRef): string {
+  return `\`${project}.${curatedDataset}.search_ocr_pages\``;
 }
 
 export function entityMapTable({ project, curatedDataset }: WarehouseTableRef): string {
@@ -278,12 +293,30 @@ export function buildMentionSearchCountSql(
           ${extraWhere}`;
 }
 
-export function buildDocumentPageChunksSql(tables: WarehouseTableRef): string {
-  return `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type
-         FROM ${ocrChunksTable(tables)}
+/**
+ * Thin per-document OCR bounds. No chunk_text — this job must stay at
+ * the on-demand 10 MiB floor even if the table is fully scanned.
+ */
+export function buildDocumentPageMetaSql(tables: WarehouseTableRef): string {
+  return `SELECT document_id, chunk_count, first_chunk_order, last_chunk_order, doc_shard
+         FROM ${ocrPageMetaTable(tables)}
         WHERE document_id = @id
-        ORDER BY chunk_order
-        LIMIT 12`;
+        LIMIT 1`;
+}
+
+/**
+ * One OCR page. `doc_shard = @shard` is required so BigQuery can prune
+ * the RANGE-partitioned table. Do not compute the shard only from
+ * FARM_FINGERPRINT(@id) in this WHERE — that does not reliably prune.
+ */
+export function buildDocumentOnePageSql(tables: WarehouseTableRef): string {
+  return `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type,
+              prev_chunk_order, next_chunk_order
+         FROM ${ocrPagesTable(tables)}
+        WHERE doc_shard = @shard
+          AND document_id = @id
+          AND chunk_order = @chunkOrder
+        LIMIT 1`;
 }
 
 export function buildIdentifierSearchSql(
@@ -369,6 +402,15 @@ export function sqlScansLegacyTextChunks(sql: string): boolean {
 
 export function sqlUsesOcrTokenTable(sql: string): boolean {
   return /search_ocr_document_tokens/i.test(sql);
+}
+
+export function sqlUsesPagedOcrTables(sql: string): boolean {
+  return /search_ocr_pages/i.test(sql) || /search_ocr_page_meta/i.test(sql);
+}
+
+/** True when a page-body job can prune search_ocr_pages by shard. */
+export function sqlHasOcrPagePartitionFilter(sql: string): boolean {
+  return /doc_shard\s*=\s*@shard\b/i.test(sql);
 }
 
 export function sqlSelectsStarFromRecords(sql: string): boolean {

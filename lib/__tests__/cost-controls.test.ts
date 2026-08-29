@@ -17,6 +17,7 @@ describe("cost controls", () => {
     expect(isCostSensitivePath("/api/search")).toBe(true);
     expect(isCostSensitivePath("/document/wc-report-1964")).toBe(true);
     expect(isCostSensitivePath("/api/document/wc-report-1964")).toBe(true);
+    expect(isCostSensitivePath("/api/document/104-10086-10152/ocr")).toBe(true);
     expect(isCostSensitivePath("/api/v1/documents")).toBe(true);
     expect(isCostSensitivePath("/api/v1/search/semantic")).toBe(true);
     expect(isCostSensitivePath("/about")).toBe(false);

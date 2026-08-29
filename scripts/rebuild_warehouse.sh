@@ -66,6 +66,7 @@ FILES=(
   "18_primary_sources.sql"
   "33_search_ocr_access.sql"
   "34_search_ocr_card_excerpts.sql"
+  "35_search_ocr_pages.sql"
   "20_mvp_oswald_mentions.sql"
   "21_mvp_topic_views.sql"
   "21b_mvp_new_topic_views.sql"

@@ -88,5 +88,9 @@ describe("publicApiEndpointPolicies", () => {
   it("does not match unknown methods or routes", () => {
     expect(findPublicApiEndpointPolicy("POST", "/api/v1/documents")).toBeNull();
     expect(findPublicApiEndpointPolicy("GET", "/api/v1/ask")).toBeNull();
+    expect(
+      findPublicApiEndpointPolicy("GET", "/api/document/104-10086-10152/ocr"),
+    ).toBeNull();
+    expect(findPublicApiEndpointPolicy("GET", "/api/search")).toBeNull();
   });
 });
