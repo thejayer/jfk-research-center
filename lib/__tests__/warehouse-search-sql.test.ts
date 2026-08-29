@@ -11,7 +11,9 @@ import {
   buildOcrHitDocumentIdSql,
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
+  buildDocumentTopicCountSql,
   buildDocumentTopicSlugsSql,
+  sortTopicSlugsByDisplayOrder,
   buildTopicMembershipSql,
   literalDocumentIds,
   OCR_HIT_DOCUMENT_ID_LIMIT,
@@ -202,6 +204,24 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sql).not.toMatch(/jfk_mvp/i);
     expect(sql).not.toMatch(/\bEXISTS\b/i);
     expect(sql).toContain("document_id = @id");
+  });
+
+  it("counts topic chips from the thin map, never fat MVP tables", () => {
+    const sql = buildDocumentTopicCountSql(tables);
+    expect(sqlUsesDocumentTopicMap(sql)).toBe(true);
+    expect(sql).toMatch(/GROUP BY topic_slug/);
+    expect(sqlExistsScansMvpTopicDocs(sql)).toBe(false);
+    expect(sql).not.toMatch(/jfk_mvp/i);
+    expect(sql).not.toMatch(/\bEXISTS\b/i);
+  });
+
+  it("restores topic display order after an unordered map fetch", () => {
+    expect(
+      sortTopicSlugsByDisplayOrder(
+        ["fbi", "warren-commission", "cia"],
+        ["warren-commission", "hsca", "cia", "fbi"],
+      ),
+    ).toEqual(["warren-commission", "cia", "fbi"]);
   });
 
   it("treats the retired document topic EXISTS union as a fat scan", () => {

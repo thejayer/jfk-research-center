@@ -141,7 +141,9 @@ import {
   buildCorpusYearFacetSql,
   buildDocumentOnePageSql,
   buildDocumentPageMetaSql,
+  buildDocumentTopicCountSql,
   buildDocumentTopicSlugsSql,
+  sortTopicSlugsByDisplayOrder,
   buildDocumentSearchCountSql,
   buildDocumentSearchSql,
   buildEntityMembershipSql,
@@ -1525,22 +1527,49 @@ export async function fetchCompare(recordId: string): Promise<CompareResponse | 
   return null;
 }
 
+let thinTopicCountsCache: { expiresAt: number; counts: Map<string, number> } | null =
+  null;
+
+async function getThinTopicCountsCached(): Promise<Map<string, number>> {
+  const now = Date.now();
+  if (thinTopicCountsCache && thinTopicCountsCache.expiresAt > now) {
+    return thinTopicCountsCache.counts;
+  }
+  try {
+    const rows = await query<{ slug: string; n: number }>(
+      buildDocumentTopicCountSql(WAREHOUSE_TABLES),
+    );
+    const counts = new Map(rows.map((row) => [row.slug, Number(row.n) || 0]));
+    thinTopicCountsCache = { counts, expiresAt: now + 5 * 60_000 };
+    return counts;
+  } catch (error) {
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      console.warn(
+        "[warehouse] document_topic_map counts unavailable; topic chips keep slugs without fat COUNT",
+      );
+      return new Map();
+    }
+    throw error;
+  }
+}
+
 async function fetchDocumentTopics(id: string): Promise<TopicCard[]> {
   try {
-    const rows = await query<{ slug: string }>(
-      buildDocumentTopicSlugsSql(WAREHOUSE_TABLES),
-      { id },
+    const [rows, counts] = await Promise.all([
+      query<{ slug: string }>(buildDocumentTopicSlugsSql(WAREHOUSE_TABLES), {
+        id,
+      }),
+      getThinTopicCountsCached(),
+    ]);
+    const slugs = sortTopicSlugsByDisplayOrder(
+      rows
+        .map((row) => row.slug)
+        .filter((slug): slug is string =>
+          Boolean(slug && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug)),
+        ),
+      TOPIC_DISPLAY_ORDER,
     );
-    const cachedCounts =
-      cachedTopicCounts && cachedTopicCounts.expiresAt > Date.now()
-        ? cachedTopicCounts.counts
-        : null;
-    return rows
-      .map((row) => row.slug)
-      .filter((slug): slug is string =>
-        Boolean(slug && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug)),
-      )
-      .map((slug) => topicToCard(slug, cachedCounts?.get(slug) ?? 0));
+    return slugs.map((slug) => topicToCard(slug, counts.get(slug) ?? 0));
   } catch (error) {
     if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
       console.warn(

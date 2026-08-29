@@ -387,6 +387,29 @@ export function buildDocumentTopicSlugsSql(tables: WarehouseTableRef): string {
         WHERE document_id = @id`;
 }
 
+/**
+ * Per-slug document counts from the thin map. A full scan of ~47k
+ * (document_id, slug) rows is the on-demand 10 MiB floor — not the
+ * 110 MiB EXISTS/COUNT over full-width jfk_mvp.*_docs copies.
+ */
+export function buildDocumentTopicCountSql(tables: WarehouseTableRef): string {
+  return `SELECT topic_slug AS slug, COUNT(*) AS n
+         FROM ${documentTopicMapTable(tables)}
+        GROUP BY topic_slug`;
+}
+
+export function sortTopicSlugsByDisplayOrder(
+  slugs: readonly string[],
+  displayOrder: readonly string[],
+): string[] {
+  return [...slugs].sort((a, b) => {
+    const ai = displayOrder.indexOf(a);
+    const bi = displayOrder.indexOf(b);
+    return (ai === -1 ? displayOrder.length : ai) -
+      (bi === -1 ? displayOrder.length : bi);
+  });
+}
+
 /** document_id + slug only — never SELECT * from the full-width MVP copies. */
 export function buildTopicMembershipSql(
   tables: WarehouseTableRef,
