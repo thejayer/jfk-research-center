@@ -70,6 +70,7 @@ FILES=(
   "20_mvp_oswald_mentions.sql"
   "21_mvp_topic_views.sql"
   "21b_mvp_new_topic_views.sql"
+  "36_document_topic_map.sql"
   "90_dq_reports.sql"
 )
 

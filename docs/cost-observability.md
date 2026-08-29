@@ -317,6 +317,46 @@ test "$v1_http" = "401"
 # per page-or-doc OCR job should be the 10 MiB floor, not 137 MiB.
 ```
 
+## APPLY BEFORE MERGE — document topic slugs (sql/36)
+
+Live 00168 still runs a `UNION ALL` of `EXISTS` over 11 full-width
+`jfk_mvp.*_docs` tables on every `/api/document` open (~110 MiB). That
+job was 60% of compute-SA bytes after PR 129.
+
+Apply **before** deploying the app revision:
+
+```bash
+bq query --project_id=jfk-vault --use_legacy_sql=false --format=none \
+  < sql/36_document_topic_map.sql
+```
+
+Until the table exists, document topic chips are empty (no 500, no
+EXISTS fallback). Search and page OCR are unchanged.
+
+Dry-run after apply (expect the **10 MiB** floor, not 110):
+
+```bash
+bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
+  "SELECT topic_slug
+     FROM \`jfk-vault.jfk_curated.document_topic_map\`
+    WHERE document_id = '124-10190-10075'"
+```
+
+After Cloud Run picks up the revision:
+
+```bash
+# Topic chips should still be present when the map has rows.
+curl -sS -o /tmp/jfk-doc.json -w "%{http_code}\n" \
+  "https://researchjfk.ai/api/document/124-10190-10075"
+# Expect 200. relatedTopics slugs from the thin map, not an empty
+# payload solely because OCR is present.
+
+# INFORMATION_SCHEMA.JOBS_BY_PROJECT route=api_document:
+# must not reference jfk_mvp.*_docs with EXISTS.
+# Topic-slug job (if any) should read document_topic_map at ~10 MiB.
+# Page OCR must still be search_ocr_page_meta / search_ocr_pages.
+```
+
 ## Workflow Convention
 
 Cost-producing jobs should set these values before they run:

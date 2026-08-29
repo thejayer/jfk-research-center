@@ -141,6 +141,7 @@ import {
   buildCorpusYearFacetSql,
   buildDocumentOnePageSql,
   buildDocumentPageMetaSql,
+  buildDocumentTopicSlugsSql,
   buildDocumentSearchCountSql,
   buildDocumentSearchSql,
   buildEntityMembershipSql,
@@ -1525,23 +1526,30 @@ export async function fetchCompare(recordId: string): Promise<CompareResponse | 
 }
 
 async function fetchDocumentTopics(id: string): Promise<TopicCard[]> {
-  const membershipSql = MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => {
-    const t = TOPIC_CATALOG[slug]!;
-    return `SELECT '${slug}' AS slug
-              FROM (SELECT 1)
-              WHERE EXISTS (
-                SELECT 1
-                  FROM \`${PROJECT}.${DATASET_MVP}.${t.mvpTable}\`
-                 WHERE document_id = @id
-              )`;
-  }).join(" UNION ALL ");
-
-  const [rows, counts] = await Promise.all([
-    membershipSql ? query<{ slug: string }>(membershipSql, { id }) : [],
-    getTopicCountsCached(),
-  ]);
-
-  return rows.map((row) => topicToCard(row.slug, counts.get(row.slug) ?? 0));
+  try {
+    const rows = await query<{ slug: string }>(
+      buildDocumentTopicSlugsSql(WAREHOUSE_TABLES),
+      { id },
+    );
+    const cachedCounts =
+      cachedTopicCounts && cachedTopicCounts.expiresAt > Date.now()
+        ? cachedTopicCounts.counts
+        : null;
+    return rows
+      .map((row) => row.slug)
+      .filter((slug): slug is string =>
+        Boolean(slug && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug)),
+      )
+      .map((slug) => topicToCard(slug, cachedCounts?.get(slug) ?? 0));
+  } catch (error) {
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      console.warn(
+        "[warehouse] document_topic_map unavailable; document topics empty (no mvp-docs fallback)",
+      );
+      return [];
+    }
+    throw error;
+  }
 }
 
 function buildAliasRegex(aliases: string[]): RegExp | null {

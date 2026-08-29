@@ -6,7 +6,9 @@
  * OCR document IDs come from the token table (sql/33). Card snippets and
  * mention excerpts come from search_ocr_card_excerpts (sql/34). Document
  * reader pages come from search_ocr_page_meta + search_ocr_pages (sql/35).
- * Record jobs select only the card columns — never r.* / release_history.
+ * Document topic chips come from document_topic_map (sql/36), not EXISTS
+ * over jfk_mvp.*_docs. Record jobs select only the card columns — never
+ * r.* / release_history.
  */
 
 export type WarehouseTableRef = {
@@ -69,6 +71,13 @@ export function ocrPagesTable({
   curatedDataset,
 }: WarehouseTableRef): string {
   return `\`${project}.${curatedDataset}.search_ocr_pages\``;
+}
+
+export function documentTopicMapTable({
+  project,
+  curatedDataset,
+}: WarehouseTableRef): string {
+  return `\`${project}.${curatedDataset}.document_topic_map\``;
 }
 
 export function entityMapTable({ project, curatedDataset }: WarehouseTableRef): string {
@@ -369,6 +378,15 @@ export function buildCorpusTopicFacetSql(
     .join("\n UNION ALL ");
 }
 
+/**
+ * Topic slugs for one document. Must not EXISTS-scan jfk_mvp.*_docs.
+ */
+export function buildDocumentTopicSlugsSql(tables: WarehouseTableRef): string {
+  return `SELECT topic_slug AS slug
+         FROM ${documentTopicMapTable(tables)}
+        WHERE document_id = @id`;
+}
+
 /** document_id + slug only — never SELECT * from the full-width MVP copies. */
 export function buildTopicMembershipSql(
   tables: WarehouseTableRef,
@@ -411,6 +429,15 @@ export function sqlUsesPagedOcrTables(sql: string): boolean {
 /** True when a page-body job can prune search_ocr_pages by shard. */
 export function sqlHasOcrPagePartitionFilter(sql: string): boolean {
   return /doc_shard\s*=\s*@shard\b/i.test(sql);
+}
+
+export function sqlUsesDocumentTopicMap(sql: string): boolean {
+  return /document_topic_map/i.test(sql);
+}
+
+/** True when a job EXISTS-scans full-width jfk_mvp topic copies. */
+export function sqlExistsScansMvpTopicDocs(sql: string): boolean {
+  return /EXISTS\s*\(/i.test(sql) && /jfk_mvp\.\w+_docs/i.test(sql);
 }
 
 export function sqlSelectsStarFromRecords(sql: string): boolean {

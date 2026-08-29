@@ -11,6 +11,7 @@ import {
   buildOcrHitDocumentIdSql,
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
+  buildDocumentTopicSlugsSql,
   buildTopicMembershipSql,
   literalDocumentIds,
   OCR_HIT_DOCUMENT_ID_LIMIT,
@@ -24,6 +25,8 @@ import {
   sqlSelectsReleaseHistory,
   sqlSelectsStarFromRecords,
   sqlUsesOcrTokenTable,
+  sqlUsesDocumentTopicMap,
+  sqlExistsScansMvpTopicDocs,
   sqlUsesPagedOcrTables,
   sqlHasOcrPagePartitionFilter,
 } from "../warehouse-search-sql";
@@ -190,6 +193,27 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sql).not.toMatch(/LIKE/i);
     expect(sql).toContain("CAST(NULL AS STRING) AS match_confidence");
+  });
+
+  it("loads document-page topic slugs from the thin map, never EXISTS on MVP docs", () => {
+    const sql = buildDocumentTopicSlugsSql(tables);
+    expect(sqlUsesDocumentTopicMap(sql)).toBe(true);
+    expect(sqlExistsScansMvpTopicDocs(sql)).toBe(false);
+    expect(sql).not.toMatch(/jfk_mvp/i);
+    expect(sql).not.toMatch(/\bEXISTS\b/i);
+    expect(sql).toContain("document_id = @id");
+  });
+
+  it("treats the retired document topic EXISTS union as a fat scan", () => {
+    expect(
+      sqlExistsScansMvpTopicDocs(
+        `SELECT 'cia' AS slug FROM (SELECT 1) WHERE EXISTS (
+           SELECT 1 FROM \`jfk-vault.jfk_mvp.cia_docs\` WHERE document_id = @id)`,
+      ),
+    ).toBe(true);
+    expect(sqlExistsScansMvpTopicDocs(buildDocumentTopicSlugsSql(tables))).toBe(
+      false,
+    );
   });
 
   it("loads topic membership as document_id + slug, not SELECT * from MVP copies", () => {
