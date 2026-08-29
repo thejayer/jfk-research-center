@@ -38,10 +38,23 @@ layers:
 - Document and mention result queries include their total via a window count,
   eliminating the normal second count scan. Exact archive identifiers use
   indexed equality predicates instead of OCR and broad facet scans.
+- Public `/api/search` document mode no longer `LIKE`s `jfk_text_chunks.chunk_text`.
+  That column is the fat OCR body (~100+ MiB per full scan) and used to be read
+  twice per query (hit IDs + snippets). Low-confidence / OCR-only hits now come
+  from `jfk_curated.search_ocr_document_tokens` (sql/33), clustered by token, so
+  `q=oswald` is a prefix range on one cluster. Document jobs select card columns
+  only — not `r.*` / `release_history`. Card snippets, mention excerpts, and
+  `/api/document` page reads use `search_ocr_chunks`, clustered by
+  `document_id` (the snippet job is limited to the current result page's IDs).
+  Until sql/33 is applied, document search degrades to title/description only
+  (Oswald-class totals drop the OCR-only band) rather than scanning chunks
+  again.
 - Privacy-safe request ids and hashed request fingerprints are propagated
   through a signed server-side loopback request and attached to BigQuery jobs
-  as labels. Block and rate-limit decisions emit structured logs without raw
-  queries or client addresses.
+  as labels. `/api/search` is `api_search`; `/api/document`, `/api/entity`,
+  `/api/evidence/:id`, and `/api/home` now set `route` as well so they do not
+  land in the unattributed bucket. Block and rate-limit decisions emit
+  structured logs without raw queries or client addresses.
 
 Cache hits and coalesced searches do not create new BigQuery jobs. Consequently,
 `request_id` and `request_fingerprint` labels appear only on cache misses; the
@@ -171,6 +184,41 @@ gcloud run services update jfk-research-center \
 5. Monitor the next 24 hours using `sql/91_cost_guardrail_monitoring.sql` and
    Cloud Run structured events named `cost_control_block` and
    `cost_control_rate_limit`.
+
+## Verifying cheaper public search
+
+Apply `sql/33_search_ocr_access.sql` once (or via `rebuild_warehouse.sh`) before
+judging production bytes. Then:
+
+```bash
+# Token lookup should dry-run near the 10 MiB on-demand minimum, not the
+# full jfk_text_chunks body (~100+ MiB historically).
+bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
+  'SELECT document_id
+     FROM `jfk-vault.jfk_curated.search_ocr_document_tokens`
+    WHERE token >= "oswald" AND token < "oswale"
+    GROUP BY document_id'
+
+# Contrast: the retired path scanned every OCR chunk body.
+bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
+  'SELECT document_id
+     FROM `jfk-vault.jfk_curated.jfk_text_chunks`
+    WHERE source_type IN ("abbyy_ocr", "docai_ocr")
+      AND LOWER(chunk_text) LIKE "%oswald%"
+    GROUP BY document_id'
+
+# After Cloud Run picks up the revision, site search stays anonymous:
+curl -sS "https://researchjfk.ai/api/search?q=oswald&limit=1"
+# Expect 200 and total near the pre-change 887 (token prefix vs LIKE
+# '%oswald%' can move a few percent; high+medium title/description hits
+# stay). Warehouse /api/v1 stays keyed:
+curl -sS -o /dev/null -w "%{http_code}\n" "https://researchjfk.ai/api/v1/documents?q=oswald"
+
+# INFORMATION_SCHEMA.JOBS_BY_PROJECT for route=api_search should show
+# billed GiB dropping by roughly an order of magnitude per cache-miss
+# search (one token-cluster job + slim jfk_records columns, no second
+# chunk_text snippet scan). sql/91 query 3 is the labeled rollup.
+```
 
 ## Workflow Convention
 

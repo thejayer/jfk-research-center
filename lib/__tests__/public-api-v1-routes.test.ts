@@ -13,6 +13,7 @@ const warehouse = vi.hoisted(() => ({
 
 vi.mock("@/lib/warehouse", () => warehouse);
 
+import { GET as getSearch } from "@/app/api/search/route";
 import { GET as getDocuments } from "@/app/api/v1/documents/route";
 import { GET as getDocument } from "@/app/api/v1/documents/[naid]/route";
 import { GET as getEntities } from "@/app/api/v1/entities/route";
@@ -143,6 +144,23 @@ describe("public /api/v1 route enforcement", () => {
     expect(warehouse.fetchAllTopics).toHaveBeenCalled();
     expect(warehouse.fetchTopic).toHaveBeenCalled();
     expect(warehouse.fetchCaseTimeline).toHaveBeenCalled();
+  });
+
+  it("keeps site /api/search public while /api/v1 stays keyed", async () => {
+    warehouse.fetchSearch.mockResolvedValue({
+      query: "oswald",
+      mode: "document",
+      total: 887,
+      filters: {},
+      results: [],
+    });
+    const publicSearch = await getSearch(request("/api/search?q=oswald"));
+    expect(publicSearch.status).toBe(200);
+    await expect(publicSearch.json()).resolves.toMatchObject({ total: 887 });
+    expect(warehouse.fetchSearch).toHaveBeenCalled();
+
+    const keyed = await getDocuments(request("/api/v1/documents?q=oswald"));
+    expect(keyed.status).toBe(401);
   });
 
   it("serves OpenAPI without a key and documents the key requirement", async () => {

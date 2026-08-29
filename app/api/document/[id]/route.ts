@@ -1,15 +1,22 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { fetchDocument } from "@/lib/warehouse";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "@/lib/warehouse-request-context";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   try {
-    const res = await fetchDocument(id);
+    const res = await withWarehouseRequestContext(
+      warehouseRequestContextFromHeaders(req.headers, "api_document"),
+      () => fetchDocument(id),
+    );
     if (!res) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
