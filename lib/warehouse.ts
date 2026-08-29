@@ -1741,10 +1741,8 @@ async function fetchMentionSearch({
     };
   }
 
-  const tokens = extractSearchTokens(qNorm);
   const params: Record<string, unknown> = {
     qLike: `%${qNorm.toLowerCase()}%`,
-    ...ocrTokenRangeParams(tokens),
   };
   const mentionWhere = ["LOWER(c.chunk_text) LIKE @qLike"];
   if (filters.agencies?.length) {
@@ -1776,7 +1774,7 @@ async function fetchMentionSearch({
   const [ocrRows, facets] = await Promise.all([
     fetchMentionRows({
       whereSql: mentionWhereSql,
-      tokenCount: tokens.length,
+      documentIds: ocrHitIds,
       params,
       limit,
       offset,
@@ -1786,7 +1784,9 @@ async function fetchMentionSearch({
 
   const total =
     ocrRows[0]?.total_count ??
-    (offset > 0 ? await fetchMentionTotal(mentionWhereSql, tokens.length, params) : 0);
+    (offset > 0
+      ? await fetchMentionTotal(mentionWhereSql, ocrHitIds, params)
+      : 0);
   const results: SearchResult[] = ocrRows.map((row) => ({
     kind: "mention",
     mention: {
@@ -2276,72 +2276,55 @@ type MentionRow = {
 
 async function fetchMentionRows({
   whereSql,
-  tokenCount,
+  documentIds,
   params,
   limit,
   offset,
 }: {
   whereSql: string;
-  tokenCount: number;
+  documentIds: readonly string[];
   params: Record<string, unknown>;
   limit: number;
   offset: number;
 }): Promise<MentionRow[]> {
+  if (documentIds.length === 0) return [];
   try {
     return await query<MentionRow>(
       buildMentionSearchSql(
         WAREHOUSE_TABLES,
         whereSql,
-        tokenCount,
+        documentIds,
         Number(limit),
         Number(offset),
       ),
       params,
     );
   } catch (error) {
-    if (!isBigQueryNotFound(error)) throw error;
-    console.warn(
-      "[warehouse] clustered mention path unavailable; falling back to jfk_text_chunks",
-    );
-    return query<MentionRow>(
-      `SELECT r.document_id, r.naid, r.title,
-              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
-              COUNT(*) OVER() AS total_count
-         FROM ${chunksTable(WAREHOUSE_TABLES)} c
-         JOIN ${recordsTable(WAREHOUSE_TABLES)} r
-           USING (document_id)
-        WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
-          AND ${whereSql}
-        ORDER BY c.document_id, c.chunk_order
-        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
-      params,
-    );
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      console.warn("[warehouse] mention OCR scan skipped");
+      return [];
+    }
+    throw error;
   }
 }
 
 async function fetchMentionTotal(
   whereSql: string,
-  tokenCount: number,
+  documentIds: readonly string[],
   params: Record<string, unknown>,
 ): Promise<number> {
+  if (documentIds.length === 0) return 0;
   try {
     const rows = await query<{ n: number }>(
-      buildMentionSearchCountSql(WAREHOUSE_TABLES, whereSql, tokenCount),
+      buildMentionSearchCountSql(WAREHOUSE_TABLES, whereSql, documentIds),
       params,
     );
     return rows[0]?.n ?? 0;
   } catch (error) {
-    if (!isBigQueryNotFound(error)) throw error;
-    const rows = await query<{ n: number }>(
-      `SELECT COUNT(*) AS n
-         FROM ${chunksTable(WAREHOUSE_TABLES)} c
-         JOIN ${recordsTable(WAREHOUSE_TABLES)} r
-           USING (document_id)
-        WHERE c.source_type IN ('abbyy_ocr', 'docai_ocr')
-          AND ${whereSql}`,
-      params,
-    );
-    return rows[0]?.n ?? 0;
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      return 0;
+    }
+    throw error;
   }
 }
 
@@ -2352,8 +2335,8 @@ async function fetchOcrSnippets(
   if (documentIds.length === 0 || qLike === "%") return new Map();
   try {
     const rows = await query<{ document_id: string; hit_text: string | null }>(
-      buildOcrSnippetSql(WAREHOUSE_TABLES),
-      { documentIds, qLike },
+      buildOcrSnippetSql(WAREHOUSE_TABLES, documentIds),
+      { qLike },
     );
     return new Map(
       rows

@@ -11,8 +11,12 @@ import {
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
   buildTopicMembershipSql,
+  literalDocumentIds,
   OCR_HIT_DOCUMENT_ID_LIMIT,
   SEARCH_DOCUMENT_COLUMNS,
+  sqlDocumentIdInList,
+  sqlHasSelectiveDocumentIdFilter,
+  sqlLikeScansOcrWithoutDocumentIdFilter,
   sqlMentionsOcrChunks,
   sqlScansLegacyTextChunks,
   sqlSelectsReleaseHistory,
@@ -64,25 +68,78 @@ describe("warehouse search SQL cost envelope", () => {
     expect(OCR_HIT_DOCUMENT_ID_LIMIT).toBeGreaterThan(2165);
   });
 
-  it("restricts mention search to token-hit documents on the clustered OCR projection", () => {
+  it("restricts mention search to literal token-hit document ids", () => {
     const sql = buildMentionSearchSql(
       tables,
       "LOWER(c.chunk_text) LIKE @qLike",
-      1,
+      ["104-10004-10143", "124-10158-10023"],
       50,
       0,
     );
-    expect(sqlUsesOcrTokenTable(sql)).toBe(true);
     expect(sql).toContain("search_ocr_chunks");
+    expect(sql).toContain("'104-10004-10143'");
+    expect(sql).toContain("'124-10158-10023'");
+    expect(sql).not.toMatch(/UNNEST\s*\(\s*@/i);
+    expect(sqlUsesOcrTokenTable(sql)).toBe(false);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
-    expect(sql).toContain("token >= @ocrTok0 AND token < @ocrTok0End");
+    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
+    expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
   });
 
-  it("loads result-page OCR snippets from the clustered projection", () => {
-    const sql = buildOcrSnippetSql(tables);
-    expect(sql).toContain("search_ocr_chunks");
-    expect(sql).toContain("UNNEST(@documentIds)");
+  it("does not touch search_ocr_chunks when mention has no document ids", () => {
+    const sql = buildMentionSearchSql(
+      tables,
+      "LOWER(c.chunk_text) LIKE @qLike",
+      [],
+      50,
+      0,
+    );
+    expect(sql).not.toContain("search_ocr_chunks");
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
+  });
+
+  it("inlines result-page document ids so snippet LIKE can prune the cluster", () => {
+    const sql = buildOcrSnippetSql(tables, ["104-10004-10143", "124-10158-10023"]);
+    expect(sql).toContain("search_ocr_chunks");
+    expect(sql).toContain("'104-10004-10143'");
+    expect(sql).not.toMatch(/UNNEST\s*\(\s*@documentIds/i);
+    expect(sql).not.toMatch(/jfk_text_chunks/i);
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
+    expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
+  });
+
+  it("does not LIKE-scan search_ocr_chunks when the snippet page is empty", () => {
+    const sql = buildOcrSnippetSql(tables, []);
+    expect(sql).not.toContain("search_ocr_chunks");
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
+  });
+
+  it("treats UNNEST and subquery document_id filters as non-selective for OCR LIKE", () => {
+    expect(
+      sqlLikeScansOcrWithoutDocumentIdFilter(
+        "SELECT chunk_text FROM search_ocr_chunks WHERE document_id IN UNNEST(@documentIds) AND LOWER(chunk_text) LIKE @qLike",
+      ),
+    ).toBe(true);
+    expect(
+      sqlLikeScansOcrWithoutDocumentIdFilter(
+        "SELECT chunk_text FROM search_ocr_chunks WHERE document_id IN (SELECT document_id FROM tokens) AND LOWER(chunk_text) LIKE @qLike",
+      ),
+    ).toBe(true);
+    expect(
+      sqlLikeScansOcrWithoutDocumentIdFilter(
+        "SELECT chunk_text FROM search_ocr_chunks WHERE document_id IN ('104-10004-10143') AND LOWER(chunk_text) LIKE @qLike",
+      ),
+    ).toBe(false);
+  });
+
+  it("quotes only safe document id literals", () => {
+    expect(literalDocumentIds(["104-10004-10143", "'; DROP TABLE x; --"])).toEqual([
+      "104-10004-10143",
+    ]);
+    expect(sqlDocumentIdInList("document_id", [])).toBe("FALSE");
   });
 
   it("reads document-page OCR from the clustered projection by document_id", () => {
