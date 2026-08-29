@@ -107,7 +107,9 @@ export function DocumentResearchContext({
           links: topics.slice(0, 4).map((topic) => ({
             href: topic.href,
             label: topic.title,
-            meta: `${formatNumber(topic.documentCount)} records`,
+            meta: topic.documentCount
+              ? `${formatNumber(topic.documentCount)} records`
+              : topic.eyebrow ?? "",
             reliability: "curated_metadata",
           })),
         },
