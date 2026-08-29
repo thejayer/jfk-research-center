@@ -44,6 +44,16 @@ export type DocumentDetail = DocumentCard & {
   chunkCount?: number | null;
   ocrExcerpt?: string | null;
   ocrPages?: OcrPage[];
+  /**
+   * True when the record has OCR but `search_ocr_pages` is missing or
+   * unreadable. The reader must not claim the transcript is gone, and
+   * must not substitute the 500-char search card excerpt.
+   */
+  ocrBodyUnavailable?: boolean;
+  ocrFirstChunkOrder?: number | null;
+  ocrLastChunkOrder?: number | null;
+  ocrPrevChunkOrder?: number | null;
+  ocrNextChunkOrder?: number | null;
   citation?: string | null;
   /** All releases this record appeared in, earliest to latest. */
   releaseHistory?: ReleaseHistoryEntry[];
@@ -53,6 +63,19 @@ export type OcrPage = {
   pageLabel: string;
   text: string;
   matchedTerms?: string[];
+  /** Warehouse chunk_order; used for page-at-a-time fetches and #chunk-N. */
+  chunkOrder?: number;
+};
+
+export type DocumentOcrPageResponse = {
+  documentId: string;
+  page: OcrPage | null;
+  prevChunkOrder: number | null;
+  nextChunkOrder: number | null;
+  chunkCount: number;
+  firstChunkOrder: number | null;
+  lastChunkOrder: number | null;
+  ocrBodyUnavailable?: boolean;
 };
 
 export type EntityCard = {

@@ -19,8 +19,8 @@
 --   - Excerpt is SUBSTR of the first OCR chunk (lowest chunk_order),
 --     500 chars. Not query-specific; the card may not highlight the
 --     typed term. Document totals / OCR-id hits are unchanged.
---   - /api/document full-page OCR still reads search_ocr_chunks (137 MiB
---     leak, out of scope for this file).
+--   - /api/document full OCR is sql/35 (search_ocr_pages), not this
+--     500-char card window. Do not use this table as the document body.
 
 create or replace table `jfk-vault.jfk_curated.search_ocr_card_excerpts`
 as

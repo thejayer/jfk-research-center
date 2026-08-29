@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   buildCorpusAgencyFacetSql,
   buildCorpusTopicFacetSql,
-  buildDocumentPageChunksSql,
+  buildDocumentOnePageSql,
+  buildDocumentPageMetaSql,
   buildDocumentSearchSql,
   buildFilterOnlyDocumentsSql,
   buildIdentifierSearchSql,
@@ -23,6 +24,8 @@ import {
   sqlSelectsReleaseHistory,
   sqlSelectsStarFromRecords,
   sqlUsesOcrTokenTable,
+  sqlUsesPagedOcrTables,
+  sqlHasOcrPagePartitionFilter,
 } from "../warehouse-search-sql";
 
 const tables = {
@@ -137,11 +140,29 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlDocumentIdInList("document_id", [])).toBe("FALSE");
   });
 
-  it("reads document-page OCR from the clustered projection by document_id", () => {
-    const sql = buildDocumentPageChunksSql(tables);
-    expect(sql).toContain("search_ocr_chunks");
-    expect(sql).toContain("document_id = @id");
+  it("reads document OCR meta without touching fat chunk bodies", () => {
+    const sql = buildDocumentPageMetaSql(tables);
+    expect(sqlUsesPagedOcrTables(sql)).toBe(true);
+    expect(sql).toContain("search_ocr_page_meta");
+    expect(sql).not.toMatch(/chunk_text/i);
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
+    expect(sql).not.toMatch(/jfk_text_chunks/i);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+  });
+
+  it("reads one document OCR page from the partitioned table, never fat bodies", () => {
+    const sql = buildDocumentOnePageSql(tables);
+    expect(sqlUsesPagedOcrTables(sql)).toBe(true);
+    expect(sqlHasOcrPagePartitionFilter(sql)).toBe(true);
+    expect(sql).toContain("search_ocr_pages");
+    expect(sql).toContain("doc_shard = @shard");
+    expect(sql).toContain("chunk_order = @chunkOrder");
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
+    expect(sql).not.toMatch(/jfk_text_chunks/i);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sql).not.toMatch(/FARM_FINGERPRINT/i);
   });
 
   it("keeps identifier search on slim record columns", () => {
