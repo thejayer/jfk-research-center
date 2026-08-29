@@ -249,11 +249,12 @@ bq query --project_id=jfk-vault --use_legacy_sql=false --format=none \
 Dry-run the cheap path (must be ~10 MiB, not 137):
 
 ```bash
-# Meta has no chunk_text.
+# Sample NAID 124-10190-10075 has OCR in search_ocr_page_meta.
+# 104-10086-10152 does not — do not use it to judge the reader.
 bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
   "SELECT document_id, chunk_count, doc_shard
      FROM \`jfk-vault.jfk_curated.search_ocr_page_meta\`
-    WHERE document_id = '104-10086-10152'"
+    WHERE document_id = '124-10190-10075'"
 
 # One page. Replace SHARD and FIRST_ORDER with values from the meta row.
 # require_partition_filter=true — omit doc_shard and the job fails.
@@ -261,28 +262,54 @@ bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=pretty
   "SELECT chunk_order, page_label, LENGTH(chunk_text) AS n
      FROM \`jfk-vault.jfk_curated.search_ocr_pages\`
     WHERE doc_shard = SHARD
-      AND document_id = '104-10086-10152'
+      AND document_id = '124-10190-10075'
       AND chunk_order = FIRST_ORDER"
 ```
 
-After Cloud Run picks up the revision:
+After Cloud Run picks up the revision (`set -e`; these curls must fail closed):
 
 ```bash
 # First-party document + first OCR page. Public (no API key).
-curl -sS "https://researchjfk.ai/api/document/104-10086-10152" \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin)["document"];
-print(d.get("hasOcr"), bool(d.get("ocrExcerpt")), d.get("ocrBodyUnavailable"), d.get("chunkCount"))'
-# Expect hasOcr true, a full first-page ocrExcerpt (not 500 chars),
-# ocrBodyUnavailable falsy, chunkCount > 1 for this record.
+# 124-10190-10075 has OCR. 104-10086-10152 does not.
+doc_json=$(mktemp)
+doc_http=$(curl -sS -o "$doc_json" -w "%{http_code}" \
+  "https://researchjfk.ai/api/document/124-10190-10075")
+test "$doc_http" = "200"
+python3 - "$doc_json" <<'PY'
+import json, sys
+doc = json.load(open(sys.argv[1]))["document"]
+text = doc.get("ocrExcerpt") or ""
+if doc.get("ocrBodyUnavailable"):
+    raise SystemExit("ocrBodyUnavailable")
+if not doc.get("hasOcr"):
+    raise SystemExit("hasOcr is false")
+if len(text) <= 500:
+    raise SystemExit(f"first-page text too short: {len(text)} (card excerpt is 500)")
+print("ok document", len(text), doc.get("chunkCount"))
+PY
 
-curl -sS "https://researchjfk.ai/api/document/104-10086-10152/ocr?chunk=1" \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin);
-print(bool(d.get("page",{}).get("text")), d.get("ocrBodyUnavailable"), d.get("chunkCount"))'
+page_json=$(mktemp)
+page_http=$(curl -sS -o "$page_json" -w "%{http_code}" \
+  "https://researchjfk.ai/api/document/124-10190-10075/ocr")
+test "$page_http" = "200"
+python3 - "$page_json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1]))
+text = (payload.get("page") or {}).get("text") or ""
+if payload.get("ocrBodyUnavailable"):
+    raise SystemExit("ocrBodyUnavailable")
+if len(text) <= 500:
+    raise SystemExit(f"page text too short: {len(text)} (card excerpt is 500)")
+print("ok page", len(text), payload.get("chunkCount"))
+PY
 
 # Search and v1 unchanged:
-curl -sS "https://researchjfk.ai/api/search?q=oswald&limit=1"
-curl -sS -o /dev/null -w "%{http_code}\n" "https://researchjfk.ai/api/v1/documents?q=oswald"
-# Expect 401.
+search_http=$(curl -sS -o /tmp/jfk-search.json -w "%{http_code}" \
+  "https://researchjfk.ai/api/search?q=oswald&limit=1")
+test "$search_http" = "200"
+v1_http=$(curl -sS -o /dev/null -w "%{http_code}" \
+  "https://researchjfk.ai/api/v1/documents?q=oswald")
+test "$v1_http" = "401"
 
 # INFORMATION_SCHEMA.JOBS_BY_PROJECT:
 # route=api_document / api_document_ocr must not reference

@@ -129,6 +129,12 @@ import {
 import { aggregateQuerySearchFacets } from "./search-facet-aggregates";
 import type { SearchFacetDocument } from "./search-facet-aggregates";
 import {
+  isOcrPageMetaTableUnavailable,
+  markOcrPageMetaTableUnavailable,
+  ocrPageMetaCache,
+  type OcrPageMetaRecord,
+} from "./ocr-page-meta-cache";
+import {
   buildCorpusAgencyFacetSql,
   buildCorpusEntityFacetSql,
   buildCorpusTopicFacetSql,
@@ -2388,13 +2394,7 @@ async function fetchOcrHitDocumentIds(qNorm: string): Promise<string[]> {
   }
 }
 
-type DocumentOcrPageMeta = {
-  document_id: string;
-  chunk_count: number;
-  first_chunk_order: number;
-  last_chunk_order: number;
-  doc_shard: number;
-};
+type DocumentOcrPageMeta = OcrPageMetaRecord;
 
 type DocumentOcrPageRow = {
   chunk_id: string;
@@ -2410,12 +2410,6 @@ type DocumentOcrFirstPage =
   | { kind: "page"; meta: DocumentOcrPageMeta; page: DocumentOcrPageRow }
   | { kind: "unavailable" }
   | { kind: "none" };
-
-const OCR_PAGE_META_TTL_MS = 5 * 60 * 1000;
-const ocrPageMetaCache = new Map<
-  string,
-  { expiresAt: number; meta: DocumentOcrPageMeta | null; unavailable: boolean }
->();
 
 function asInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
@@ -2467,35 +2461,24 @@ function normalizePageRow(
 async function fetchDocumentOcrPageMeta(
   documentId: string,
 ): Promise<{ kind: "meta"; meta: DocumentOcrPageMeta } | { kind: "none" } | { kind: "unavailable" }> {
+  if (isOcrPageMetaTableUnavailable()) return { kind: "unavailable" };
   const cached = ocrPageMetaCache.get(documentId);
-  const now = Date.now();
-  if (cached && cached.expiresAt > now) {
-    if (cached.unavailable) return { kind: "unavailable" };
-    if (!cached.meta) return { kind: "none" };
-    return { kind: "meta", meta: cached.meta };
-  }
+  if (cached) return { kind: "meta", meta: cached };
   try {
     const rows = await query<Record<string, unknown>>(
       buildDocumentPageMetaSql(WAREHOUSE_TABLES),
       { id: documentId },
     );
     const meta = rows[0] ? normalizePageMeta(rows[0]) : null;
-    ocrPageMetaCache.set(documentId, {
-      expiresAt: now + OCR_PAGE_META_TTL_MS,
-      meta,
-      unavailable: false,
-    });
-    return meta ? { kind: "meta", meta } : { kind: "none" };
+    if (!meta) return { kind: "none" };
+    ocrPageMetaCache.setPositive(documentId, meta);
+    return { kind: "meta", meta };
   } catch (error) {
     if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
       console.warn(
         "[warehouse] search_ocr_page_meta unavailable; document OCR will not scan fat chunk tables",
       );
-      ocrPageMetaCache.set(documentId, {
-        expiresAt: now + OCR_PAGE_META_TTL_MS,
-        meta: null,
-        unavailable: true,
-      });
+      markOcrPageMetaTableUnavailable();
       return { kind: "unavailable" };
     }
     throw error;
