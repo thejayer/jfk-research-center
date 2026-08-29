@@ -1741,10 +1741,8 @@ async function fetchMentionSearch({
     };
   }
 
-  const params: Record<string, unknown> = {
-    qLike: `%${qNorm.toLowerCase()}%`,
-  };
-  const mentionWhere = ["LOWER(c.chunk_text) LIKE @qLike"];
+  const params: Record<string, unknown> = {};
+  const mentionWhere: string[] = [];
   if (filters.agencies?.length) {
     mentionWhere.push("r.agency IN UNNEST(@agencies)");
     params.agencies = filters.agencies;
@@ -2336,7 +2334,6 @@ async function fetchOcrSnippets(
   try {
     const rows = await query<{ document_id: string; hit_text: string | null }>(
       buildOcrSnippetSql(WAREHOUSE_TABLES, documentIds),
-      { qLike },
     );
     return new Map(
       rows

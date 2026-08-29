@@ -43,17 +43,17 @@ layers:
   twice per query (hit IDs + snippets). Low-confidence / OCR-only hits now come
   from `jfk_curated.search_ocr_document_tokens` (sql/33), clustered by token, so
   `q=oswald` is a prefix range on one cluster. Document jobs select card columns
-  only — not `r.*` / `release_history`. Card snippets, mention excerpts, and
-  `/api/document` page reads use `search_ocr_chunks`, clustered by
-  `document_id`. The 00165 revision still billed ~128 MiB per snippet job
-  because `document_id IN UNNEST(@documentIds)` (and mention's
-  `IN (SELECT … FROM tokens)`) does **not** prune that cluster — BigQuery
-  reads the whole 142.7 MB table, then applies `LIKE`. Snippet and mention
-  SQL now interpolate a literal `IN ('104-…', …)` of the current page
-  (snippets) or the token-hit id list (mentions). Empty id lists do not
-  reference `search_ocr_chunks` at all. Until sql/33 is applied, document
-  search degrades to title/description only (Oswald-class totals drop the
-  OCR-only band) rather than scanning chunks again.
+  only — not `r.*` / `release_history`. `search_ocr_chunks` is 143 MB in a
+  single cluster block, so literal `IN` lists and even `document_id = @id`
+  still bill ~128–137 MiB. Card snippets and mention excerpts therefore
+  read `jfk_curated.search_ocr_card_excerpts` (sql/34): one 500-character
+  first-chunk window per OCR document (~1–2 MB). A full scan of that table
+  is the on-demand 10 MiB floor, not 128 MiB. The excerpt is not a
+  LIKE-over-full-body hit; cards fall back to title/description if the
+  thin table is missing. `/api/document` page OCR still reads
+  `search_ocr_chunks` (separate 137 MiB leak). Until sql/33 is applied,
+  document search degrades to title/description only (Oswald-class totals
+  drop the OCR-only band) rather than scanning chunks again.
 - Privacy-safe request ids and hashed request fingerprints are propagated
   through a signed server-side loopback request and attached to BigQuery jobs
   as labels. `/api/search` is `api_search`; `/api/document`, `/api/entity`,
@@ -192,8 +192,9 @@ gcloud run services update jfk-research-center \
 
 ## Verifying cheaper public search
 
-Apply `sql/33_search_ocr_access.sql` once (or via `rebuild_warehouse.sh`) before
-judging production bytes. Then:
+Apply `sql/33_search_ocr_access.sql` and **`sql/34_search_ocr_card_excerpts.sql`**
+before judging production snippet bytes (sql/34 must exist before the app
+revision that reads it). Then:
 
 ```bash
 # Token lookup should dry-run near the 10 MiB on-demand minimum, not the
@@ -218,27 +219,15 @@ curl -sS "https://researchjfk.ai/api/search?q=oswald&limit=1"
 # Warehouse /api/v1 stays keyed:
 curl -sS -o /dev/null -w "%{http_code}\n" "https://researchjfk.ai/api/v1/documents?q=oswald"
 
-# Snippet job (search_ocr_chunks only) must not stay at 128 MiB.
-# After deploy, pick a cache-miss q=oswald job that referenced
-# search_ocr_chunks and check total_bytes_billed. A 50-id literal IN
-# against the document_id cluster should be well under 128 MiB
-# (order-of-magnitude if pruning works; tens of ids vs a 142.7 MB table).
-# Contrast dry-run of the retired UNNEST form vs a 2-id literal:
+# Thin excerpt table must dry-run at the 10 MiB floor, not 128 MiB.
 bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
-  "SELECT document_id, ANY_VALUE(chunk_text)
-     FROM \`jfk-vault.jfk_curated.search_ocr_chunks\`
-    WHERE document_id IN UNNEST(['104-10004-10143'])
-      AND LOWER(chunk_text) LIKE '%oswald%'
-    GROUP BY document_id"
-bq query --project_id=jfk-vault --use_legacy_sql=false --dry_run --format=prettyjson \
-  "SELECT document_id, ANY_VALUE(chunk_text)
-     FROM \`jfk-vault.jfk_curated.search_ocr_chunks\`
-    WHERE document_id IN ('104-10004-10143', '124-10158-10023')
-      AND LOWER(chunk_text) LIKE '%oswald%'
-    GROUP BY document_id"
+  "SELECT document_id, excerpt
+     FROM \`jfk-vault.jfk_curated.search_ocr_card_excerpts\`
+    WHERE document_id IN ('104-10086-10152')"
 
-# INFORMATION_SCHEMA.JOBS_BY_PROJECT route=api_search: snippet-only jobs
-# should leave the 128 MiB p50/p90 plateau. sql/91 query 3 is the rollup.
+# After deploy, uncached Oswald snippet jobs should reference
+# search_ocr_card_excerpts (not search_ocr_chunks) and bill ~10 MiB.
+# INFORMATION_SCHEMA.JOBS_BY_PROJECT route=api_search. sql/91 query 3.
 ```
 
 ## Workflow Convention

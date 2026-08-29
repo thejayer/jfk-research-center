@@ -19,6 +19,7 @@ import {
   sqlLikeScansOcrWithoutDocumentIdFilter,
   sqlMentionsOcrChunks,
   sqlScansLegacyTextChunks,
+  sqlUsesCardExcerpts,
   sqlSelectsReleaseHistory,
   sqlSelectsStarFromRecords,
   sqlUsesOcrTokenTable,
@@ -68,53 +69,47 @@ describe("warehouse search SQL cost envelope", () => {
     expect(OCR_HIT_DOCUMENT_ID_LIMIT).toBeGreaterThan(2165);
   });
 
-  it("restricts mention search to literal token-hit document ids", () => {
+  it("loads mention excerpts from the thin card table, never fat OCR bodies", () => {
     const sql = buildMentionSearchSql(
       tables,
-      "LOWER(c.chunk_text) LIKE @qLike",
+      "r.agency IN UNNEST(@agencies)",
       ["104-10004-10143", "124-10158-10023"],
       50,
       0,
     );
-    expect(sql).toContain("search_ocr_chunks");
-    expect(sql).toContain("'104-10004-10143'");
-    expect(sql).toContain("'124-10158-10023'");
-    expect(sql).not.toMatch(/UNNEST\s*\(\s*@/i);
-    expect(sqlUsesOcrTokenTable(sql)).toBe(false);
+    expect(sqlUsesCardExcerpts(sql)).toBe(true);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
-    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
-    expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
-  });
-
-  it("does not touch search_ocr_chunks when mention has no document ids", () => {
-    const sql = buildMentionSearchSql(
-      tables,
-      "LOWER(c.chunk_text) LIKE @qLike",
-      [],
-      50,
-      0,
-    );
-    expect(sql).not.toContain("search_ocr_chunks");
-    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
-    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
-  });
-
-  it("inlines result-page document ids so snippet LIKE can prune the cluster", () => {
-    const sql = buildOcrSnippetSql(tables, ["104-10004-10143", "124-10158-10023"]);
-    expect(sql).toContain("search_ocr_chunks");
-    expect(sql).toContain("'104-10004-10143'");
-    expect(sql).not.toMatch(/UNNEST\s*\(\s*@documentIds/i);
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
     expect(sql).not.toMatch(/jfk_text_chunks/i);
-    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
-    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
+    expect(sql).not.toMatch(/\bLIKE\b/i);
+    expect(sql).toContain("'104-10004-10143'");
     expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
   });
 
-  it("does not LIKE-scan search_ocr_chunks when the snippet page is empty", () => {
-    const sql = buildOcrSnippetSql(tables, []);
-    expect(sql).not.toContain("search_ocr_chunks");
+  it("does not touch fat OCR tables when mention has no document ids", () => {
+    const sql = buildMentionSearchSql(tables, "", [], 50, 0);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlUsesCardExcerpts(sql)).toBe(false);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
-    expect(sqlLikeScansOcrWithoutDocumentIdFilter(sql)).toBe(false);
+  });
+
+  it("loads result-page snippets from the thin card table, never fat OCR bodies", () => {
+    const sql = buildOcrSnippetSql(tables, ["104-10004-10143", "124-10158-10023"]);
+    expect(sqlUsesCardExcerpts(sql)).toBe(true);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
+    expect(sql).not.toMatch(/jfk_text_chunks/i);
+    expect(sql).not.toMatch(/\bLIKE\b/i);
+    expect(sql).toContain("'104-10004-10143'");
+  });
+
+  it("does not read the thin or fat OCR tables when the snippet page is empty", () => {
+    const sql = buildOcrSnippetSql(tables, []);
+    expect(sqlUsesCardExcerpts(sql)).toBe(false);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlScansLegacyTextChunks(sql)).toBe(false);
   });
 
   it("treats UNNEST and subquery document_id filters as non-selective for OCR LIKE", () => {
