@@ -2,9 +2,10 @@
  * BigQuery SQL builders for warehouse-backed search.
  *
  * Search jobs must stay under JFK_BQ_MAX_BYTES_BILLED (256 MiB in production).
- * Document search must not scan jfk_text_chunks.chunk_text. OCR document IDs
- * come from the clustered token table (sql/33). Record jobs select only the
- * card columns — never r.* / release_history.
+ * Document search must not scan jfk_text_chunks or search_ocr_chunks bodies.
+ * OCR document IDs come from the token table (sql/33). Card snippets and
+ * mention excerpts come from search_ocr_card_excerpts (sql/34). Record jobs
+ * select only the card columns — never r.* / release_history.
  */
 
 export type WarehouseTableRef = {
@@ -46,6 +47,13 @@ export function ocrTokenTable({ project, curatedDataset }: WarehouseTableRef): s
 
 export function ocrChunksTable({ project, curatedDataset }: WarehouseTableRef): string {
   return `\`${project}.${curatedDataset}.search_ocr_chunks\``;
+}
+
+export function ocrCardExcerptsTable({
+  project,
+  curatedDataset,
+}: WarehouseTableRef): string {
+  return `\`${project}.${curatedDataset}.search_ocr_card_excerpts\``;
 }
 
 export function entityMapTable({ project, curatedDataset }: WarehouseTableRef): string {
@@ -145,11 +153,9 @@ export function buildOcrSnippetSql(
     return `SELECT CAST(NULL AS STRING) AS document_id, CAST(NULL AS STRING) AS hit_text
      WHERE FALSE`;
   }
-  return `SELECT document_id, ANY_VALUE(chunk_text) AS hit_text
-     FROM ${ocrChunksTable(tables)}
-    WHERE ${idFilter}
-      AND LOWER(chunk_text) LIKE @qLike
-    GROUP BY document_id`;
+  return `SELECT document_id, excerpt AS hit_text
+     FROM ${ocrCardExcerptsTable(tables)}
+    WHERE ${idFilter}`;
 }
 
 export function buildDocumentMatchConfidenceSql(): string {
@@ -229,7 +235,7 @@ export function buildMentionSearchSql(
   limit: number,
   offset: number,
 ): string {
-  const idFilter = sqlDocumentIdInList("c.document_id", documentIds);
+  const idFilter = sqlDocumentIdInList("e.document_id", documentIds);
   if (idFilter === "FALSE") {
     return `SELECT CAST(NULL AS STRING) AS document_id,
               CAST(NULL AS STRING) AS naid,
@@ -241,15 +247,16 @@ export function buildMentionSearchSql(
               CAST(0 AS INT64) AS total_count
          WHERE FALSE`;
   }
+  const extraWhere = whereSql.trim() ? `AND ${whereSql}` : "";
   return `SELECT r.document_id, r.naid, r.title,
-              c.chunk_id, c.chunk_order, c.chunk_text, c.page_label,
+              e.chunk_id, e.chunk_order, e.excerpt AS chunk_text, e.page_label,
               COUNT(*) OVER() AS total_count
-         FROM ${ocrChunksTable(tables)} c
+         FROM ${ocrCardExcerptsTable(tables)} e
          JOIN ${recordsTable(tables)} r
            USING (document_id)
         WHERE ${idFilter}
-          AND ${whereSql}
-        ORDER BY c.document_id, c.chunk_order
+          ${extraWhere}
+        ORDER BY e.document_id, e.chunk_order
         LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 }
 
@@ -258,16 +265,17 @@ export function buildMentionSearchCountSql(
   whereSql: string,
   documentIds: readonly string[],
 ): string {
-  const idFilter = sqlDocumentIdInList("c.document_id", documentIds);
+  const idFilter = sqlDocumentIdInList("e.document_id", documentIds);
   if (idFilter === "FALSE") {
     return `SELECT CAST(0 AS INT64) AS n WHERE FALSE`;
   }
+  const extraWhere = whereSql.trim() ? `AND ${whereSql}` : "";
   return `SELECT COUNT(*) AS n
-         FROM ${ocrChunksTable(tables)} c
+         FROM ${ocrCardExcerptsTable(tables)} e
          JOIN ${recordsTable(tables)} r
            USING (document_id)
         WHERE ${idFilter}
-          AND ${whereSql}`;
+          ${extraWhere}`;
 }
 
 export function buildDocumentPageChunksSql(tables: WarehouseTableRef): string {
@@ -349,6 +357,10 @@ export function buildEntityMembershipSql(tables: WarehouseTableRef): string {
 
 export function sqlMentionsOcrChunks(sql: string): boolean {
   return /jfk_text_chunks/i.test(sql) || /search_ocr_chunks/i.test(sql);
+}
+
+export function sqlUsesCardExcerpts(sql: string): boolean {
+  return /search_ocr_card_excerpts/i.test(sql);
 }
 
 export function sqlScansLegacyTextChunks(sql: string): boolean {
