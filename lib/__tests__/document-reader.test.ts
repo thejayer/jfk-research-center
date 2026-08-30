@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   archivalPageCount,
   displayDocumentTitle,
@@ -6,11 +7,14 @@ import {
   documentSourceLinks,
   formatOcrReaderStatus,
   isGenericDocumentTitle,
+  isLatestReaderLoad,
   isPdfUrl,
   parseChunkParam,
   parseOcrJumpInput,
   parsePageLabelNumber,
   primaryDocumentAction,
+  requestedReaderChunk,
+  shouldHideOcrForHashDeepLink,
 } from "../document-reader";
 
 describe("parseChunkParam", () => {
@@ -42,6 +46,89 @@ describe("parseOcrJumpInput", () => {
       kind: "page-label",
       label: "p. 12",
     });
+  });
+});
+
+describe("requestedReaderChunk", () => {
+  it("uses a hash-only deep link when no query is present", () => {
+    expect(requestedReaderChunk("", "#chunk-40")).toEqual({
+      chunk: 40,
+      hashOnly: true,
+    });
+    expect(requestedReaderChunk("", "#chunk-0")).toEqual({
+      chunk: 0,
+      hashOnly: true,
+    });
+  });
+
+  it("prefers a later hash click over a stale ?chunk= after paging", () => {
+    expect(requestedReaderChunk("?chunk=1", "#chunk-0")).toEqual({
+      chunk: 0,
+      hashOnly: false,
+    });
+  });
+
+  it("keeps the query when hash and query agree", () => {
+    expect(requestedReaderChunk("?chunk=40", "#chunk-40")).toEqual({
+      chunk: 40,
+      hashOnly: false,
+    });
+  });
+});
+
+describe("hash-pending reveal and load races", () => {
+  it("hides the SSR first page only while a hash-only fetch is in flight", () => {
+    expect(
+      shouldHideOcrForHashDeepLink({ hideUntilLoad: true, settled: false }),
+    ).toBe(true);
+    expect(
+      shouldHideOcrForHashDeepLink({ hideUntilLoad: true, settled: true }),
+    ).toBe(false);
+    expect(
+      shouldHideOcrForHashDeepLink({ hideUntilLoad: false, settled: false }),
+    ).toBe(false);
+  });
+
+  it("drops a stale page response after a newer load starts", () => {
+    expect(isLatestReaderLoad(1, 2)).toBe(false);
+    expect(isLatestReaderLoad(2, 2)).toBe(true);
+  });
+});
+
+describe("document page fetch alignment", () => {
+  it("generateMetadata uses the same ?chunk= as the page body", () => {
+    const source = readFileSync(
+      new URL("../../app/document/[id]/page.tsx", import.meta.url),
+      "utf8",
+    );
+    const metadata = source.slice(
+      source.indexOf("export async function generateMetadata"),
+      source.indexOf("export default async function DocumentPage"),
+    );
+    expect(metadata).toContain("searchParams");
+    expect(metadata).toContain("parseChunkParam(resolvedSearchParams.chunk)");
+    expect(metadata).toContain("fetchDocument(id, parseChunkParam");
+    expect(source).toContain("fetchDocument(id, requestedChunk)");
+  });
+
+  it("research-context loaded-page anchors use ?chunk= so they survive paging", () => {
+    const source = readFileSync(
+      new URL("../../components/documents/document-research-context.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("documentReaderHref(doc.id");
+    expect(source).not.toMatch(/href:\s*`#chunk-\$/);
+  });
+
+  it("the reader clears hash-pending on apply and on error, and ignores stale loads", () => {
+    const source = readFileSync(
+      new URL("../../components/documents/ocr-page-reader.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("setHashPending(false)");
+    expect(source).toContain("isLatestReaderLoad(generation, loadGenRef.current)");
+    expect(source).toContain("requestedReaderChunk(");
+    expect(source).toContain("shouldHideOcrForHashDeepLink");
   });
 });
 

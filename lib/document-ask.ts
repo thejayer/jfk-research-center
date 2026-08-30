@@ -74,7 +74,7 @@ export function buildDocumentAskPromptInput({
     documentId: doc.id,
     documentTitle: doc.title,
     retrievedDocumentIds: [doc.id],
-    metadataContext: metadataContext(doc),
+    metadataContext: metadataContext(doc, loadedPage),
     passages: rankedPassages,
   };
 }
@@ -154,7 +154,14 @@ function refusal(
   };
 }
 
-function metadataContext(doc: DocumentDetail): string[] {
+function metadataContext(
+  doc: DocumentDetail,
+  loadedPage?: OcrPage | null,
+): string[] {
+  // When a page is on screen, the loaded text is a passage — not metadata.
+  // The SSR ocrExcerpt is the first (or requested) page and goes stale
+  // after a client page turn.
+  const excerpt = loadedPage === undefined ? doc.ocrExcerpt : null;
   return [
     doc.title,
     doc.description,
@@ -162,7 +169,7 @@ function metadataContext(doc: DocumentDetail): string[] {
     doc.recordGroup,
     doc.collectionName,
     doc.citation,
-    doc.ocrExcerpt,
+    excerpt,
   ].filter((value): value is string => Boolean(value?.trim()));
 }
 
@@ -181,32 +188,24 @@ function askPassages(
   mentions: readonly MentionExcerpt[],
   loadedPage?: OcrPage | null,
 ): MentionExcerpt[] {
-  const passages: MentionExcerpt[] = [];
-  if (loadedPage?.text.trim()) {
-    passages.push({
-      id: `loaded-page-${loadedPage.chunkOrder ?? "current"}`,
-      documentId: doc.id,
-      documentTitle: doc.title,
-      documentHref: documentReaderHref(doc.id, loadedPage.chunkOrder ?? null),
-      excerpt: loadedPage.text,
-      matchedTerms: [],
-      confidence: "high",
-      source: "ocr",
-      pageLabel: loadedPage.pageLabel,
-      chunkOrder: loadedPage.chunkOrder,
-    });
+  if (loadedPage !== undefined) {
+    if (!loadedPage?.text.trim()) return [];
+    return [
+      {
+        id: `loaded-page-${loadedPage.chunkOrder ?? "current"}`,
+        documentId: doc.id,
+        documentTitle: doc.title,
+        documentHref: documentReaderHref(doc.id, loadedPage.chunkOrder ?? null),
+        excerpt: loadedPage.text,
+        matchedTerms: [],
+        confidence: "high",
+        source: "ocr",
+        pageLabel: loadedPage.pageLabel,
+        chunkOrder: loadedPage.chunkOrder,
+      },
+    ];
   }
-  for (const mention of mentions) {
-    if (mention.source !== "ocr") continue;
-    if (
-      loadedPage?.chunkOrder != null &&
-      mention.chunkOrder === loadedPage.chunkOrder
-    ) {
-      continue;
-    }
-    passages.push(mention);
-  }
-  return passages;
+  return mentions.filter((mention) => mention.source === "ocr");
 }
 
 function mentionCitation(

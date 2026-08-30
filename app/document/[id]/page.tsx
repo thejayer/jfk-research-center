@@ -29,11 +29,14 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const data = await fetchDocument(id);
+  const resolvedSearchParams = await searchParams;
+  const data = await fetchDocument(id, parseChunkParam(resolvedSearchParams.chunk));
   if (!data) return { title: "Document not found" };
   return {
     title: displayDocumentTitle(data.document),

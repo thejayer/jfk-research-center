@@ -8,6 +8,48 @@ import { formatNumber } from "./format";
  * hashes are not visible to SSR.
  */
 
+export function parseHashChunk(hash: string): number | null {
+  const match = /^#?chunk-(-?\d+)$/.exec(hash);
+  return match ? Number(match[1]) : null;
+}
+
+/**
+ * Prefer a hash target when it disagrees with `?chunk=`. After the first
+ * page turn the query is written by replaceState; in-page `#chunk-N`
+ * clicks would otherwise be ignored.
+ */
+export function requestedReaderChunk(
+  search: string | URLSearchParams,
+  hash: string,
+): { chunk: number | null; hashOnly: boolean } {
+  const params =
+    typeof search === "string"
+      ? new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+      : search;
+  const fromQuery = parseChunkParam(params.get("chunk"));
+  const fromHash = parseHashChunk(hash);
+  if (fromHash != null && fromHash !== fromQuery) {
+    return { chunk: fromHash, hashOnly: fromQuery == null };
+  }
+  return {
+    chunk: fromQuery ?? fromHash,
+    hashOnly: fromQuery == null && fromHash != null,
+  };
+}
+
+/** Hide the SSR first page only while a hash-only target is still in flight. */
+export function shouldHideOcrForHashDeepLink(input: {
+  hideUntilLoad: boolean;
+  settled: boolean;
+}): boolean {
+  return input.hideUntilLoad && !input.settled;
+}
+
+/** Ignore OCR responses that finished after a newer page turn started. */
+export function isLatestReaderLoad(generation: number, latest: number): boolean {
+  return generation === latest;
+}
+
 export function parseChunkParam(
   value: string | string[] | undefined | null,
 ): number | null {

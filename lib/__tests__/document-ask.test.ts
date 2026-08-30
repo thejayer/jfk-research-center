@@ -194,6 +194,30 @@ describe("document ask helpers", () => {
       label: "p. 40 (chunk 40)",
     });
   });
+
+  it("does not cite an earlier SSR page after the loaded page changes", () => {
+    const input = buildDocumentAskPromptInput({
+      doc: {
+        ...document(),
+        ocrExcerpt: "Cover sheet about Nosenko and KGB operational tasking.",
+      },
+      mentions: [
+        mention({
+          chunkOrder: 0,
+          excerpt: "Cover sheet about Nosenko and KGB operational tasking.",
+        }),
+      ],
+      loadedPage: {
+        pageLabel: "p. 2",
+        text: "July 7 1971 memorandum to Mr. Sullivan regarding MEDBURG.",
+        chunkOrder: 1,
+      },
+      question: "Did Nosenko describe KGB operational tasking?",
+    });
+
+    expect(input.passages).toEqual([]);
+    expect(input.metadataContext.join(" ")).not.toContain("Cover sheet");
+  });
 });
 
 function document(): DocumentDetail {

@@ -5,6 +5,7 @@ import type {
   MentionExcerpt,
   TopicCard,
 } from "@/lib/api-types";
+import { documentReaderHref } from "@/lib/document-reader";
 import { formatNumber } from "@/lib/format";
 import {
   ResearchContextPanel,
@@ -69,7 +70,7 @@ export function DocumentResearchContext({
     ...(primaryMention
       ? [
           {
-            href: `#chunk-${primaryMention.chunkOrder}`,
+            href: documentReaderHref(doc.id, primaryMention.chunkOrder),
             label: "Open first matched chunk",
             detail: formatMentionMeta(primaryMention),
             reliability: "ocr_text" as const,
@@ -132,7 +133,7 @@ export function DocumentResearchContext({
           links: ocrMentions.slice(0, 3).map((mention) => ({
             href:
               mention.chunkOrder != null
-                ? `#chunk-${mention.chunkOrder}`
+                ? documentReaderHref(doc.id, mention.chunkOrder)
                 : "#ocr-text",
             label:
               mention.matchedTerms[0] ?? mention.pageLabel ?? "Loaded page",

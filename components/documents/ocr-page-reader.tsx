@@ -4,9 +4,11 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import type { DocumentDetail, DocumentOcrPageResponse, OcrPage } from "@/lib/api-types";
 import {
   formatOcrReaderStatus,
-  parseChunkParam,
+  isLatestReaderLoad,
   parseOcrJumpInput,
   replaceDocumentReaderUrl,
+  requestedReaderChunk,
+  shouldHideOcrForHashDeepLink,
 } from "@/lib/document-reader";
 import { highlightHTML } from "@/lib/format";
 import { ChunkActions } from "./chunk-actions";
@@ -50,6 +52,7 @@ export function OcrPageReader({
   const [hashPending, setHashPending] = useState(false);
   const cacheRef = useRef(new Map<number, DocumentOcrPageResponse>());
   const pageOrderRef = useRef(initialPage.chunkOrder);
+  const loadGenRef = useRef(0);
 
   const applyPage = useCallback(
     (data: DocumentOcrPageResponse, updateUrl: boolean) => {
@@ -68,6 +71,7 @@ export function OcrPageReader({
         replaceDocumentReaderUrl(data.page.chunkOrder);
       }
       setStatus("idle");
+      setHashPending(false);
       setJumpError(null);
     },
     [setCurrentPage],
@@ -91,8 +95,10 @@ export function OcrPageReader({
   const loadChunk = useCallback(
     async (order: number, updateUrl: boolean) => {
       if (pageOrderRef.current === order && statusRef.current !== "error") return;
+      const generation = ++loadGenRef.current;
       const cached = cacheRef.current.get(order);
       if (cached?.page) {
+        if (!isLatestReaderLoad(generation, loadGenRef.current)) return;
         applyPage(cached, updateUrl);
         prefetch(cached.prevChunkOrder);
         prefetch(cached.nextChunkOrder);
@@ -103,8 +109,10 @@ export function OcrPageReader({
         const res = await fetch(
           `/api/document/${encodeURIComponent(doc.id)}/ocr?chunk=${order}`,
         );
+        if (!isLatestReaderLoad(generation, loadGenRef.current)) return;
         if (!res.ok) throw new Error("ocr page unavailable");
         const data = (await res.json()) as DocumentOcrPageResponse;
+        if (!isLatestReaderLoad(generation, loadGenRef.current)) return;
         if (data.ocrBodyUnavailable || !data.page) {
           throw new Error("ocr page unavailable");
         }
@@ -113,7 +121,9 @@ export function OcrPageReader({
         prefetch(data.prevChunkOrder);
         prefetch(data.nextChunkOrder);
       } catch {
+        if (!isLatestReaderLoad(generation, loadGenRef.current)) return;
         setStatus("error");
+        setHashPending(false);
       }
     },
     [applyPage, doc.id, prefetch],
@@ -146,19 +156,17 @@ export function OcrPageReader({
 
   useEffect(() => {
     const applyLocation = () => {
-      const fromQuery = parseChunkParam(
-        new URLSearchParams(window.location.search).get("chunk"),
+      const { chunk: requested, hashOnly } = requestedReaderChunk(
+        window.location.search,
+        window.location.hash,
       );
-      const hashMatch = /^chunk-(-?\d+)$/.exec(window.location.hash.slice(1));
-      const fromHash = hashMatch ? Number(hashMatch[1]) : null;
-      const requested = fromQuery ?? fromHash;
       document.documentElement.removeAttribute("data-ocr-deeplink");
       if (requested == null || requested === pageOrderRef.current) {
         setHashPending(false);
         return;
       }
-      setHashPending(fromQuery == null);
-      void loadChunk(requested, fromQuery == null);
+      setHashPending(hashOnly);
+      void loadChunk(requested, true);
     };
     applyLocation();
     window.addEventListener("hashchange", applyLocation);
@@ -179,6 +187,7 @@ export function OcrPageReader({
     function onKey(event: KeyboardEvent) {
       if (isTyping(event.target)) return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (statusRef.current === "loading") return;
       if (event.key === "ArrowLeft" || event.key === "k" || event.key === "K") {
         if (nav.prevChunkOrder != null) {
           event.preventDefault();
@@ -199,11 +208,15 @@ export function OcrPageReader({
   const currentOrder = page.chunkOrder;
   const canPrev = nav.prevChunkOrder != null;
   const canNext = nav.nextChunkOrder != null;
+  const hideForHashDeepLink = shouldHideOcrForHashDeepLink({
+    hideUntilLoad: hashPending,
+    settled: status !== "loading",
+  });
   const statusLabel = formatOcrReaderStatus({
     pageLabel: page.pageLabel,
     lastPageLabel,
     chunkCount: nav.chunkCount,
-    loading: status === "loading" || hashPending,
+    loading: status === "loading" || hideForHashDeepLink,
   });
 
   function onJump(event: FormEvent<HTMLFormElement>) {
@@ -274,7 +287,11 @@ export function OcrPageReader({
           }
           className={styles.ocrJumpInput}
         />
-        <button type="submit" className={styles.ocrPagerButton}>
+        <button
+          type="submit"
+          className={styles.ocrPagerButton}
+          disabled={status === "loading"}
+        >
           Go
         </button>
         {nav.firstChunkOrder != null &&
@@ -321,7 +338,7 @@ export function OcrPageReader({
         id={currentOrder != null ? `chunk-${currentOrder}` : "ocr-page"}
         className={`ocr-chunk ocr-pending-deeplink ${styles.ocrFullPage}`}
       >
-        {hashPending ? (
+        {hideForHashDeepLink ? (
           <p className={styles.ocrFullPageText}>Opening the linked page…</p>
         ) : (
           <p

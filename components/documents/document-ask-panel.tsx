@@ -30,8 +30,14 @@ export function DocumentAskPanel({
   const readerState = useDocumentReaderState();
   const loadedPage = readerState?.currentPage ?? doc.ocrPages?.[0] ?? null;
   const ocrMentions = useMemo(
-    () => mentions.filter((mention) => mention.source === "ocr"),
-    [mentions],
+    () =>
+      mentions.filter(
+        (mention) =>
+          mention.source === "ocr" &&
+          (loadedPage?.chunkOrder == null ||
+            mention.chunkOrder === loadedPage.chunkOrder),
+      ),
+    [loadedPage?.chunkOrder, mentions],
   );
   const suggestions = useMemo(
     () => buildSuggestions(doc, ocrMentions, loadedPage?.text ?? ""),
