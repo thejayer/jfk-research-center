@@ -283,8 +283,23 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-08-30 (document reader polish)
+**Last updated:** 2026-08-30 (derived document titles)
 
+- **Derived document titles (2026-08-30).** Warehouse titles after
+  sql/10a + sql/10 are often `Untitled Record` or `Untitled {doc_type}`
+  when NARA left the XLSX title empty (~1.1k Untitled Record, plus
+  Untitled PAPER-TEXTUAL DOCUMENT / CABLE / MEMORANDUM, plus exact
+  `WITHHELD` / `[RESTRICTED]` placeholders). PR 131 only rewrote the
+  document *hero*. Display titles now derive in `rowToCard` from fields
+  already on the record (agency + documentType + description cues such
+  as bulky/memo/cable) — no OCR-body scan, no EXISTS unions, no SQL
+  rebuild. `DocumentCard.title` is the display title; `sourceTitle`
+  keeps the raw warehouse/NARA string. Mentions, semantic hits,
+  timeline document links, browser/OG title, citations, and the
+  research tray use the same helper. Real NARA titles stay untouched.
+  `pageCount` 0 still does not render as "Pages 0"; metadata shares
+  `formatArchivalPageCount` with the reader (`~N` only from a last
+  pageLabel).
 - **Document reader polish (2026-08-30).** Page-at-a-time OCR from PRs
   129/130 kept (search_ocr_page_meta + search_ocr_pages, 10 MiB floor).
   First-party `GET /api/document/:id?chunk=N` now SSRs that page so

@@ -81,7 +81,11 @@ import type {
 } from "./api-types";
 import { ocrCoverageSentence } from "./corpus-coverage";
 import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
-import { documentReaderHref } from "./document-reader";
+import {
+  displayDocumentTitle,
+  documentDisplayFields,
+  documentReaderHref,
+} from "./document-reader";
 import { formatDate } from "./format";
 import { buildMediaIndexResponse } from "./media-assets";
 import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
@@ -406,10 +410,18 @@ function readDate(d: RecordRow["start_date"]): string | null {
 
 function rowToCard(r: RecordRow, snippet?: string | null): DocumentCard {
   const date = readDate(r.start_date);
+  const { title, sourceTitle } = documentDisplayFields({
+    title: r.title,
+    naid: r.naid,
+    agency: r.agency,
+    description: r.description,
+    documentType: r.document_type,
+  });
   return {
     id: r.document_id,
     naid: r.naid,
-    title: r.title,
+    title,
+    sourceTitle,
     subtitle: r.record_group ?? null,
     snippet: snippet ?? r.description ?? null,
     href: `/document/${encodeURIComponent(r.document_id)}`,
@@ -464,6 +476,23 @@ function rowToDetail(
       : `NAID ${r.naid} · JFK Assassination Records Collection`,
     releaseHistory: readReleaseHistory(r.release_history),
   };
+}
+
+function recordDisplayTitle(r: {
+  title?: string | null;
+  naid?: string | null;
+  document_id?: string;
+  agency?: string | null;
+  description?: string | null;
+  document_type?: string | null;
+}): string {
+  return displayDocumentTitle({
+    title: r.title,
+    naid: r.naid ?? r.document_id ?? "",
+    agency: r.agency,
+    description: r.description,
+    documentType: r.document_type,
+  });
 }
 
 function compactTags(r: RecordRow): string[] {
@@ -1104,7 +1133,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
       return {
         id: `m-ocr-${r.document_id}`,
         documentId: r.document_id,
-        documentTitle: r.title,
+        documentTitle: recordDisplayTitle(r),
         documentHref: documentReaderHref(r.document_id, ocr.chunk_order),
         excerpt: truncateAround(ocr.chunk_text, entity.aliases, 260),
         matchedTerms: entity.aliases.slice(0, 3),
@@ -1117,9 +1146,9 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
     return {
       id: `m-${r.document_id}`,
       documentId: r.document_id,
-      documentTitle: r.title,
+      documentTitle: recordDisplayTitle(r),
       documentHref: `/document/${encodeURIComponent(r.document_id)}`,
-      excerpt: r.description || r.title,
+      excerpt: r.description || recordDisplayTitle(r),
       matchedTerms: entity.aliases.slice(0, 3),
       confidence: (r.confidence as ConfidenceLevel) ?? "medium",
       source:
@@ -1250,9 +1279,9 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
   const mentionExcerpts: MentionExcerpt[] = docs.slice(0, 6).map((r) => ({
     id: `m-${r.document_id}`,
     documentId: r.document_id,
-    documentTitle: r.title,
+    documentTitle: recordDisplayTitle(r),
     documentHref: `/document/${encodeURIComponent(r.document_id)}`,
-    excerpt: r.description || r.title,
+    excerpt: r.description || recordDisplayTitle(r),
     matchedTerms: [t.title],
     confidence: "medium",
     source: "description",
@@ -1421,7 +1450,7 @@ export async function fetchDocument(
     mentions.push({
       id: `m-${m.entity_id}-${loadedPage.chunk_id}`,
       documentId: canonicalId,
-      documentTitle: doc.title,
+      documentTitle: recordDisplayTitle(doc),
       documentHref: documentReaderHref(canonicalId, loadedPage.chunk_order),
       excerpt: truncateAround(loadedPage.chunk_text, aliases, 280),
       matchedTerms: aliases.slice(0, 3),
@@ -1847,7 +1876,7 @@ async function fetchMentionSearch({
     mention: {
       id: `mx-${row.chunk_id}`,
       documentId: row.document_id,
-      documentTitle: row.title,
+      documentTitle: recordDisplayTitle(row),
       documentHref: documentReaderHref(row.document_id, row.chunk_order),
       excerpt: truncateAround(row.chunk_text, [qNorm], 280),
       matchedTerms: [qNorm],
@@ -1982,6 +2011,9 @@ type SemanticHitRow = {
   page_label: string | null;
   distance: number;
   title: string;
+  agency: string | null;
+  description: string | null;
+  document_type: string | null;
   chunk_text: string;
 };
 
@@ -2072,6 +2104,9 @@ async function fetchSemanticSearch({
       h.page_label,
       h.distance,
       r.title,
+      r.agency,
+      r.description,
+      r.document_type,
       c.chunk_text
     FROM hits h
     JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r USING (document_id)
@@ -2088,7 +2123,7 @@ async function fetchSemanticSearch({
     mention: {
       id: `sem-${r.chunk_id}`,
       documentId: r.document_id,
-      documentTitle: r.title,
+      documentTitle: recordDisplayTitle(r),
       documentHref: documentReaderHref(r.document_id, r.chunk_order),
       excerpt: truncateAround(r.chunk_text, [qNorm], 280),
       matchedTerms: [qNorm],
@@ -2322,6 +2357,9 @@ type MentionRow = {
   document_id: string;
   naid: string;
   title: string;
+  agency: string | null;
+  description: string | null;
+  document_type: string | null;
   chunk_id: string;
   chunk_order: number;
   chunk_text: string;
@@ -3206,8 +3244,13 @@ export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
       document_id: string;
       note: string | null;
       title: string | null;
+      naid: string | null;
+      agency: string | null;
+      description: string | null;
+      document_type: string | null;
     }>(
-      `SELECT d.event_id, d.document_id, d.note, r.title
+      `SELECT d.event_id, d.document_id, d.note, r.title,
+              r.naid, r.agency, r.description, r.document_type
          FROM \`${PROJECT}.${DATASET_CURATED}.timeline_event_documents\` d
          LEFT JOIN \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
            USING (document_id)
@@ -3218,7 +3261,11 @@ export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
   const docLinksByEvent = new Map<string, CaseTimelineEvent["documentLinks"]>();
   for (const r of docLinkRows) {
     const list = docLinksByEvent.get(r.event_id) ?? [];
-    list.push({ documentId: r.document_id, title: r.title, note: r.note });
+    list.push({
+      documentId: r.document_id,
+      title: r.title ? recordDisplayTitle(r) : r.title,
+      note: r.note,
+    });
     docLinksByEvent.set(r.event_id, list);
   }
 

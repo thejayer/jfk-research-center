@@ -3,8 +3,10 @@ import { readFileSync } from "node:fs";
 import {
   archivalPageCount,
   displayDocumentTitle,
+  documentDisplayFields,
   documentReaderHref,
   documentSourceLinks,
+  formatArchivalPageCount,
   formatOcrReaderStatus,
   isGenericDocumentTitle,
   isLatestReaderLoad,
@@ -108,6 +110,7 @@ describe("document page fetch alignment", () => {
     expect(metadata).toContain("searchParams");
     expect(metadata).toContain("parseChunkParam(resolvedSearchParams.chunk)");
     expect(metadata).toContain("fetchDocument(id, parseChunkParam");
+    expect(metadata).toContain("displayDocumentTitle");
     expect(source).toContain("fetchDocument(id, requestedChunk)");
   });
 
@@ -118,6 +121,16 @@ describe("document page fetch alignment", () => {
     );
     expect(source).toContain("documentReaderHref(doc.id");
     expect(source).not.toMatch(/href:\s*`#chunk-\$/);
+  });
+
+  it("metadata panel hides pageCount 0 and shows the NARA title when derived", () => {
+    const source = readFileSync(
+      new URL("../../components/documents/metadata-panel.tsx", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain("formatArchivalPageCount");
+    expect(source).toContain("sourceTitle");
+    expect(source).not.toMatch(/doc\.pageCount \? formatNumber\(doc\.pageCount\)/);
   });
 
   it("the reader clears hash-pending on apply and on error, and ignores stale loads", () => {
@@ -188,7 +201,7 @@ describe("page label status copy", () => {
 });
 
 describe("document title and source actions", () => {
-  it("replaces Untitled Record with an honest agency label", () => {
+  it("replaces empty, Untitled Record, and Untitled {doc_type} with a derived title", () => {
     expect(
       displayDocumentTitle({
         title: "Untitled Record",
@@ -197,10 +210,102 @@ describe("document title and source actions", () => {
         description: "BULKY ENC · Release: Redact",
       }),
     ).toBe("FBI bulky file");
+    expect(
+      displayDocumentTitle({
+        title: "",
+        naid: "124-10190-10075",
+        agency: "FBI",
+        description: "BULKY ENC · Release: Redact",
+      }),
+    ).toBe("FBI bulky file");
+    expect(
+      displayDocumentTitle({
+        title: "Untitled PAPER-TEXTUAL DOCUMENT",
+        naid: "124-10200-10001",
+        agency: "FBI",
+        documentType: "PAPER-TEXTUAL DOCUMENT",
+        description: "Release: Redact",
+      }),
+    ).toBe("FBI paper");
+    expect(
+      displayDocumentTitle({
+        title: "Untitled MEMORANDUM.",
+        naid: "180-10001-10001",
+        agency: "HSCA",
+        documentType: "MEMORANDUM.",
+      }),
+    ).toBe("HSCA memo");
+    expect(
+      displayDocumentTitle({
+        title: "Untitled CABLE",
+        naid: "180-10001-10002",
+        agency: "HSCA",
+        documentType: "CABLE",
+      }),
+    ).toBe("HSCA cable");
+    expect(
+      documentDisplayFields({
+        title: "Untitled Record",
+        naid: "124-10190-10075",
+        agency: "FBI",
+        description: "BULKY ENC · Release: Redact",
+      }),
+    ).toEqual({
+      title: "FBI bulky file",
+      sourceTitle: "Untitled Record",
+    });
+  });
+
+  it("treats NARA placeholders as generic but keeps real titles", () => {
     expect(isGenericDocumentTitle("Untitled Record")).toBe(true);
+    expect(isGenericDocumentTitle("Untitled PAPER-TEXTUAL DOCUMENT")).toBe(
+      true,
+    );
+    expect(isGenericDocumentTitle("[RESTRICTED]")).toBe(true);
+    expect(isGenericDocumentTitle("WITHHELD")).toBe(true);
+    expect(isGenericDocumentTitle("PAPER - TEXTUAL DOCUMENT", "PAPER - TEXTUAL DOCUMENT")).toBe(
+      true,
+    );
     expect(isGenericDocumentTitle("201 FILE OF PROTECTABLE SOURCE.")).toBe(
       false,
     );
+    expect(
+      isGenericDocumentTitle("Untitled memo concerning Oswald"),
+    ).toBe(false);
+    expect(
+      displayDocumentTitle({
+        title: "CABLE RE PHOTOS AND OSWALD'S MOTHER.",
+        naid: "104-10086-10153",
+        agency: "CIA",
+        documentType: "PAPER - TEXTUAL DOCUMENT",
+      }),
+    ).toBe("CABLE RE PHOTOS AND OSWALD'S MOTHER.");
+    expect(
+      displayDocumentTitle({
+        title: "PAPER, TEXTUAL DOCUMENT from BRANIGAN, W. A. to SULLIVAN, W. C.",
+        naid: "124-10274-10044",
+        agency: "FBI",
+        documentType: "PAPER, TEXTUAL DOCUMENT",
+      }),
+    ).toBe("PAPER, TEXTUAL DOCUMENT from BRANIGAN, W. A. to SULLIVAN, W. C.");
+    expect(
+      displayDocumentTitle({
+        title: "[RESTRICTED]",
+        naid: "104-10001-10001",
+        agency: "CIA",
+        documentType: "PAPER - TEXTUAL DOCUMENT",
+      }),
+    ).toBe("CIA paper");
+  });
+
+  it("does not invent a page count when NARA pages is 0 and no label exists", () => {
+    expect(formatArchivalPageCount({ pageCount: 0, lastPageLabel: null })).toBeNull();
+    expect(
+      formatArchivalPageCount({ pageCount: 0, lastPageLabel: "p. 2119" }),
+    ).toEqual({ label: "Archival pages", value: "~2,119" });
+    expect(
+      formatArchivalPageCount({ pageCount: 14, lastPageLabel: "p. 2119" }),
+    ).toEqual({ label: "Pages", value: "14" });
   });
 
   it("labels a PDF as the scan, not the catalog", () => {

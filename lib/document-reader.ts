@@ -118,6 +118,19 @@ export function archivalPageCount(input: {
   return null;
 }
 
+/** Hide NARA `pageCount` 0; show "~N" only when an archival pageLabel exists. */
+export function formatArchivalPageCount(input: {
+  pageCount?: number | null;
+  lastPageLabel?: string | null;
+}): { label: string; value: string } | null {
+  const pages = archivalPageCount(input);
+  if (!pages) return null;
+  return {
+    label: pages.estimated ? "Archival pages" : "Pages",
+    value: `${pages.estimated ? "~" : ""}${formatNumber(pages.count)}`,
+  };
+}
+
 export function formatOcrReaderStatus(input: {
   pageLabel?: string | null;
   lastPageLabel?: string | null;
@@ -141,25 +154,164 @@ export function formatOcrReaderStatus(input: {
   return parts.join(" · ");
 }
 
-export function isGenericDocumentTitle(
-  title: string | null | undefined,
-): boolean {
-  const trimmed = title?.trim() ?? "";
-  return trimmed.length === 0 || /^untitled(\s+record)?$/i.test(trimmed);
+/**
+ * Warehouse titles after sql/10a + sql/10:
+ *   empty NARA title → "Untitled {doc_type}" or null → "Untitled Record"
+ * Live corpus also uses exact placeholders WITHHELD / [RESTRICTED].
+ * Do not treat a real NARA sentence that happens to start with
+ * "Untitled" as generic (e.g. "Untitled memo concerning Oswald").
+ */
+const GENERIC_TITLE_KEYS = new Set([
+  "",
+  "untitled",
+  "untitled record",
+  "n a",
+  "na",
+  "none",
+  "unknown",
+  "title withheld",
+  "withheld",
+  "restricted",
+]);
+
+const RECORD_TYPE_WORDS = new Set([
+  "paper",
+  "textual",
+  "document",
+  "cable",
+  "memo",
+  "memorandum",
+  "letter",
+  "report",
+  "dispatch",
+  "telegram",
+  "airtel",
+  "file",
+  "routing",
+  "slip",
+  "message",
+  "transcript",
+  "form",
+]);
+
+const PROSE_WORDS = new Set([
+  "concerning",
+  "regarding",
+  "about",
+  "re",
+  "from",
+  "to",
+  "of",
+  "on",
+  "for",
+  "with",
+  "and",
+  "the",
+  "a",
+  "an",
+]);
+
+const DESCRIPTION_KINDS: Array<{ re: RegExp; label: string }> = [
+  { re: /\bbulky(\s+enc(?:losure)?)?\b/i, label: "bulky file" },
+  { re: /\brouting\s+slip\b/i, label: "routing slip" },
+  { re: /\bairtel\b/i, label: "airtel" },
+  { re: /\bmemorandum\b|\bmemos?\b/i, label: "memo" },
+  { re: /\bcable\b/i, label: "cable" },
+  { re: /\bdispatch\b/i, label: "dispatch" },
+  { re: /\btelegram\b/i, label: "telegram" },
+  { re: /\bletter\b/i, label: "letter" },
+  { re: /\breport\b/i, label: "report" },
+];
+
+export function normalizeTitleKey(value: string | null | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
-export function displayDocumentTitle(doc: {
+export function isGenericDocumentTitle(
+  title: string | null | undefined,
+  documentType?: string | null,
+): boolean {
+  const trimmed = title?.trim() ?? "";
+  const key = normalizeTitleKey(trimmed);
+  if (GENERIC_TITLE_KEYS.has(key)) return true;
+
+  const typeKey = normalizeTitleKey(documentType);
+  if (typeKey && key === typeKey) return true;
+
+  if (!/^untitled\b/i.test(trimmed)) return false;
+  const rest = normalizeTitleKey(trimmed.replace(/^untitled\b/i, ""));
+  if (!rest) return true;
+  if (typeKey && rest === typeKey) return true;
+  const words = rest.split(/\s+/).filter(Boolean);
+  if (words.some((word) => PROSE_WORDS.has(word))) return false;
+  return words.every((word) => RECORD_TYPE_WORDS.has(word));
+}
+
+function kindFromDocumentType(documentType?: string | null): string | null {
+  const key = normalizeTitleKey(documentType);
+  if (!key) return null;
+  if (/\bpaper\b/.test(key) && /\b(textual|document)\b/.test(key)) {
+    return "paper";
+  }
+  if (/\bairtel\b/.test(key)) return "airtel";
+  if (/\brouting\b/.test(key) && /\bslip\b/.test(key)) return "routing slip";
+  if (/\bmemorandum\b|\bmemo\b/.test(key)) return "memo";
+  if (/\bcable\b/.test(key)) return "cable";
+  if (/\bdispatch\b/.test(key)) return "dispatch";
+  if (/\btelegram\b/.test(key)) return "telegram";
+  if (/\bletter\b/.test(key)) return "letter";
+  if (/\breport\b/.test(key)) return "report";
+  if (/\bfile\b/.test(key)) return "file";
+  if (key.length > 32) return null;
+  return key;
+}
+
+function kindFromDescription(description?: string | null): string | null {
+  if (!description) return null;
+  for (const { re, label } of DESCRIPTION_KINDS) {
+    if (re.test(description)) return label;
+  }
+  return null;
+}
+
+export type DocumentTitleInput = {
   title?: string | null;
-  naid: string;
+  naid?: string | null;
   agency?: string | null;
   description?: string | null;
-}): string {
-  if (!isGenericDocumentTitle(doc.title)) return doc.title!.trim();
-  const description = doc.description ?? "";
+  documentType?: string | null;
+};
+
+export function displayDocumentTitle(doc: DocumentTitleInput): string {
+  if (!isGenericDocumentTitle(doc.title, doc.documentType)) {
+    return doc.title!.trim();
+  }
+  const leftover = doc.title?.replace(/^untitled\b/i, "") ?? "";
+  const kind =
+    kindFromDescription(doc.description) ??
+    kindFromDocumentType(doc.documentType) ??
+    kindFromDocumentType(leftover) ??
+    "record";
   const agency = doc.agency?.trim();
-  if (agency && /\bbulky\b/i.test(description)) return `${agency} bulky file`;
-  if (agency) return `${agency} record`;
-  return `NAID ${doc.naid}`;
+  if (agency) return `${agency} ${kind}`;
+  if (kind !== "record") return kind.charAt(0).toUpperCase() + kind.slice(1);
+  const naid = doc.naid?.trim();
+  return naid ? `NAID ${naid}` : "Untitled record";
+}
+
+/** Display title plus the raw warehouse/NARA title for API consumers. */
+export function documentDisplayFields(doc: DocumentTitleInput): {
+  title: string;
+  sourceTitle: string | null;
+} {
+  const sourceTitle = doc.title?.trim() || null;
+  return {
+    title: displayDocumentTitle(doc),
+    sourceTitle,
+  };
 }
 
 export function isPdfUrl(href: string): boolean {

@@ -1,17 +1,25 @@
 import type { DocumentDetail } from "@/lib/api-types";
+import { formatArchivalPageCount } from "@/lib/document-reader";
 import { formatDateRange, formatNumber } from "@/lib/format";
 import styles from "./document-reader.module.css";
 
 export function MetadataPanel({ doc }: { doc: DocumentDetail }) {
+  const pages = formatArchivalPageCount({
+    pageCount: doc.pageCount,
+    lastPageLabel: doc.ocrLastPageLabel,
+  });
+  const naraTitle =
+    doc.sourceTitle && doc.sourceTitle !== doc.title ? doc.sourceTitle : null;
   const allRows: Array<[string, string | null | undefined]> = [
     ["NAID", doc.naid],
+    ["NARA title", naraTitle],
     ["Record Group", doc.recordGroup],
     ["Collection", doc.collectionName],
     ["Agency", doc.agency],
     ["Document Type", doc.documentType],
     ["Date", doc.dateLabel],
     ["Date Range", formatDateRange(doc.startDate, doc.endDate)],
-    ["Pages", doc.pageCount ? formatNumber(doc.pageCount) : null],
+    [pages?.label ?? "Pages", pages?.value ?? null],
     ["OCR pages", doc.chunkCount ? formatNumber(doc.chunkCount) : null],
     ["Has OCR", doc.hasOcr ? "Yes" : "No"],
   ];
@@ -35,7 +43,7 @@ export function MetadataPanel({ doc }: { doc: DocumentDetail }) {
             </dt>
             <dd
               className={`${styles.metadataValue} ${
-                k === "NAID" || k === "Pages" || k === "OCR Chunks" ? "num" : ""
+                k === "NAID" || k === "Pages" || k === "Archival pages" || k === "OCR Chunks" || k === "OCR pages" ? "num" : ""
               }`}
             >
               {v}

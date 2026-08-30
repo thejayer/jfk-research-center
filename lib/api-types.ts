@@ -13,7 +13,13 @@ export type ConfidenceLevel = "high" | "medium" | "low" | "none";
 export type DocumentCard = {
   id: string;
   naid: string;
+  /** Display title. Derived when the warehouse/NARA title is generic. */
   title: string;
+  /**
+   * Raw warehouse title from NARA / sql/10a (may be "Untitled Record").
+   * Omitted in older payloads; present on warehouse-backed cards.
+   */
+  sourceTitle?: string | null;
   subtitle?: string | null;
   snippet?: string | null;
   href: string;
