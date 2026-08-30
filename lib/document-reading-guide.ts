@@ -10,6 +10,7 @@ import {
   documentReadingPassageLimit,
   documentReadingSectionPreviewLimit,
 } from "./constants";
+import { documentReaderHref } from "./document-reader";
 import { timelineEventHref } from "./timeline-source-bridge";
 
 export type DocumentReadingGuideItemType =
@@ -72,15 +73,17 @@ function buildPassageJumps(
   const items: DocumentReadingGuideItem[] = [];
 
   for (const mention of mentions) {
-    const href =
-      mention.chunkOrder != null ? `#chunk-${mention.chunkOrder}` : `#chunk-${mention.id}`;
+    if (mention.source !== "ocr" || mention.chunkOrder == null) continue;
+    const href = documentReaderHref(mention.documentId, mention.chunkOrder);
     if (seen.has(href)) continue;
     seen.add(href);
     items.push({
       id: mention.id,
       type: "passage",
       href,
-      label: mention.chunkOrder != null ? `Chunk ${mention.chunkOrder}` : "Matched passage",
+      label: mention.pageLabel
+        ? `${mention.pageLabel} (chunk ${mention.chunkOrder})`
+        : `OCR page ${mention.chunkOrder}`,
       meta: passageMeta(mention),
     });
     if (items.length >= documentReadingPassageLimit) break;

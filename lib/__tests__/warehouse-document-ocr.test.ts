@@ -34,9 +34,12 @@ describe("document reader warehouse path", () => {
     const end = warehouseSource.indexOf("const DOCUMENT_SITEMAP_TTL_MS");
     const fetchDocument = warehouseSource.slice(start, end);
     expect(fetchDocument).toContain("fetchDocumentOcrFirstPage");
+    expect(fetchDocument).toContain("options.chunkOrder");
     expect(fetchDocument).not.toMatch(/fetchDocumentOcrChunks/);
     expect(fetchDocument).not.toMatch(/search_ocr_chunks/);
     expect(fetchDocument).not.toMatch(/jfk_text_chunks/);
+    expect(fetchDocument).toMatch(/source: "ocr"/);
+    expect(fetchDocument).not.toMatch(/source: m\.match_source/);
   });
 
   it("caches only positive page-meta hits through the bounded helper", () => {

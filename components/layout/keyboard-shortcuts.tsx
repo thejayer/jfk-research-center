@@ -259,8 +259,9 @@ function HelpModal({ onClose }: { onClose: () => void }) {
           }}
         >
           <Row keys={["/"]}>Focus search</Row>
-          <Row keys={["j"]}>Next result</Row>
-          <Row keys={["k"]}>Previous result</Row>
+          <Row keys={["j"]}>Next result / next OCR page</Row>
+          <Row keys={["k"]}>Previous result / previous OCR page</Row>
+          <Row keys={["←", "→"]}>Previous / next OCR page</Row>
           <Row keys={["g", "h"]}>Go home</Row>
           <Row keys={["g", "s"]}>Go to search</Row>
           <Row keys={["g", "e"]}>Go to entities</Row>

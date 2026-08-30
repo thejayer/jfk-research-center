@@ -1,4 +1,5 @@
-import type { DocumentDetail, MentionExcerpt } from "./api-types";
+import type { DocumentDetail, MentionExcerpt, OcrPage } from "./api-types";
+import { documentReaderHref } from "./document-reader";
 import {
   documentCitationRequirement,
   documentAskExcerptLimit,
@@ -35,6 +36,7 @@ type DocumentAskSource = {
   doc: DocumentDetail;
   mentions: readonly MentionExcerpt[];
   question: string;
+  loadedPage?: OcrPage | null;
 };
 
 /**
@@ -48,11 +50,12 @@ export function buildDocumentAskPromptInput({
   doc,
   mentions,
   question,
+  loadedPage,
 }: DocumentAskSource): DocumentAskPromptInput {
   const normalizedQuestion = question.trim();
   const tokens = tokenize(normalizedQuestion);
   const useDefaultPassages = isGenericPassageQuestion(normalizedQuestion);
-  const rankedPassages = mentions
+  const rankedPassages = askPassages(doc, mentions, loadedPage)
     .map((mention) => ({
       mention,
       score: scoreMention(mention, tokens),
@@ -99,7 +102,7 @@ export function answerDocumentQuestion(input: DocumentAskSource): DocumentAskAns
 
   if (!hasEvidence) {
     return refusal(
-      "I cannot answer that from this record alone. The current document context does not contain enough matching metadata or OCR evidence.",
+      "I cannot answer that from this record's metadata and the OCR page currently loaded. This panel does not search the rest of the file.",
       promptInput.retrievedDocumentIds,
     );
   }
@@ -173,6 +176,39 @@ function metadataSupportsQuestion(
   return metadata.some((value) => scoreText(value, tokens) > 0);
 }
 
+function askPassages(
+  doc: DocumentDetail,
+  mentions: readonly MentionExcerpt[],
+  loadedPage?: OcrPage | null,
+): MentionExcerpt[] {
+  const passages: MentionExcerpt[] = [];
+  if (loadedPage?.text.trim()) {
+    passages.push({
+      id: `loaded-page-${loadedPage.chunkOrder ?? "current"}`,
+      documentId: doc.id,
+      documentTitle: doc.title,
+      documentHref: documentReaderHref(doc.id, loadedPage.chunkOrder ?? null),
+      excerpt: loadedPage.text,
+      matchedTerms: [],
+      confidence: "high",
+      source: "ocr",
+      pageLabel: loadedPage.pageLabel,
+      chunkOrder: loadedPage.chunkOrder,
+    });
+  }
+  for (const mention of mentions) {
+    if (mention.source !== "ocr") continue;
+    if (
+      loadedPage?.chunkOrder != null &&
+      mention.chunkOrder === loadedPage.chunkOrder
+    ) {
+      continue;
+    }
+    passages.push(mention);
+  }
+  return passages;
+}
+
 function mentionCitation(
   mention: MentionExcerpt,
   documentId: string,
@@ -180,13 +216,15 @@ function mentionCitation(
   return {
     id: documentId,
     label:
-      mention.chunkOrder != null
-        ? `Chunk ${mention.chunkOrder}`
-        : mention.pageLabel ?? "Matched passage",
+      mention.pageLabel && mention.chunkOrder != null
+        ? `${mention.pageLabel} (chunk ${mention.chunkOrder})`
+        : mention.chunkOrder != null
+          ? `OCR page ${mention.chunkOrder}`
+          : mention.pageLabel ?? "Loaded OCR page",
     href:
       mention.chunkOrder != null
-        ? `#chunk-${mention.chunkOrder}`
-        : `#chunk-${mention.id}`,
+        ? documentReaderHref(documentId, mention.chunkOrder)
+        : "#ocr-text",
     excerpt: compactText(mention.excerpt),
   };
 }

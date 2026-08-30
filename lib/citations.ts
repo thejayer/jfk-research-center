@@ -26,9 +26,9 @@ export type CitationInput = {
   endDate?: string | null;
   sourceUrl?: string | null;
   /**
-   * 1-based per-document OCR chunk ordinal. When set, the citation
-   * deep-links to that chunk via #chunk-N and references the passage
-   * as "at ¶ N" (Bluebook), "chunk N" (Chicago), "chunk N" (APA).
+   * Warehouse chunk_order (0 is the first OCR page). When set, the
+   * citation deep-links via ?chunk=N#chunk-N and references the
+   * passage as "at ¶ N" (Bluebook), "chunk N" (Chicago / APA).
    */
   chunkOrder?: number | null;
   /** Public-facing site URL used when chunkOrder anchors a deep link. */
@@ -49,10 +49,11 @@ export function formatCitation(doc: CitationInput): CitationFormats {
   const rgSuffix = doc.recordGroup ? `, ${doc.recordGroup}` : "";
   const title = stripTrailingPeriod(doc.title);
 
-  const hasChunk = doc.chunkOrder != null && doc.chunkOrder > 0;
+  const hasChunk = doc.chunkOrder != null && Number.isFinite(doc.chunkOrder);
+  const chunkQuery = hasChunk ? `?chunk=${doc.chunkOrder}` : "";
   const chunkAnchor = hasChunk ? `#chunk-${doc.chunkOrder}` : "";
   const deepUrl = hasChunk && doc.siteUrl
-    ? `${stripTrailingSlash(doc.siteUrl)}${chunkAnchor}`
+    ? `${stripTrailingSlash(doc.siteUrl)}${chunkQuery}${chunkAnchor}`
     : null;
   const blueChunk = hasChunk ? `, at ¶ ${doc.chunkOrder}` : "";
   const chicagoChunk = hasChunk ? `, chunk ${doc.chunkOrder}` : "";

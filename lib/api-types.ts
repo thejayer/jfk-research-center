@@ -54,6 +54,8 @@ export type DocumentDetail = DocumentCard & {
   ocrLastChunkOrder?: number | null;
   ocrPrevChunkOrder?: number | null;
   ocrNextChunkOrder?: number | null;
+  /** Archival PDF page label on the last OCR page, e.g. "p. 2119". */
+  ocrLastPageLabel?: string | null;
   citation?: string | null;
   /** All releases this record appeared in, earliest to latest. */
   releaseHistory?: ReleaseHistoryEntry[];
@@ -63,7 +65,7 @@ export type OcrPage = {
   pageLabel: string;
   text: string;
   matchedTerms?: string[];
-  /** Warehouse chunk_order; used for page-at-a-time fetches and #chunk-N. */
+  /** Warehouse chunk_order; used for page-at-a-time fetches and ?chunk=N. */
   chunkOrder?: number;
 };
 
@@ -143,7 +145,7 @@ export type MentionExcerpt = {
   confidence: ConfidenceLevel;
   source: "title" | "description" | "ocr" | "authority" | "semantic";
   pageLabel?: string | null;
-  /** 1-based per-document chunk ordinal; backs the #chunk-N anchor. */
+  /** Warehouse chunk_order (0 is a valid first page); backs ?chunk=N. */
   chunkOrder?: number | null;
   /** Semantic similarity score in [0, 1]; higher is more relevant. */
   score?: number | null;

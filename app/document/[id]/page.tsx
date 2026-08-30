@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchCaseTimeline, fetchDocument, fetchMediaIndex } from "@/lib/api-client";
+import { displayDocumentTitle, parseChunkParam } from "@/lib/document-reader";
 import { DocumentHeader } from "@/components/documents/document-header";
 import { MetadataPanel } from "@/components/documents/metadata-panel";
 import { OcrPanel } from "@/components/documents/ocr-panel";
@@ -17,6 +18,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import { ResearchHistoryTracker } from "@/components/research/research-history-tracker";
 import { RelatedMediaPanel } from "@/components/media/related-media-panel";
+import { DocumentReaderProvider } from "@/components/documents/document-reader-state";
 import { buildDocumentReadingGuide } from "@/lib/document-reading-guide";
 import type { SavedResearchInput } from "@/lib/saved-research";
 import { findTimelineEventsForDocument } from "@/lib/timeline-source-bridge";
@@ -34,7 +36,7 @@ export async function generateMetadata({
   const data = await fetchDocument(id);
   if (!data) return { title: "Document not found" };
   return {
-    title: data.document.title,
+    title: displayDocumentTitle(data.document),
     description: data.document.description ?? undefined,
   };
 }
@@ -48,8 +50,9 @@ export default async function DocumentPage({
 }) {
   const { id } = await params;
   const resolvedSearchParams = await searchParams;
+  const requestedChunk = parseChunkParam(resolvedSearchParams.chunk);
   const [documentResult, timelineResult, mediaResult] = await Promise.allSettled([
-    fetchDocument(id),
+    fetchDocument(id, requestedChunk),
     fetchCaseTimeline(),
     fetchMediaIndex(),
   ]);
@@ -120,6 +123,7 @@ export default async function DocumentPage({
         </div>
       )}
 
+      <DocumentReaderProvider initialPage={data.document.ocrPages?.[0] ?? null}>
       <div className={styles.workspaceGrid}>
         <div className={styles.readerStack}>
           <OcrPanel doc={data.document} mentions={data.mentions} />
@@ -187,6 +191,7 @@ export default async function DocumentPage({
           </section>
         )}
       </div>
+      </DocumentReaderProvider>
     </div>
   );
 }

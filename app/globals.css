@@ -812,6 +812,11 @@ a.surface-card:focus-visible,
   }
 }
 
+html[data-ocr-deeplink="1"] .ocr-pending-deeplink .ocrFullPageText,
+html[data-ocr-deeplink="1"] .ocr-pending-deeplink p {
+  visibility: hidden;
+}
+
 /* ----- Per-chunk anchor affordances (ChunkActions, ChunkHashHandler) ----- */
 .ocr-chunk {
   position: relative;

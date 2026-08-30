@@ -14,6 +14,8 @@ import {
   type DocumentAskAnswer,
   type DocumentAskCitation,
 } from "@/lib/document-ask";
+import { formatNumber } from "@/lib/format";
+import { useDocumentReaderState } from "./document-reader-state";
 import styles from "./document-reader.module.css";
 
 export function DocumentAskPanel({
@@ -25,17 +27,37 @@ export function DocumentAskPanel({
 }) {
   const [question, setQuestion] = useState("");
   const [result, setResult] = useState<DocumentAskAnswer | null>(null);
-  const suggestions = useMemo(() => buildSuggestions(doc, mentions), [doc, mentions]);
-  const limitedContext = !doc.hasOcr || mentions.length === 0;
+  const readerState = useDocumentReaderState();
+  const loadedPage = readerState?.currentPage ?? doc.ocrPages?.[0] ?? null;
+  const ocrMentions = useMemo(
+    () => mentions.filter((mention) => mention.source === "ocr"),
+    [mentions],
+  );
+  const suggestions = useMemo(
+    () => buildSuggestions(doc, ocrMentions, loadedPage?.text ?? ""),
+    [doc, loadedPage?.text, ocrMentions],
+  );
+  const limitedContext = !doc.hasOcr || (!loadedPage && ocrMentions.length === 0);
+
+  function ask(nextQuestion: string) {
+    setResult(
+      answerDocumentQuestion({
+        doc,
+        mentions: ocrMentions,
+        question: nextQuestion,
+        loadedPage,
+      }),
+    );
+  }
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setResult(answerDocumentQuestion({ doc, mentions, question }));
+    ask(question);
   }
 
   function askSuggested(nextQuestion: string) {
     setQuestion(nextQuestion);
-    setResult(answerDocumentQuestion({ doc, mentions, question: nextQuestion }));
+    ask(nextQuestion);
   }
 
   return (
@@ -57,15 +79,18 @@ export function DocumentAskPanel({
       </div>
 
       <p className="muted" style={descriptionStyle}>
-        Ask a narrow question while reading. This panel only uses this record's
-        metadata and loaded OCR passage anchors; unsupported questions refuse
-        instead of reaching across the archive.
+        Ask a narrow question while reading. Answers use this record&apos;s
+        metadata plus the OCR page currently on screen
+        {doc.chunkCount && doc.chunkCount > 1
+          ? ` — not a search of all ${formatNumber(doc.chunkCount)} pages`
+          : ""}
+        . Unsupported questions refuse instead of reaching across the archive.
       </p>
 
       {limitedContext && (
         <div role="note" style={noticeStyle}>
           {doc.hasOcr
-            ? "Only a small set of passage anchors is loaded for this record, so answers may be limited."
+            ? "This panel only knows the loaded page and the record description. It does not search the rest of the file."
             : "No OCR text is available for this record. Answers can only use metadata and source details."}
         </div>
       )}
@@ -187,12 +212,19 @@ function renderAnswerWithCitations(
 function buildSuggestions(
   doc: DocumentDetail,
   mentions: readonly MentionExcerpt[],
+  loadedPageText: string,
 ): string[] {
-  const firstTerm = mentions.flatMap((mention) => mention.matchedTerms)[0];
+  const firstTerm = mentions
+    .flatMap((mention) => mention.matchedTerms)
+    .find((term) =>
+      loadedPageText
+        ? loadedPageText.toLowerCase().includes(term.toLowerCase())
+        : true,
+    );
   return [
-    firstTerm ? `What does this record say about ${firstTerm}?` : null,
+    firstTerm ? `What does this loaded page say about ${firstTerm}?` : null,
     "What source details should I verify?",
-    doc.hasOcr ? "Which loaded passage is most relevant?" : "What can metadata tell me?",
+    doc.hasOcr ? "Which loaded page is most relevant?" : "What can metadata tell me?",
   ].filter((value): value is string => Boolean(value));
 }
 

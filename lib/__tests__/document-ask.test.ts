@@ -31,8 +31,8 @@ describe("document ask helpers", () => {
     expect(input.retrievedDocumentIds).toEqual(["nosenko-kgb-oswald-file"]);
     expect(input.passages[0]).toMatchObject({
       id: "nosenko-kgb-oswald-file",
-      href: "#chunk-4",
-      label: "Chunk 4",
+      href: "/document/nosenko-kgb-oswald-file?chunk=4#chunk-4",
+      label: "p. 1 (chunk 4)",
     });
     expect(input.passages).toHaveLength(1);
   });
@@ -121,8 +121,8 @@ describe("document ask helpers", () => {
 
     expect(answer.status).toBe("answer");
     expect(answer.citations[0]).toMatchObject({
-      href: "#chunk-1",
-      label: "Chunk 1",
+      href: "/document/nosenko-kgb-oswald-file?chunk=1#chunk-1",
+      label: "p. 1 (chunk 1)",
     });
     expect(answer.validationIssues).toEqual([]);
   });
@@ -144,9 +144,55 @@ describe("document ask helpers", () => {
     expect(input.passages.map((passage) => passage.href)).toEqual(
       Array.from(
         { length: documentAskPassageLimit },
-        (_, index) => `#chunk-${index + 1}`,
+        (_, index) =>
+          `/document/nosenko-kgb-oswald-file?chunk=${index + 1}#chunk-${index + 1}`,
       ),
     );
+  });
+
+  it("does not treat description leftovers as a search of the whole file", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          source: "description",
+          excerpt: "BULKY ENC · Release: Redact",
+          matchedTerms: ["ARRB", "CIA", "FBI"],
+          chunkOrder: null,
+        }),
+      ],
+      question: "What does this say about ARRB?",
+    });
+
+    expect(answer.status).toBe("refusal");
+    expect(answer.answer).toContain("does not search the rest of the file");
+  });
+
+  it("answers from the loaded OCR page instead of the cover-sheet description", () => {
+    const answer = answerDocumentQuestion({
+      doc: document(),
+      mentions: [
+        mention({
+          source: "description",
+          excerpt: "BULKY ENC · Release: Redact",
+          matchedTerms: ["ARRB"],
+          chunkOrder: null,
+        }),
+      ],
+      loadedPage: {
+        pageLabel: "p. 40",
+        text: "The ARRB requested the Bureau produce the remaining bulky exhibits.",
+        chunkOrder: 40,
+      },
+      question: "What does this record say about ARRB?",
+    });
+
+    expect(answer.status).toBe("answer");
+    expect(answer.answer).toContain("ARRB requested the Bureau");
+    expect(answer.citations[0]).toMatchObject({
+      href: "/document/nosenko-kgb-oswald-file?chunk=40#chunk-40",
+      label: "p. 40 (chunk 40)",
+    });
   });
 });
 
@@ -175,8 +221,8 @@ function mention(overrides: Partial<MentionExcerpt>): MentionExcerpt {
     excerpt: overrides.excerpt ?? "Nosenko stated the KGB file had no tasking.",
     matchedTerms: overrides.matchedTerms ?? ["Nosenko", "KGB", "Oswald"],
     confidence: "high",
-    source: "ocr",
+    source: overrides.source ?? "ocr",
     pageLabel: overrides.pageLabel ?? "p. 1",
-    chunkOrder: overrides.chunkOrder ?? 1,
+    chunkOrder: overrides.chunkOrder !== undefined ? overrides.chunkOrder : 1,
   };
 }
