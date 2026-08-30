@@ -283,8 +283,17 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-08-30 (derived document titles)
+**Last updated:** 2026-08-30 (deploy workflow hardening)
 
+- **Deploy workflow hardening (2026-08-30).** `.github/workflows/deploy.yml`
+  now pins `permissions: contents: read`, sets `persist-credentials:
+  false` on every checkout, and runs `typecheck` + `axe` on pull
+  requests to `main` so those job names can be required checks.
+  Deploy still runs only on `push` to `main` and `workflow_dispatch`
+  — never on `pull_request`. Cloud Run flags, image build, and
+  env-var list are unchanged. WIF / Secret Manager is a later task.
+  Branch protection is not enabled from this change; enable required
+  checks `typecheck` and `axe` after it lands.
 - **Derived document titles (2026-08-30).** Warehouse titles after
   sql/10a + sql/10 are often `Untitled Record` or `Untitled {doc_type}`
   when NARA left the XLSX title empty (~1.1k Untitled Record, plus
@@ -1342,9 +1351,14 @@ bq query --use_legacy_sql=false \
 - **Tests**: `npm test` runs Vitest (`lib/__tests__/*.test.ts`). Node
   env, `@/*` alias matches the TS paths config. Adapter/warehouse
   tests would need a BigQuery mock — not written yet.
-- **CI/CD**: `.github/workflows/deploy.yml` runs on push to `main`:
-  typecheck → axe → global `gcloud builds submit` → `gcloud run deploy --image`. Auths via the
+- **CI/CD**: `.github/workflows/deploy.yml` runs typecheck → axe on
+  pull requests to `main` (intended required checks: `typecheck`,
+  `axe`) and on push to `main`. Deploy runs only on `push` to `main`
+  and `workflow_dispatch` — never on `pull_request`. Auths via the
   `GCP_SA_KEY` repo secret (JSON key for `jfk-deployer@jfk-vault`).
+  Workflow token is pinned to `permissions: contents: read`; checkouts
+  use `persist-credentials: false`. Image build + `gcloud run deploy
+  --image` are unchanged.
   If you rotate or revoke the key, regenerate with
   `gcloud iam service-accounts keys create` and update the secret via
   `gh secret set GCP_SA_KEY --repo=thejayer/jfk-research-center`.

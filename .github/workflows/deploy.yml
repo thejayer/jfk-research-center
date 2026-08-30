@@ -6,7 +6,16 @@ on:
     paths-ignore:
       - "**.md"
       - ".gitignore"
+  # PR CI for branch protection. Do not add pull_request_target.
+  # Required checks to enable after this lands: typecheck, axe.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+
+# Mirror cost-monitor.yml. upload-artifact@v4 uses ACTIONS_RUNTIME_TOKEN,
+# not GITHUB_TOKEN, so actions: write is not required for the axe report.
+permissions:
+  contents: read
 
 concurrency:
   group: deploy-${{ github.ref }}
@@ -17,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: "20"
@@ -25,11 +36,15 @@ jobs:
       - run: npx tsc --noEmit
 
   deploy:
+    # Never run on pull_request (including forks). Secrets stay off PR CI.
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     needs: [typecheck, axe]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: google-github-actions/auth@v3
         with:
@@ -81,6 +96,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: "20"
