@@ -264,6 +264,9 @@ export function buildMentionSearchSql(
     return `SELECT CAST(NULL AS STRING) AS document_id,
               CAST(NULL AS STRING) AS naid,
               CAST(NULL AS STRING) AS title,
+              CAST(NULL AS STRING) AS agency,
+              CAST(NULL AS STRING) AS description,
+              CAST(NULL AS STRING) AS document_type,
               CAST(NULL AS STRING) AS chunk_id,
               CAST(NULL AS INT64) AS chunk_order,
               CAST(NULL AS STRING) AS chunk_text,
@@ -273,6 +276,7 @@ export function buildMentionSearchSql(
   }
   const extraWhere = whereSql.trim() ? `AND ${whereSql}` : "";
   return `SELECT r.document_id, r.naid, r.title,
+              r.agency, r.description, r.document_type,
               e.chunk_id, e.chunk_order, e.excerpt AS chunk_text, e.page_label,
               COUNT(*) OVER() AS total_count
          FROM ${ocrCardExcerptsTable(tables)} e

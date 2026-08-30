@@ -74,7 +74,7 @@ export default async function DocumentPage({
   const researchItem: SavedResearchInput = {
     type: "document",
     sourceId: data.document.id,
-    title: data.document.title,
+    title: displayDocumentTitle(data.document),
     href: data.document.href,
     context: `NAID ${data.document.naid}`,
   };

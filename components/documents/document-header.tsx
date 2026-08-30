@@ -2,8 +2,8 @@ import type { DocumentDetail } from "@/lib/api-types";
 import type { ReactNode } from "react";
 import { formatCitation } from "@/lib/citations";
 import {
-  archivalPageCount,
   displayDocumentTitle,
+  formatArchivalPageCount,
   primaryDocumentAction,
 } from "@/lib/document-reader";
 import { formatDateRange, formatNumber } from "@/lib/format";
@@ -15,8 +15,9 @@ import { CopyNaidButton } from "./copy-naid-button";
 import styles from "./document-reader.module.css";
 
 export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
+  const heading = displayDocumentTitle(doc);
   const citations = formatCitation({
-    title: doc.title,
+    title: heading,
     naid: doc.naid,
     agency: doc.agency,
     recordGroup: doc.recordGroup,
@@ -27,8 +28,7 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
   });
   const dateRange = formatDateRange(doc.startDate, doc.endDate);
   const sourceAction = primaryDocumentAction(doc);
-  const heading = displayDocumentTitle(doc);
-  const pages = archivalPageCount({
+  const pages = formatArchivalPageCount({
     pageCount: doc.pageCount,
     lastPageLabel: doc.ocrLastPageLabel,
   });
@@ -92,7 +92,7 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
                 item={{
                   type: "document",
                   sourceId: doc.id,
-                  title: doc.title,
+                  title: heading,
                   href: doc.href,
                   context: doc.naid ? `NAID ${doc.naid}` : doc.agency ?? undefined,
                 }}
@@ -125,8 +125,8 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
             />
             {pages && (
               <Stat
-                label="Archival pages"
-                value={`${pages.estimated ? "~" : ""}${formatNumber(pages.count)}`}
+                label={pages.label}
+                value={pages.value}
               />
             )}
             {doc.chunkCount ? (
