@@ -283,8 +283,24 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-08-30 (derived document titles)
+**Last updated:** 2026-08-30 (WIF + Secret Manager deploy)
 
+- **WIF + Secret Manager deploy (2026-08-30).** GitHub Actions
+  authenticates to GCP via Workload Identity Federation (OIDC), not
+  `secrets.GCP_SA_KEY`. Provider:
+  `projects/690906762945/locations/global/workloadIdentityPools/github/providers/thejayer-jfk-research-center`
+  impersonating `jfk-deployer@jfk-vault.iam.gserviceaccount.com`.
+  Cloud Run credentials (`JFK_API_KEYS`, `ADMIN_TOKEN`,
+  `ADMIN_SESSION_SECRET`) come from Secret Manager
+  (`jfk-api-keys` / `jfk-admin-token` / `jfk-admin-session-secret`,
+  `:latest`) via `--set-secrets`. Non-secret env stays
+  `--set-env-vars`. Workflow still pins `contents: read`, grants
+  `id-token: write` only on jobs that call GCP, sets
+  `persist-credentials: false` on every checkout, runs `typecheck` +
+  `axe` on PRs to `main`, and never deploys on `pull_request`.
+  Those GCP resources must exist before merge; do not delete
+  USER_MANAGED keys until a green WIF deploy. Intended required
+  checks after this lands: `typecheck`, `axe` (not `deploy`).
 - **Derived document titles (2026-08-30).** Warehouse titles after
   sql/10a + sql/10 are often `Untitled Record` or `Untitled {doc_type}`
   when NARA left the XLSX title empty (~1.1k Untitled Record, plus
@@ -315,8 +331,8 @@ gcloud run deploy jfk-research-center \
   `/api/v1` routes now require an API key (`Authorization: Bearer` or
   `X-JFKRC-API-Key`) and apply keyed rate limits from
   `lib/public-api-access.ts`. `GET /api/v1/openapi.json` stays anonymous.
-  Deploy reads `JFK_API_KEYS` from the GitHub Actions secret of the same
-  name; Austin still needs to store the live key after merge. First-party
+  Deploy binds `JFK_API_KEYS` from Secret Manager (`jfk-api-keys:latest`).
+  First-party
   `/api/search` and `/api/document` are unchanged. Middleware crawler
   blocks, cost rate limits, and Cloud Armor on `/api/v1/documents` stay.
 - **Coverage copy honesty (2026-08-28).** User-facing masthead, search
@@ -1342,9 +1358,13 @@ bq query --use_legacy_sql=false \
 - **Tests**: `npm test` runs Vitest (`lib/__tests__/*.test.ts`). Node
   env, `@/*` alias matches the TS paths config. Adapter/warehouse
   tests would need a BigQuery mock — not written yet.
-- **CI/CD**: `.github/workflows/deploy.yml` runs on push to `main`:
-  typecheck → axe → global `gcloud builds submit` → `gcloud run deploy --image`. Auths via the
-  `GCP_SA_KEY` repo secret (JSON key for `jfk-deployer@jfk-vault`).
-  If you rotate or revoke the key, regenerate with
-  `gcloud iam service-accounts keys create` and update the secret via
-  `gh secret set GCP_SA_KEY --repo=thejayer/jfk-research-center`.
+- **CI/CD**: `.github/workflows/deploy.yml` runs typecheck → axe on
+  pull requests to `main` (intended required checks: `typecheck`,
+  `axe`) and on push to `main`. Deploy runs only on `push` to `main`
+  and `workflow_dispatch` — never on `pull_request`. Auth is WIF/OIDC
+  via `google-github-actions/auth@v3` (no `GCP_SA_KEY`). Deploy job
+  needs `id-token: write`. Cloud Run secrets are bound with
+  `--set-secrets` from `jfk-api-keys`, `jfk-admin-token`,
+  `jfk-admin-session-secret`. Same WIF wiring is in
+  `cost-monitor.yml`. Do not delete USER_MANAGED keys until a green
+  WIF deploy has landed.
