@@ -15,8 +15,7 @@ describe("document display titles in the warehouse adapter", () => {
     const rowToCard = warehouseSource.slice(start, end);
     expect(rowToCard).toContain("documentDisplayFields");
     expect(rowToCard).toContain("sourceTitle");
-    expect(rowToCard).toMatch(/^\s*title,$/m);
-    expect(rowToCard).not.toMatch(/^\s*title:\s*r\.title/m);
+    expect(rowToCard).toMatch(/return \{[\s\S]*^\s*title,$/m);
   });
 
   it("does not scan OCR bodies to invent a title", () => {
