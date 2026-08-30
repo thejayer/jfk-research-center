@@ -1,5 +1,7 @@
 node_modules
 .next
+# Ignore generated credentials from google-github-actions/auth
+gha-creds-*.json
 out
 dist
 .env

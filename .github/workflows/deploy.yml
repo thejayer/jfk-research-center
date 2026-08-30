@@ -12,8 +12,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Mirror cost-monitor.yml. upload-artifact@v4 uses ACTIONS_RUNTIME_TOKEN,
+# Least privilege. upload-artifact@v4 uses ACTIONS_RUNTIME_TOKEN,
 # not GITHUB_TOKEN, so actions: write is not required for the axe report.
+# id-token: write is granted only on the deploy job (WIF / OIDC).
 permissions:
   contents: read
 
@@ -41,14 +42,26 @@ jobs:
     needs: [typecheck, axe]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
+      # WIF through jfk-deployer. These GCP resources must exist before merge
+      # (created in jfk-vault in parallel). Do not invent alternate names.
+      # Do not delete USER_MANAGED keys until a green WIF deploy.
+      #   pool/provider: projects/690906762945/locations/global/workloadIdentityPools/github/providers/thejayer-jfk-research-center
+      #   SA: jfk-deployer@jfk-vault.iam.gserviceaccount.com
+      #   secrets (latest): jfk-api-keys, jfk-admin-token, jfk-admin-session-secret
+      #   runtime SA (secretAccessor): 690906762945-compute@developer.gserviceaccount.com
       - uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: jfk-vault
+          workload_identity_provider: projects/690906762945/locations/global/workloadIdentityPools/github/providers/thejayer-jfk-research-center
+          service_account: jfk-deployer@jfk-vault.iam.gserviceaccount.com
 
       - uses: google-github-actions/setup-gcloud@v3
         with:
@@ -72,12 +85,11 @@ jobs:
 
       - name: Deploy to Cloud Run
         env:
-          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
-          ADMIN_SESSION_SECRET: ${{ secrets.ADMIN_SESSION_SECRET }}
           REDACTION_REVIEW_BUCKET: ${{ secrets.REDACTION_REVIEW_BUCKET }}
-          JFK_API_KEYS: ${{ secrets.JFK_API_KEYS }}
-        # Every deploy re-asserts the full expected env. Add new vars here
-        # plus a repo secret so a fresh rollout is self-contained.
+        # Non-secret env via --set-env-vars. Credentials come from Secret
+        # Manager — do not interpolate JFK_API_KEYS / ADMIN_TOKEN /
+        # ADMIN_SESSION_SECRET into the runner or the gcloud argv.
+        # CPU / memory / instance flags are unchanged.
         run: |
           gcloud run deploy jfk-research-center \
             --image="${IMAGE}" \
@@ -87,7 +99,8 @@ jobs:
             --port=8080 \
             --memory=1Gi --cpu=1 \
             --max-instances=3 --min-instances=0 \
-            --set-env-vars="^|^JFK_BQ_PROJECT=jfk-vault|JFK_API_DISABLE_SEMANTIC_SEARCH=1|JFK_BQ_MAX_BYTES_BILLED=268435456|JFK_TRUSTED_PROXY_HOPS=1|JFK_SEARCH_CACHE_TTL_SECONDS=300|JFK_SEARCH_CACHE_MAX_ENTRIES=500|ADMIN_TOKEN=${ADMIN_TOKEN}|ADMIN_SESSION_SECRET=${ADMIN_SESSION_SECRET}|REDACTION_REVIEW_BUCKET=${REDACTION_REVIEW_BUCKET}|JFK_API_KEYS=${JFK_API_KEYS}|JFK_API_BASE_URL=https://researchjfk.ai" \
+            --set-env-vars="^|^JFK_BQ_PROJECT=jfk-vault|JFK_API_DISABLE_SEMANTIC_SEARCH=1|JFK_BQ_MAX_BYTES_BILLED=268435456|JFK_TRUSTED_PROXY_HOPS=1|JFK_SEARCH_CACHE_TTL_SECONDS=300|JFK_SEARCH_CACHE_MAX_ENTRIES=500|REDACTION_REVIEW_BUCKET=${REDACTION_REVIEW_BUCKET}|JFK_API_BASE_URL=https://researchjfk.ai" \
+            --set-secrets="^|^JFK_API_KEYS=jfk-api-keys:latest|ADMIN_TOKEN=jfk-admin-token:latest|ADMIN_SESSION_SECRET=jfk-admin-session-secret:latest" \
             --quiet
 
   axe:

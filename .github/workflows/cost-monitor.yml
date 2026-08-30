@@ -17,12 +17,21 @@ jobs:
   monitor:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
+      # Same WIF pool/provider + jfk-deployer as deploy.yml. GCP must exist
+      # before this job can succeed. Do not fall back to GCP_SA_KEY.
       - uses: google-github-actions/auth@v3
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          project_id: jfk-vault
+          workload_identity_provider: projects/690906762945/locations/global/workloadIdentityPools/github/providers/thejayer-jfk-research-center
+          service_account: jfk-deployer@jfk-vault.iam.gserviceaccount.com
 
       - uses: google-github-actions/setup-gcloud@v3
         with:

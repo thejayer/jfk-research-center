@@ -185,7 +185,7 @@ Recommended setup for this project:
 gcloud run services update jfk-research-center \
   --region=us-central1 \
   --project=jfk-vault \
-  --update-secrets=ADMIN_TOKEN=admin-token:1,ADMIN_SESSION_SECRET=admin-session-secret:1
+  --update-secrets=JFK_API_KEYS=jfk-api-keys:latest,ADMIN_TOKEN=jfk-admin-token:latest,ADMIN_SESSION_SECRET=jfk-admin-session-secret:latest
 ```
 
 5. Monitor the next 24 hours using `sql/91_cost_guardrail_monitoring.sql` and
