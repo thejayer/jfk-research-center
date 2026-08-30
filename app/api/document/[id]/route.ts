@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { parseChunkParam } from "@/lib/document-reader";
 import { fetchDocument } from "@/lib/warehouse";
 import {
   warehouseRequestContextFromHeaders,
@@ -12,10 +13,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+  const chunkOrder = parseChunkParam(new URL(req.url).searchParams.get("chunk"));
   try {
     const res = await withWarehouseRequestContext(
       warehouseRequestContextFromHeaders(req.headers, "api_document"),
-      () => fetchDocument(id),
+      () => fetchDocument(id, { chunkOrder }),
     );
     if (!res) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });

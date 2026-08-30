@@ -81,6 +81,7 @@ import type {
 } from "./api-types";
 import { ocrCoverageSentence } from "./corpus-coverage";
 import { computeDealeyPlazaBounds } from "./dealey-plaza-bounds";
+import { documentReaderHref } from "./document-reader";
 import { formatDate } from "./format";
 import { buildMediaIndexResponse } from "./media-assets";
 import { addMediaAssetsToCooccurrenceGraph } from "./media-graph";
@@ -433,6 +434,7 @@ function rowToDetail(
     ocrLastChunkOrder?: number | null;
     ocrPrevChunkOrder?: number | null;
     ocrNextChunkOrder?: number | null;
+    ocrLastPageLabel?: string | null;
   },
 ): DocumentDetail {
   const card = rowToCard(r);
@@ -455,6 +457,7 @@ function rowToDetail(
     ocrLastChunkOrder: ocr?.ocrLastChunkOrder,
     ocrPrevChunkOrder: ocr?.ocrPrevChunkOrder,
     ocrNextChunkOrder: ocr?.ocrNextChunkOrder,
+    ocrLastPageLabel: ocr?.ocrLastPageLabel,
     hasOcr: ocr?.hasOcrText ?? !!r.has_ocr,
     citation: r.record_group
       ? `NAID ${r.naid} · ${r.record_group}`
@@ -1102,7 +1105,7 @@ export async function fetchEntity(slug: string): Promise<EntityResponse | null> 
         id: `m-ocr-${r.document_id}`,
         documentId: r.document_id,
         documentTitle: r.title,
-        documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-${ocr.chunk_order}`,
+        documentHref: documentReaderHref(r.document_id, ocr.chunk_order),
         excerpt: truncateAround(ocr.chunk_text, entity.aliases, 260),
         matchedTerms: entity.aliases.slice(0, 3),
         confidence: (r.confidence as ConfidenceLevel) ?? "low",
@@ -1331,7 +1334,15 @@ function releaseLabelFor(releaseSet: string): string {
 // DOCUMENT
 // ---------------------------------------------------------------------------
 
-export async function fetchDocument(id: string): Promise<DocumentResponse | null> {
+export type FetchDocumentOptions = {
+  /** When set, load that OCR page instead of the first page. */
+  chunkOrder?: number | null;
+};
+
+export async function fetchDocument(
+  id: string,
+  options: FetchDocumentOptions = {},
+): Promise<DocumentResponse | null> {
   if (useMockData()) return buildDocumentResponse(id);
 
   const rows = await query<RecordRow>(
@@ -1377,7 +1388,7 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
          JOIN candidates USING (document_id)`,
       { id: canonicalId },
     ),
-    fetchDocumentOcrFirstPage(canonicalId),
+    fetchDocumentOcrFirstPage(canonicalId, options.chunkOrder),
     fetchDocumentTopics(canonicalId),
   ]);
 
@@ -1389,63 +1400,49 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
     })
     .filter((e): e is EntityCard => !!e);
 
-  const firstPage = ocrBody.kind === "page" ? ocrBody.page : null;
-  const hasOcrText = firstPage !== null;
+  const loadedPage = ocrBody.kind === "page" ? ocrBody.page : null;
+  const hasOcrText = loadedPage !== null;
   const ocrBodyUnavailable =
     ocrBody.kind === "unavailable" ||
     (ocrBody.kind === "none" && !!doc.has_ocr);
   const hasOcr = hasOcrText || !!doc.has_ocr;
 
-  // Mentions are matched against the first loaded page only. Later pages
-  // stay on the page-at-a-time reader; do not pull the fat OCR body.
+  // Mentions are matched against the currently loaded page only. Do not
+  // invent file-wide passage hits from title/description leftovers, and
+  // do not scan the fat OCR body for every mention in this file.
   const mentions: MentionExcerpt[] = [];
-  const mentionRows = hasOcrText ? mapRows : mapRows.slice(0, 6);
 
-  for (const m of mentionRows) {
+  for (const m of mapRows) {
+    if (!loadedPage) break;
     const e = entities.find((x) => x.entity_id === m.entity_id);
     const aliases = e?.aliases ?? [];
-    const aliasRe = firstPage ? buildAliasRegex(aliases) : null;
-    const pageHit =
-      aliasRe && firstPage ? aliasRe.test(firstPage.chunk_text) : false;
-    if (pageHit && firstPage) {
-      mentions.push({
-        id: `m-${m.entity_id}-${firstPage.chunk_id}`,
-        documentId: canonicalId,
-        documentTitle: doc.title,
-        documentHref: `/document/${encodeURIComponent(canonicalId)}#chunk-${firstPage.chunk_order}`,
-        excerpt: truncateAround(firstPage.chunk_text, aliases, 280),
-        matchedTerms: aliases.slice(0, 3),
-        confidence: m.confidence,
-        source: "ocr",
-        pageLabel: firstPage.page_label,
-        chunkOrder: firstPage.chunk_order,
-      });
-    } else {
-      mentions.push({
-        id: `m-${m.entity_id}-${canonicalId}`,
-        documentId: canonicalId,
-        documentTitle: doc.title,
-        documentHref: `/document/${encodeURIComponent(canonicalId)}`,
-        excerpt: doc.description || doc.title,
-        matchedTerms: aliases.slice(0, 3),
-        confidence: m.confidence,
-        source: m.match_source === "title" ? "title" : "description",
-        pageLabel: null,
-      });
-    }
+    const aliasRe = buildAliasRegex(aliases);
+    if (!aliasRe || !aliasRe.test(loadedPage.chunk_text)) continue;
+    mentions.push({
+      id: `m-${m.entity_id}-${loadedPage.chunk_id}`,
+      documentId: canonicalId,
+      documentTitle: doc.title,
+      documentHref: documentReaderHref(canonicalId, loadedPage.chunk_order),
+      excerpt: truncateAround(loadedPage.chunk_text, aliases, 280),
+      matchedTerms: aliases.slice(0, 3),
+      confidence: m.confidence,
+      source: "ocr",
+      pageLabel: loadedPage.page_label,
+      chunkOrder: loadedPage.chunk_order,
+    });
   }
 
   return {
     document: rowToDetail(doc, {
       chunkCount: ocrBody.kind === "page" ? ocrBody.meta.chunk_count : 0,
-      firstChunk: firstPage?.chunk_text ?? null,
+      firstChunk: loadedPage?.chunk_text ?? null,
       hasOcrText: hasOcr,
-      ocrPages: firstPage
+      ocrPages: loadedPage
         ? [
             {
-              pageLabel: firstPage.page_label || `chunk ${firstPage.chunk_order}`,
-              text: firstPage.chunk_text,
-              chunkOrder: firstPage.chunk_order,
+              pageLabel: loadedPage.page_label || `chunk ${loadedPage.chunk_order}`,
+              text: loadedPage.chunk_text,
+              chunkOrder: loadedPage.chunk_order,
             },
           ]
         : undefined,
@@ -1454,8 +1451,9 @@ export async function fetchDocument(id: string): Promise<DocumentResponse | null
         ocrBody.kind === "page" ? ocrBody.meta.first_chunk_order : null,
       ocrLastChunkOrder:
         ocrBody.kind === "page" ? ocrBody.meta.last_chunk_order : null,
-      ocrPrevChunkOrder: firstPage?.prev_chunk_order ?? null,
-      ocrNextChunkOrder: firstPage?.next_chunk_order ?? null,
+      ocrPrevChunkOrder: loadedPage?.prev_chunk_order ?? null,
+      ocrNextChunkOrder: loadedPage?.next_chunk_order ?? null,
+      ocrLastPageLabel: ocrBody.kind === "page" ? ocrBody.lastPageLabel : null,
     }),
     mentions: mentions.slice(0, 8),
     relatedTopics,
@@ -1850,7 +1848,7 @@ async function fetchMentionSearch({
       id: `mx-${row.chunk_id}`,
       documentId: row.document_id,
       documentTitle: row.title,
-      documentHref: `/document/${encodeURIComponent(row.document_id)}#chunk-${row.chunk_order}`,
+      documentHref: documentReaderHref(row.document_id, row.chunk_order),
       excerpt: truncateAround(row.chunk_text, [qNorm], 280),
       matchedTerms: [qNorm],
       confidence: "low",
@@ -2091,7 +2089,7 @@ async function fetchSemanticSearch({
       id: `sem-${r.chunk_id}`,
       documentId: r.document_id,
       documentTitle: r.title,
-      documentHref: `/document/${encodeURIComponent(r.document_id)}#chunk-${r.chunk_order}`,
+      documentHref: documentReaderHref(r.document_id, r.chunk_order),
       excerpt: truncateAround(r.chunk_text, [qNorm], 280),
       matchedTerms: [qNorm],
       confidence: "medium" as ConfidenceLevel,
@@ -2444,7 +2442,12 @@ type DocumentOcrPageRow = {
 };
 
 type DocumentOcrFirstPage =
-  | { kind: "page"; meta: DocumentOcrPageMeta; page: DocumentOcrPageRow }
+  | {
+      kind: "page";
+      meta: DocumentOcrPageMeta;
+      page: DocumentOcrPageRow;
+      lastPageLabel: string | null;
+    }
   | { kind: "unavailable" }
   | { kind: "none" };
 
@@ -2547,17 +2550,46 @@ async function fetchDocumentOcrPageRow(
 
 async function fetchDocumentOcrFirstPage(
   documentId: string,
+  chunkOrder?: number | null,
 ): Promise<DocumentOcrFirstPage> {
   const metaResult = await fetchDocumentOcrPageMeta(documentId);
   if (metaResult.kind !== "meta") return metaResult;
-  const page = await fetchDocumentOcrPageRow(
-    documentId,
-    metaResult.meta.doc_shard,
-    metaResult.meta.first_chunk_order,
-  );
-  if (page === "unavailable") return { kind: "unavailable" };
+  const meta = metaResult.meta;
+  const requested =
+    chunkOrder == null || !Number.isFinite(chunkOrder)
+      ? meta.first_chunk_order
+      : Math.trunc(chunkOrder);
+  const needsLastLabel = requested !== meta.last_chunk_order;
+  const [requestedPage, lastPage] = await Promise.all([
+    fetchDocumentOcrPageRow(documentId, meta.doc_shard, requested),
+    needsLastLabel
+      ? fetchDocumentOcrPageRow(documentId, meta.doc_shard, meta.last_chunk_order)
+      : Promise.resolve(null),
+  ]);
+  if (requestedPage === "unavailable") return { kind: "unavailable" };
+  let page = requestedPage;
+  if (!page && requested !== meta.first_chunk_order) {
+    const firstPage = await fetchDocumentOcrPageRow(
+      documentId,
+      meta.doc_shard,
+      meta.first_chunk_order,
+    );
+    if (firstPage === "unavailable") return { kind: "unavailable" };
+    page = firstPage;
+  }
   if (!page) return { kind: "unavailable" };
-  return { kind: "page", meta: metaResult.meta, page };
+  const lastLabelSource =
+    lastPage && lastPage !== "unavailable"
+      ? lastPage
+      : requested === meta.last_chunk_order
+        ? page
+        : null;
+  return {
+    kind: "page",
+    meta,
+    page,
+    lastPageLabel: lastLabelSource?.page_label ?? null,
+  };
 }
 
 function mockDocumentOcrPage(id: string, chunkOrder?: number | null): DocumentOcrPageResponse | null {

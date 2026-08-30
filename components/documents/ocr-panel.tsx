@@ -1,7 +1,7 @@
 import type { DocumentDetail, MentionExcerpt } from "@/lib/api-types";
+import { archivalPageCount, formatOcrReaderStatus } from "@/lib/document-reader";
 import { formatNumber, highlightHTML } from "@/lib/format";
 import { ChunkActions } from "./chunk-actions";
-import { ChunkHashHandler } from "./chunk-hash-handler";
 import { OcrPageReader } from "./ocr-page-reader";
 import { TrustStatusStrip } from "@/components/research/trust-status-strip";
 import styles from "./document-reader.module.css";
@@ -27,24 +27,32 @@ export function OcrPanel({
         <p className="muted" style={{ fontSize: "0.95rem", maxWidth: "56ch" }}>
           This record does not have OCR text available. It may be a
           photograph, still image, or unprocessed holding; consult the
-          linked digital object for visual inspection.
+          linked digital object for visual inspection. Machine text covers
+          only a fraction of the indexed collection.
         </p>
       </section>
     );
   }
 
-  const terms = Array.from(new Set(mentions.flatMap((m) => m.matchedTerms)));
-  const chunksWithAnchors = mentions.filter((mention) => mention.chunkOrder != null);
+  const ocrMentions = mentions.filter(
+    (mention) => mention.source === "ocr" && mention.chunkOrder != null,
+  );
+  const terms = Array.from(new Set(ocrMentions.flatMap((m) => m.matchedTerms)));
   const firstFromWarehouse = doc.ocrPages?.[0];
   const firstOcrPage = firstFromWarehouse ??
     (doc.ocrExcerpt
       ? {
           pageLabel: "p. 1",
           text: doc.ocrExcerpt,
-          chunkOrder: doc.ocrFirstChunkOrder ?? 1,
+          chunkOrder: doc.ocrFirstChunkOrder ?? 0,
         }
       : null);
   const readerChunkCount = firstFromWarehouse ? (doc.chunkCount ?? 1) : 1;
+  const lastPageLabel = doc.ocrLastPageLabel ?? null;
+  const pages = archivalPageCount({
+    pageCount: doc.pageCount,
+    lastPageLabel,
+  });
 
   return (
     <section
@@ -52,6 +60,11 @@ export function OcrPanel({
       id="ocr-text"
       aria-labelledby="ocr-text-title"
     >
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `(function(){try{var h=location.hash;var q=location.search;if(/^#chunk--?\\d+$/.test(h)&&!/[?&]chunk=/.test(q)){document.documentElement.setAttribute("data-ocr-deeplink","1");}}catch(e){}})();`,
+        }}
+      />
       <div className={styles.ocrHeader}>
         <div>
           <div className="eyebrow">Document transcript</div>
@@ -59,14 +72,17 @@ export function OcrPanel({
             OCR reader
           </h2>
           <div className="muted" style={{ fontSize: "0.84rem" }}>
-            Machine-generated text; may contain transcription errors.
+            Page-at-a-time machine text. The first page is often a cover
+            sheet, not the whole file.
           </div>
         </div>
-        {doc.chunkCount !== undefined && doc.chunkCount !== null && (
-          <span className="muted num" style={{ fontSize: "0.84rem" }}>
-            {formatNumber(doc.chunkCount)} chunks indexed
-          </span>
-        )}
+        <span className={`muted num ${styles.ocrHeaderCount}`}>
+          {formatOcrReaderStatus({
+            pageLabel: firstOcrPage?.pageLabel,
+            lastPageLabel,
+            chunkCount: doc.chunkCount,
+          })}
+        </span>
       </div>
 
       <TrustStatusStrip
@@ -78,67 +94,23 @@ export function OcrPanel({
             tone: doc.hasOcr ? "good" : "warn",
           },
           {
-            label: "Coverage",
-            value: formatReaderCoverage(doc.pageCount, doc.chunkCount),
+            label: "This file",
+            value: pages
+              ? `${pages.estimated ? "~" : ""}${formatNumber(pages.count)} archival pages`
+              : "Page count unknown",
             tone: "neutral",
           },
           {
-            label: "Matches",
+            label: "On this page",
             value:
-              mentions.length > 0
-                ? `${formatNumber(mentions.length)} passage anchors`
-                : "No matched passages",
-            tone: mentions.length > 0 ? "good" : "neutral",
+              ocrMentions.length > 0
+                ? `${formatNumber(ocrMentions.length)} loaded-page anchors`
+                : "No entity anchors on this page",
+            tone: ocrMentions.length > 0 ? "good" : "neutral",
           },
         ]}
         compact
       />
-
-      {(terms.length > 0 || chunksWithAnchors.length > 0) && (
-        <div
-          aria-label="OCR reader map"
-          className={styles.ocrMap}
-        >
-          {terms.length > 0 && (
-            <div className={styles.ocrMapCard}>
-              <div className="eyebrow" style={{ marginBottom: 8 }}>
-                Matched terms
-              </div>
-              <div className={styles.tokenList}>
-                {terms.slice(0, 8).map((term) => (
-                  <span
-                    key={term}
-                    className={styles.token}
-                  >
-                    {term}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          {chunksWithAnchors.length > 0 && (
-            <nav
-              aria-label="OCR chunk jump"
-              className={styles.ocrMapCard}
-            >
-              <div className="eyebrow" style={{ marginBottom: 8 }}>
-                Chunk map
-              </div>
-              <div className={styles.tokenList}>
-                {chunksWithAnchors.slice(0, 12).map((mention) => (
-                  <a
-                    key={mention.id}
-                    href={`#chunk-${mention.chunkOrder}`}
-                    className={`num ${styles.token}`}
-                  >
-                    {mention.chunkOrder}
-                  </a>
-                ))}
-              </div>
-            </nav>
-          )}
-        </div>
-      )}
 
       {doc.ocrBodyUnavailable && !firstOcrPage && (
         <p className="muted" style={{ fontSize: "0.95rem", maxWidth: "62ch" }}>
@@ -151,7 +123,7 @@ export function OcrPanel({
 
       {firstOcrPage && (
         <OcrPageReader
-          key={doc.id}
+          key={`${doc.id}-${firstOcrPage.chunkOrder ?? "first"}`}
           doc={doc}
           initialPage={firstOcrPage}
           chunkCount={readerChunkCount}
@@ -163,18 +135,22 @@ export function OcrPanel({
           }
           prevChunkOrder={doc.ocrPrevChunkOrder ?? null}
           nextChunkOrder={doc.ocrNextChunkOrder ?? null}
+          lastPageLabel={lastPageLabel}
           terms={terms}
         />
       )}
 
-      {mentions.length > 0 && (
+      {ocrMentions.length > 0 && (
         <div>
-          <ChunkHashHandler />
           <div className="eyebrow" style={{ marginBottom: 12 }}>
-            Matched passages in this record
+            Entity anchors on this loaded page
           </div>
+          <p className="muted" style={{ fontSize: "0.84rem", marginBottom: 12 }}>
+            These names appear on the page currently loaded. This is not a
+            search of every page in the file.
+          </p>
           <div className={styles.chunkList}>
-            {mentions.map((mention) => {
+            {ocrMentions.map((mention) => {
               const anchorId =
                 mention.chunkOrder != null
                   ? `mention-chunk-${mention.chunkOrder}`
@@ -191,12 +167,10 @@ export function OcrPanel({
                       __html: `"${highlightHTML(mention.excerpt, mention.matchedTerms)}"`,
                     }}
                   />
-                  <div
-                    className={`muted ${styles.ocrChunkMeta}`}
-                  >
+                  <div className={`muted ${styles.ocrChunkMeta}`}>
                     <span>
                       {formatPassageMeta(mention)}
-                      {formatPassageMeta(mention) ? " | " : ""}
+                      {formatPassageMeta(mention) ? " · " : ""}
                       source: {mention.source}
                     </span>
                     {mention.chunkOrder != null && (
@@ -226,19 +200,9 @@ export function OcrPanel({
   );
 }
 
-function formatReaderCoverage(
-  pageCount?: number | null,
-  chunkCount?: number | null,
-): string {
-  const parts = [];
-  if (pageCount) parts.push(`${formatNumber(pageCount)} pages`);
-  if (chunkCount) parts.push(`${formatNumber(chunkCount)} chunks`);
-  return parts.length > 0 ? parts.join(" / ") : "Indexed record";
-}
-
 function formatPassageMeta(mention: MentionExcerpt): string {
   const parts = [];
   if (mention.chunkOrder != null) parts.push(`chunk ${mention.chunkOrder}`);
   if (mention.pageLabel) parts.push(mention.pageLabel);
-  return parts.join(" | ");
+  return parts.join(" · ");
 }

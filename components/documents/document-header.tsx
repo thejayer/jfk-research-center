@@ -1,6 +1,11 @@
 import type { DocumentDetail } from "@/lib/api-types";
 import type { ReactNode } from "react";
 import { formatCitation } from "@/lib/citations";
+import {
+  archivalPageCount,
+  displayDocumentTitle,
+  primaryDocumentAction,
+} from "@/lib/document-reader";
 import { formatDateRange, formatNumber } from "@/lib/format";
 import { Badge, OcrBadge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
@@ -21,7 +26,12 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
     sourceUrl: doc.sourceUrl,
   });
   const dateRange = formatDateRange(doc.startDate, doc.endDate);
-  const sourceHref = doc.digitalObjectUrl || doc.sourceUrl;
+  const sourceAction = primaryDocumentAction(doc);
+  const heading = displayDocumentTitle(doc);
+  const pages = archivalPageCount({
+    pageCount: doc.pageCount,
+    lastPageLabel: doc.ocrLastPageLabel,
+  });
 
   return (
     <header className={styles.headerHero}>
@@ -54,7 +64,7 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
           </div>
 
           <h1 className={styles.title}>
-            {doc.title}
+            {heading}
           </h1>
 
           {doc.subtitle && (
@@ -70,9 +80,9 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
           )}
 
           <div className={styles.primaryActions}>
-            {sourceHref && (
-              <LinkButton href={sourceHref} variant="primary">
-                Open source
+            {sourceAction && (
+              <LinkButton href={sourceAction.href} variant="primary">
+                {sourceAction.label}
                 <ExternalLinkIcon />
               </LinkButton>
             )}
@@ -113,12 +123,15 @@ export function DocumentHeader({ doc }: { doc: DocumentDetail }) {
                 </span>
               }
             />
-            {doc.pageCount !== undefined && doc.pageCount !== null && (
-              <Stat label="Pages" value={formatNumber(doc.pageCount)} />
+            {pages && (
+              <Stat
+                label="Archival pages"
+                value={`${pages.estimated ? "~" : ""}${formatNumber(pages.count)}`}
+              />
             )}
-            {doc.chunkCount !== undefined && doc.chunkCount !== null && (
-              <Stat label="OCR chunks" value={formatNumber(doc.chunkCount)} />
-            )}
+            {doc.chunkCount ? (
+              <Stat label="OCR pages" value={formatNumber(doc.chunkCount)} />
+            ) : null}
             {dateRange && <Stat label="Date range" value={dateRange} compact />}
           </dl>
 

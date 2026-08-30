@@ -12,7 +12,7 @@ export function MetadataPanel({ doc }: { doc: DocumentDetail }) {
     ["Date", doc.dateLabel],
     ["Date Range", formatDateRange(doc.startDate, doc.endDate)],
     ["Pages", doc.pageCount ? formatNumber(doc.pageCount) : null],
-    ["OCR Chunks", doc.chunkCount !== undefined && doc.chunkCount !== null ? formatNumber(doc.chunkCount) : null],
+    ["OCR pages", doc.chunkCount ? formatNumber(doc.chunkCount) : null],
     ["Has OCR", doc.hasOcr ? "Yes" : "No"],
   ];
   const rows = allRows.filter(

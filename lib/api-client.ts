@@ -28,6 +28,7 @@ import type {
   CorpusManifest,
   DealeyPlazaResponse,
   DealeyPlazaWitness,
+  DocumentOcrPageResponse,
   DocumentResponse,
   EntityCard,
   EntityResponse,
@@ -200,10 +201,30 @@ export async function fetchEntities(): Promise<EntityCard[]> {
   return data?.entities ?? [];
 }
 
-export async function fetchDocument(id: string): Promise<DocumentResponse | null> {
-  return get<DocumentResponse>(`/api/document/${encodeURIComponent(id)}`, {
-    revalidate: 600,
-  });
+export async function fetchDocument(
+  id: string,
+  chunkOrder?: number | null,
+): Promise<DocumentResponse | null> {
+  const query =
+    chunkOrder != null && Number.isFinite(chunkOrder)
+      ? `?chunk=${Math.trunc(chunkOrder)}`
+      : "";
+  return get<DocumentResponse>(
+    `/api/document/${encodeURIComponent(id)}${query}`,
+    {
+      revalidate: 300,
+    },
+  );
+}
+
+export async function fetchDocumentOcrPage(
+  id: string,
+  chunkOrder: number,
+): Promise<DocumentOcrPageResponse | null> {
+  return get<DocumentOcrPageResponse>(
+    `/api/document/${encodeURIComponent(id)}/ocr?chunk=${Math.trunc(chunkOrder)}`,
+    { revalidate: 300 },
+  );
 }
 
 export async function fetchCompare(recordId: string): Promise<CompareResponse | null> {

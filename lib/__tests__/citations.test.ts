@@ -29,7 +29,7 @@ describe("formatCitation", () => {
     });
     expect(out.bluebook).toContain("at ¶ 7");
     expect(out.bluebook).toContain(
-      "https://example.com/document/1234567#chunk-7",
+      "https://example.com/document/1234567?chunk=7#chunk-7",
     );
     expect(out.chicago).toContain("chunk 7");
     expect(out.chicago).toContain("#chunk-7");
@@ -44,14 +44,16 @@ describe("formatCitation", () => {
     expect(out.bluebook).not.toContain("#chunk-3");
   });
 
-  it("treats chunkOrder of 0 or negative as absent", () => {
+  it("treats chunkOrder 0 as the first OCR page", () => {
     const out = formatCitation({
       ...baseDoc,
       chunkOrder: 0,
       siteUrl: "https://example.com/document/1234567",
     });
-    expect(out.bluebook).not.toContain("¶ 0");
-    expect(out.bluebook).not.toContain("#chunk-");
+    expect(out.bluebook).toContain("at ¶ 0");
+    expect(out.bluebook).toContain(
+      "https://example.com/document/1234567?chunk=0#chunk-0",
+    );
   });
 
   it("strips trailing slash from siteUrl before appending anchor", () => {
@@ -61,7 +63,7 @@ describe("formatCitation", () => {
       siteUrl: "https://example.com/document/1234567/",
     });
     expect(out.bluebook).toContain(
-      "https://example.com/document/1234567#chunk-5",
+      "https://example.com/document/1234567?chunk=5#chunk-5",
     );
     expect(out.bluebook).not.toContain("//#chunk-");
   });

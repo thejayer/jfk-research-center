@@ -5,6 +5,7 @@ import type {
   MentionExcerpt,
   TopicCard,
 } from "@/lib/api-types";
+import { documentReaderHref } from "@/lib/document-reader";
 import { formatNumber } from "@/lib/format";
 import {
   ResearchContextPanel,
@@ -40,7 +41,10 @@ export function DocumentResearchContext({
   // omit actions when a relationship type is unavailable.
   const primaryEntity = entities[0];
   const primaryTopic = topics[0];
-  const primaryMention = mentions.find((mention) => mention.chunkOrder != null);
+  const ocrMentions = mentions.filter(
+    (mention) => mention.source === "ocr" && mention.chunkOrder != null,
+  );
+  const primaryMention = ocrMentions[0];
   const primaryRelatedDocument = relatedDocuments[0];
   const actions: ResearchContextAction[] = [
     ...(primaryTopic
@@ -66,7 +70,7 @@ export function DocumentResearchContext({
     ...(primaryMention
       ? [
           {
-            href: `#chunk-${primaryMention.chunkOrder}`,
+            href: documentReaderHref(doc.id, primaryMention.chunkOrder),
             label: "Open first matched chunk",
             detail: formatMentionMeta(primaryMention),
             reliability: "ocr_text" as const,
@@ -97,7 +101,7 @@ export function DocumentResearchContext({
     <ResearchContextPanel
       id="research-context"
       title="How this record connects"
-      description="Jump from the archival item into its topic lanes, named entities, matched passages, and neighboring records."
+      description="Topic and entity links come from curated metadata. Passage anchors are only the OCR page currently loaded — not a search of the whole file."
       sections={[
         // Sections keep relationship groups compact and cap each list to the
         // strongest few items already ranked by the upstream data layer.
@@ -124,17 +128,15 @@ export function DocumentResearchContext({
           })),
         },
         {
-          title: "Passage anchors",
-          emptyText: "No passage anchors are indexed yet.",
-          links: mentions.slice(0, 3).map((mention) => ({
-            // Mentions with chunk order deep-link to the OCR chunk; otherwise
-            // fall back to the full OCR section so every passage link lands.
+          title: "Loaded-page anchors",
+          emptyText: "No entity names appear on the currently loaded OCR page.",
+          links: ocrMentions.slice(0, 3).map((mention) => ({
             href:
               mention.chunkOrder != null
-                ? `#chunk-${mention.chunkOrder}`
+                ? documentReaderHref(doc.id, mention.chunkOrder)
                 : "#ocr-text",
             label:
-              mention.matchedTerms[0] ?? mention.pageLabel ?? "Matched passage",
+              mention.matchedTerms[0] ?? mention.pageLabel ?? "Loaded page",
             meta: formatMentionMeta(mention),
             reliability: "ocr_text",
           })),

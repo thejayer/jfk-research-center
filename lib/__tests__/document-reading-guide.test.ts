@@ -13,6 +13,24 @@ import {
 import { buildDocumentReadingGuide } from "../document-reading-guide";
 
 describe("document reading guide", () => {
+  it("ignores title/description leftovers that are not loaded OCR pages", () => {
+    const guide = buildDocumentReadingGuide({
+      mentions: [
+        mention({
+          id: "desc",
+          source: "description",
+          chunkOrder: null,
+          excerpt: "BULKY ENC · Release: Redact",
+        }),
+      ],
+      topics: [],
+      entities: [],
+      timelineEvents: [],
+      relatedDocuments: [],
+    });
+    expect(guide.passageJumps).toEqual([]);
+  });
+
   it("builds deduped passage jump points from OCR mentions", () => {
     const guide = buildDocumentReadingGuide({
       mentions: [
@@ -30,15 +48,9 @@ describe("document reading guide", () => {
       expect.objectContaining({
         id: "m1",
         type: "passage",
-        href: "#chunk-7",
-        label: "Chunk 7",
+        href: "/document/doc?chunk=7#chunk-7",
+        label: "p. 2 (chunk 7)",
         meta: "p. 2 / Oswald, Mexico City",
-      }),
-      expect.objectContaining({
-        id: "m3",
-        href: "#chunk-m3",
-        label: "Matched passage",
-        meta: "passport",
       }),
     ]);
   });
@@ -89,7 +101,7 @@ describe("document reading guide", () => {
     expect(guide.passageJumps.map((item) => item.href)).toEqual(
       Array.from(
         { length: documentReadingPassageLimit },
-        (_, index) => `#chunk-${index + 1}`,
+        (_, index) => `/document/doc?chunk=${index + 1}#chunk-${index + 1}`,
       ),
     );
   });
@@ -128,7 +140,7 @@ function mention(overrides: Partial<MentionExcerpt>): MentionExcerpt {
     excerpt: "Oswald in Mexico City",
     matchedTerms: overrides.matchedTerms ?? ["Oswald", "Mexico City"],
     confidence: "high",
-    source: "ocr",
+    source: overrides.source ?? "ocr",
     pageLabel: overrides.pageLabel,
     chunkOrder: overrides.chunkOrder,
   };

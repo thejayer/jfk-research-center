@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatCitation, type CitationFormats, type CitationInput } from "@/lib/citations";
+import { documentReaderHref } from "@/lib/document-reader";
 import { useClickOutside } from "@/lib/use-click-outside";
 
 type Style = keyof CitationFormats;
@@ -15,7 +16,7 @@ const STYLES: Array<{ key: Style; label: string }> = [
 /**
  * Per-chunk action affordances on an OCR mention card.
  *
- * - Copy-link: writes `${origin}/document/{naid}#chunk-N` to the clipboard.
+ * - Copy-link: writes `${origin}/document/{naid}?chunk=N#chunk-N`.
  * - Cite: opens a small popover with chunk-scoped Bluebook/Chicago/APA
  *   formats. The chunk anchor is baked into each format by lib/citations.
  *
@@ -66,7 +67,7 @@ export function ChunkActions({
   const onCopyLink = async () => {
     const href =
       typeof window !== "undefined"
-        ? `${window.location.origin}/document/${encodeURIComponent(naid)}#chunk-${chunkOrder}`
+        ? `${window.location.origin}${documentReaderHref(naid, chunkOrder)}`
         : "";
     try {
       await navigator.clipboard.writeText(href);

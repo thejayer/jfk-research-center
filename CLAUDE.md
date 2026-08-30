@@ -283,8 +283,19 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-08-28 (public /api/v1 key requirement)
+**Last updated:** 2026-08-30 (document reader polish)
 
+- **Document reader polish (2026-08-30).** Page-at-a-time OCR from PRs
+  129/130 kept (search_ocr_page_meta + search_ocr_pages, 10 MiB floor).
+  First-party `GET /api/document/:id?chunk=N` now SSRs that page so
+  shareable `?chunk=N#chunk-N` links do not flash page 1. Status copy
+  uses archival `pageLabel` (`Page 1 of ~2,119`) plus honest OCR-page
+  totals; NARA `pageCount` of 0 is no longer shown as "Pages 0". Jump
+  box, neighbor prefetch, and arrow/J/K paging are in the reader.
+  Primary action is "Open PDF" when the source is a scan. Mentions /
+  reading-guide / ask tools only use the loaded page + metadata — they
+  do not scan `search_ocr_chunks` / `jfk_text_chunks` for file-wide
+  hits. `/api/v1` stays first-page and keyed.
 - **Public /api/v1 key + rate limits (2026-08-28).** Warehouse and Vertex
   `/api/v1` routes now require an API key (`Authorization: Bearer` or
   `X-JFKRC-API-Key`) and apply keyed rate limits from

@@ -1,20 +1,9 @@
 import type { DocumentDetail } from "@/lib/api-types";
+import { documentSourceLinks } from "@/lib/document-reader";
 import styles from "./document-reader.module.css";
 
 export function SourceLinks({ doc }: { doc: DocumentDetail }) {
-  const links: Array<{ label: string; href: string; note?: string }> = [];
-  if (doc.sourceUrl)
-    links.push({
-      label: "National Archives Catalog",
-      href: doc.sourceUrl,
-      note: "Original record page",
-    });
-  if (doc.digitalObjectUrl && doc.digitalObjectUrl !== doc.sourceUrl)
-    links.push({
-      label: "Digital object",
-      href: doc.digitalObjectUrl,
-      note: "PDF or scanned file",
-    });
+  const links = documentSourceLinks(doc);
 
   return (
     <aside
