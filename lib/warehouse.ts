@@ -1508,9 +1508,32 @@ async function loadWarehouseDocument(
   };
 }
 
+const DOCUMENT_READ_BUNDLE_UNAVAILABLE_TTL_MS = 5 * 60 * 1000;
+let documentReadBundleUnavailableUntil = 0;
+
+function isDocumentReadBundleUnavailable(now = Date.now()): boolean {
+  return now < documentReadBundleUnavailableUntil;
+}
+
+function markDocumentReadBundleUnavailable(now = Date.now()): void {
+  documentReadBundleUnavailableUntil = now + DOCUMENT_READ_BUNDLE_UNAVAILABLE_TTL_MS;
+}
+
+/** Clears the optional-table unavailable marker. Used by tests. */
+export function resetDocumentReadBundleUnavailableForTests(): void {
+  documentReadBundleUnavailableUntil = 0;
+}
+
 async function loadDocumentReadBundle(
   id: string,
 ): Promise<DocumentBundleRow | null> {
+  if (isDocumentReadBundleUnavailable()) {
+    const rows = await query<DocumentBundleRow>(
+      buildDocumentReadCoreSql(WAREHOUSE_TABLES),
+      { id },
+    );
+    return rows[0] ?? null;
+  }
   try {
     const rows = await query<DocumentBundleRow>(
       buildDocumentReadBundleSql(WAREHOUSE_TABLES),
@@ -1522,6 +1545,7 @@ async function loadDocumentReadBundle(
       console.warn(
         "[warehouse] document read bundle optional tables unavailable; using core bundle",
       );
+      markDocumentReadBundleUnavailable();
       const rows = await query<DocumentBundleRow>(
         buildDocumentReadCoreSql(WAREHOUSE_TABLES),
         { id },

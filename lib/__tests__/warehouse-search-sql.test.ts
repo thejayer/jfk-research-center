@@ -188,7 +188,14 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sql).toContain("AS related_rows");
     expect(sql).not.toMatch(/SELECT\s+r\.\*/);
     expect(sql).toContain("release_history");
-    const relatedBlock = sql.slice(sql.indexOf("AS related_rows") - 200, sql.indexOf("AS related_rows"));
+    expect(sql).toContain("ORDER BY ri.shared DESC, rel.document_id");
+    const relatedStart = sql.lastIndexOf(
+      "ARRAY(SELECT AS STRUCT",
+      sql.indexOf("AS related_rows"),
+    );
+    const relatedBlock = sql.slice(relatedStart, sql.indexOf("AS related_rows"));
+    expect(relatedStart).toBeGreaterThan(-1);
+    expect(relatedBlock).toContain("rel.document_id");
     expect(relatedBlock).not.toContain("release_history");
   });
 
@@ -199,6 +206,7 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sql).not.toContain("search_ocr_page_meta");
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sqlSelectsStarFromRecords(sql)).toBe(false);
+    expect(sql).toContain("ORDER BY ri.shared DESC, rel.document_id");
   });
 
   it("reads one document OCR page from the partitioned table, never fat bodies", () => {

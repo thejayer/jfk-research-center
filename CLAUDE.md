@@ -300,6 +300,13 @@ gcloud run deploy jfk-research-center \
   untouched. Hunch: `jfk_records` is still unclustered, so a first-view
   `document_id = @id` may still bill ~17 MiB until a warehouse rebuild
   adds `CLUSTER BY document_id`.
+  Validation (2026-09-03): `npx tsc --noEmit` pass; `npm test` 349 pass;
+  `npm run build` pass. `npm run lint` skipped — repo has no ESLint
+  config and `next lint` is an interactive setup prompt, not a CI job
+  (intended required checks remain `typecheck` + `axe`).
+  `csc-architecture-reviewer` skipped — that reviewer is not in this
+  repo. Live BigQuery / Cloud Run job-count verification was not
+  available in this environment.
 - **WIF + Secret Manager deploy (2026-08-30).** GitHub Actions
   authenticates to GCP via Workload Identity Federation (OIDC), not
   `secrets.GCP_SA_KEY`. Provider:

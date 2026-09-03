@@ -107,6 +107,43 @@ describe("document cache", () => {
     expect(failing).toHaveBeenCalledTimes(2);
   });
 
+  it("does not expire an in-flight load when the clock passes the ttl", async () => {
+    let now = 1_000;
+    let resolveLoad: ((value: DocumentResponse) => void) | undefined;
+    const load = vi.fn(
+      () =>
+        new Promise<DocumentResponse>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    const options = {
+      env: {
+        JFK_DOCUMENT_CACHE_TTL_SECONDS: "1",
+        JFK_DOCUMENT_CACHE_MAX_ENTRIES: "10",
+      },
+      now: () => now,
+    };
+
+    const first = withDocumentCache("slow", load, options);
+    now = 3_000;
+    const second = withDocumentCache("slow", load, options);
+    expect(resolveLoad).toBeDefined();
+    resolveLoad!(response);
+
+    expect(await first).toBe(response);
+    expect(await second).toBe(response);
+    expect(load).toHaveBeenCalledTimes(1);
+
+    now = 3_500;
+    await withDocumentCache("slow", load, options);
+    expect(load).toHaveBeenCalledTimes(1);
+
+    now = 4_001;
+    load.mockImplementation(async () => response);
+    await withDocumentCache("slow", load, options);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
   it("bypasses the cache when disabled", async () => {
     const load = vi.fn(async () => response);
     const options = {

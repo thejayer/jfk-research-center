@@ -17,6 +17,9 @@ describe("document read warehouse path", () => {
     expect(fetchDocument).toContain("buildDocumentReadBundleSql");
     expect(fetchDocument).toContain("buildDocumentReadCoreSql");
     expect(fetchDocument).toContain("loadDocumentReadBundle");
+    expect(fetchDocument).toContain("isDocumentReadBundleUnavailable");
+    expect(fetchDocument).toContain("markDocumentReadBundleUnavailable");
+    expect(fetchDocument).not.toContain("isOcrPageMetaTableUnavailable");
     expect(fetchDocument).not.toMatch(/SELECT \*\s+FROM `\$\{PROJECT\}.*jfk_records`/);
     expect(fetchDocument).not.toMatch(/SELECT r\.\*/);
     expect(fetchDocument).not.toMatch(/search_ocr_chunks/);

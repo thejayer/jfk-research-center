@@ -1,7 +1,8 @@
 import type { DocumentResponse } from "./api-types";
 
 type CacheEntry = {
-  expiresAt: number;
+  /** Null while `load()` is in flight so a slow warehouse read cannot expire. */
+  expiresAt: number | null;
   promise: Promise<DocumentResponse | null>;
 };
 
@@ -51,7 +52,7 @@ export async function withDocumentCache(
   const currentTime = now();
   const existing = cache.get(key);
 
-  if (existing && existing.expiresAt > currentTime) {
+  if (existing && (existing.expiresAt == null || existing.expiresAt > currentTime)) {
     cache.delete(key);
     cache.set(key, existing);
     return existing.promise;
@@ -60,8 +61,8 @@ export async function withDocumentCache(
 
   pruneDocumentCache(currentTime, maxEntries);
   const promise = load();
-  const entry = {
-    expiresAt: currentTime + ttlSeconds * 1000,
+  const entry: CacheEntry = {
+    expiresAt: null,
     promise,
   };
   cache.set(key, entry);
@@ -72,6 +73,7 @@ export async function withDocumentCache(
       if (cache.get(key) === entry) cache.delete(key);
       return null;
     }
+    entry.expiresAt = now() + ttlSeconds * 1000;
     for (const alias of options.aliasKeys?.(result) ?? []) {
       if (!alias || alias === key) continue;
       cache.delete(alias);
@@ -90,12 +92,14 @@ export function clearDocumentCacheForTests(): void {
 
 function pruneDocumentCache(now: number, maxEntries: number): void {
   for (const [key, entry] of cache) {
-    if (entry.expiresAt <= now) cache.delete(key);
+    if (entry.expiresAt != null && entry.expiresAt <= now) cache.delete(key);
   }
   while (cache.size >= maxEntries) {
-    const oldestKey = cache.keys().next().value;
-    if (typeof oldestKey !== "string") return;
-    cache.delete(oldestKey);
+    const oldestCompleted = [...cache.entries()].find(
+      ([, entry]) => entry.expiresAt != null,
+    )?.[0];
+    if (typeof oldestCompleted !== "string") return;
+    cache.delete(oldestCompleted);
   }
 }
 
