@@ -50,10 +50,12 @@ layers:
   first-chunk window per OCR document (~1–2 MB). A full scan of that table
   is the on-demand 10 MiB floor, not 128 MiB. The excerpt is not a
   LIKE-over-full-body hit; cards fall back to title/description if the
-  thin table is missing. `/api/document` OCR no longer reads
+  thin table is missing.   `/api/document` OCR no longer reads
   `search_ocr_chunks` / `jfk_text_chunks`. First page and later pages
   come from `search_ocr_page_meta` + partitioned `search_ocr_pages`
-  (sql/35). Until sql/33 is applied, document search degrades to
+  (sql/35). Metadata for a document open (record, entity map, related
+  cards, topic slugs, page-meta) is one bundled job; repeats of the
+  same id are served from the in-process document cache. Until sql/33 is applied, document search degrades to
   title/description only (Oswald-class totals drop the OCR-only band)
   rather than scanning chunks again.
 - Privacy-safe request ids and hashed request fingerprints are propagated
@@ -81,6 +83,16 @@ Rate limit env overrides:
 - `JFK_SEARCH_CACHE_MAX_ENTRIES`: positive per-instance LRU bound; default
   `500`.
 - `JFK_SEARCH_CACHE_DISABLED=1`: emergency cache bypass.
+- `JFK_DOCUMENT_CACHE_TTL_SECONDS`: public `/api/document/:id` (and the SSR
+  page that fans out to it) in-process TTL; default `300`.
+- `JFK_DOCUMENT_CACHE_MAX_ENTRIES`: positive per-instance LRU bound; default
+  `2000` (covers the OCR corpus on one Cloud Run instance).
+- `JFK_DOCUMENT_CACHE_DISABLED=1`: emergency document-cache bypass.
+
+Cache hits and coalesced document opens do not create new BigQuery jobs.
+The first view still runs a bundled metadata job plus one partitioned
+OCR page job. Repeats of the same `document_id` + `?chunk=` reuse the
+in-process payload. 404s and warehouse failures are not cached.
 
 The in-app limiter is intentionally cheap and per Cloud Run instance. Keep it
 enabled, but use Cloud Armor or an upstream edge limit as the durable perimeter

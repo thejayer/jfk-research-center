@@ -4,6 +4,9 @@ import {
   buildCorpusTopicFacetSql,
   buildDocumentOnePageSql,
   buildDocumentPageMetaSql,
+  buildDocumentPagesSql,
+  buildDocumentReadBundleSql,
+  buildDocumentReadCoreSql,
   buildDocumentSearchSql,
   buildFilterOnlyDocumentsSql,
   buildIdentifierSearchSql,
@@ -154,6 +157,48 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sql).not.toMatch(/jfk_text_chunks/i);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+  });
+
+  it("reads the first-page plus last-label pages in one partitioned job", () => {
+    const sql = buildDocumentPagesSql(tables);
+    expect(sqlUsesPagedOcrTables(sql)).toBe(true);
+    expect(sqlHasOcrPagePartitionFilter(sql)).toBe(true);
+    expect(sql).toContain("chunk_order IN UNNEST(@chunkOrders)");
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
+    expect(sql).not.toMatch(/jfk_text_chunks/i);
+    expect(sql).not.toMatch(/FARM_FINGERPRINT/i);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+  });
+
+  it("bundles document metadata into one job without fat OCR or MVP EXISTS", () => {
+    const sql = buildDocumentReadBundleSql(tables);
+    expect(sql).toContain("jfk_records");
+    expect(sql).toContain("jfk_document_entity_map");
+    expect(sqlUsesDocumentTopicMap(sql)).toBe(true);
+    expect(sqlUsesPagedOcrTables(sql)).toBe(true);
+    expect(sql).toContain("search_ocr_page_meta");
+    expect(sql).not.toContain("search_ocr_pages");
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
+    expect(sql).not.toMatch(/jfk_text_chunks/i);
+    expect(sql).not.toMatch(/chunk_embeddings/i);
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlExistsScansMvpTopicDocs(sql)).toBe(false);
+    expect(sqlSelectsStarFromRecords(sql)).toBe(false);
+    expect(sql).toMatch(/document_id = @id/);
+    expect(sql).toContain("AS related_rows");
+    expect(sql).not.toMatch(/SELECT\s+r\.\*/);
+    expect(sql).toContain("release_history");
+    const relatedBlock = sql.slice(sql.indexOf("AS related_rows") - 200, sql.indexOf("AS related_rows"));
+    expect(relatedBlock).not.toContain("release_history");
+  });
+
+  it("falls back to a core bundle that omits optional thin tables", () => {
+    const sql = buildDocumentReadCoreSql(tables);
+    expect(sql).toContain("jfk_document_entity_map");
+    expect(sqlUsesDocumentTopicMap(sql)).toBe(false);
+    expect(sql).not.toContain("search_ocr_page_meta");
+    expect(sqlMentionsOcrChunks(sql)).toBe(false);
+    expect(sqlSelectsStarFromRecords(sql)).toBe(false);
   });
 
   it("reads one document OCR page from the partitioned table, never fat bodies", () => {

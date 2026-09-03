@@ -4,6 +4,7 @@ import {
   isArchiveIdentifierQuery,
   isBlockedCrawlerUserAgent,
   isCostSensitivePath,
+  isPubliclyCacheableCostApi,
   isLegacyMobileAutomationUserAgent,
   readAutomatedTrafficBlockReason,
   isSemanticSearchDisabled,
@@ -21,6 +22,22 @@ describe("cost controls", () => {
     expect(isCostSensitivePath("/api/v1/documents")).toBe(true);
     expect(isCostSensitivePath("/api/v1/search/semantic")).toBe(true);
     expect(isCostSensitivePath("/about")).toBe(false);
+  });
+
+  it("lets public document JSON share a CDN cache without touching admin routes", () => {
+    expect(isPubliclyCacheableCostApi("/api/search")).toBe(true);
+    expect(isPubliclyCacheableCostApi("/api/document/124-10190-10075")).toBe(
+      true,
+    );
+    expect(isPubliclyCacheableCostApi("/api/document/124-10190-10075/ocr")).toBe(
+      true,
+    );
+    expect(isPubliclyCacheableCostApi("/document/124-10190-10075")).toBe(true);
+    expect(isPubliclyCacheableCostApi("/api/v1/documents/124-10190-10075")).toBe(
+      true,
+    );
+    expect(isPubliclyCacheableCostApi("/api/admin/redactions")).toBe(false);
+    expect(isPubliclyCacheableCostApi("/admin/redactions")).toBe(false);
   });
 
   it("detects crawlers that should not trigger warehouse-backed routes", () => {

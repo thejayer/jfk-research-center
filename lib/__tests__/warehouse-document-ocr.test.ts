@@ -33,6 +33,9 @@ describe("document reader warehouse path", () => {
     const start = warehouseSource.indexOf("export async function fetchDocument");
     const end = warehouseSource.indexOf("const DOCUMENT_SITEMAP_TTL_MS");
     const fetchDocument = warehouseSource.slice(start, end);
+    expect(fetchDocument).toContain("withDocumentCache");
+    expect(fetchDocument).toContain("documentCacheKey");
+    expect(fetchDocument).toContain("buildDocumentReadBundleSql");
     expect(fetchDocument).toContain("fetchDocumentOcrFirstPage");
     expect(fetchDocument).toContain("options.chunkOrder");
     expect(fetchDocument).not.toMatch(/fetchDocumentOcrChunks/);
@@ -40,6 +43,16 @@ describe("document reader warehouse path", () => {
     expect(fetchDocument).not.toMatch(/jfk_text_chunks/);
     expect(fetchDocument).toMatch(/source: "ocr"/);
     expect(fetchDocument).not.toMatch(/source: m\.match_source/);
+  });
+
+  it("loads requested and last OCR pages in one partitioned job", () => {
+    const start = warehouseSource.indexOf("async function fetchDocumentOcrPageRows");
+    const end = warehouseSource.indexOf("async function fetchDocumentOcrFirstPage(");
+    const pageRows = warehouseSource.slice(start, end);
+    expect(pageRows).toContain("buildDocumentPagesSql");
+    expect(pageRows).toContain("chunkOrders");
+    expect(pageRows).not.toMatch(/search_ocr_chunks/);
+    expect(pageRows).not.toMatch(/jfk_text_chunks/);
   });
 
   it("caches only positive page-meta hits through the bounded helper", () => {

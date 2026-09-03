@@ -3,6 +3,7 @@ import { SESSION_COOKIE_NAME, verifySessionValue } from "@/lib/admin-auth";
 import {
   classifyCostTrafficUserAgent,
   isCostSensitivePath,
+  isPubliclyCacheableCostApi,
   readAutomatedTrafficBlockReason,
   readCostRateLimitRule,
 } from "@/lib/cost-controls";
@@ -166,14 +167,6 @@ function nextResponseWithCostSignals(
     response.headers.set(JFK_REQUEST_ID_HEADER, signals.requestId);
   }
   return response;
-}
-
-function isPubliclyCacheableCostApi(pathname: string): boolean {
-  return (
-    pathname === "/api/search" ||
-    pathname === "/api/v1/documents" ||
-    pathname === "/api/v1/search/semantic"
-  );
 }
 
 function logCostControlEvent(

@@ -76,6 +76,26 @@ export function isCostSensitivePath(pathname: string): boolean {
 }
 
 /**
+ * Public document/search JSON (and the HTML document page) may be reused
+ * by Cloud CDN / browsers. Middleware still rate-limits and blocks
+ * crawlers; it just omits the per-request id from the *response* so a
+ * unique header cannot bust a shared cache. Admin / redaction routes are
+ * never matched here.
+ */
+export function isPubliclyCacheableCostApi(pathname: string): boolean {
+  if (
+    pathname === "/api/search" ||
+    pathname === "/api/v1/documents" ||
+    pathname === "/api/v1/search/semantic"
+  ) {
+    return true;
+  }
+  if (pathname.startsWith("/api/document/")) return true;
+  if (pathMatchesPrefix(pathname, "/document")) return true;
+  return /^\/api\/v1\/documents\/[^/]+$/.test(pathname);
+}
+
+/**
  * Matches known high-volume crawler user agents that should not hit costly routes.
  *
  * @param userAgent Raw User-Agent header value, or null when absent.

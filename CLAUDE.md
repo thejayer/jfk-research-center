@@ -283,8 +283,23 @@ gcloud run deploy jfk-research-center \
 
 ## Current state (keep this section fresh)
 
-**Last updated:** 2026-08-30 (WIF + Secret Manager deploy)
+**Last updated:** 2026-09-03 (document-read cache)
 
+- **Document-read cache (2026-09-03).** `/api/document/:id` and the SSR
+  document page no longer re-scan warehouse tables on repeat opens.
+  `fetchDocument` wraps a short-TTL in-process cache
+  (`JFK_DOCUMENT_CACHE_*`, default 300s / 2000 entries) and loads
+  record + entity map + related cards + topic slugs + OCR page-meta
+  in one bundled job (`buildDocumentReadBundleSql`). The reader still
+  fetches one partitioned `search_ocr_pages` job for the loaded page
+  (and last-page label in that same job). 404s and failures are not
+  cached. Cache-Control on the public JSON stays
+  `public, s-maxage=300, stale-while-revalidate=1800`; middleware omits
+  the per-request id on those responses so a CDN/browser can reuse
+  them. Admin redaction, search_ocr_chunks, and embeddings are
+  untouched. Hunch: `jfk_records` is still unclustered, so a first-view
+  `document_id = @id` may still bill ~17 MiB until a warehouse rebuild
+  adds `CLUSTER BY document_id`.
 - **WIF + Secret Manager deploy (2026-08-30).** GitHub Actions
   authenticates to GCP via Workload Identity Federation (OIDC), not
   `secrets.GCP_SA_KEY`. Provider:
