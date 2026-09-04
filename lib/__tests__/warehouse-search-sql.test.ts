@@ -199,6 +199,18 @@ describe("warehouse search SQL cost envelope", () => {
     expect(relatedBlock).not.toContain("release_history");
   });
 
+  it("keeps topic_slugs as one ARRAY subquery, not a closed SELECT then FROM", () => {
+    const sql = buildDocumentReadBundleSql(tables);
+    // Regression for the PR 134 syntax error:
+    // ARRAY(SELECT topic_slug) FROM … )  — BigQuery: Expected end of input but got ")"
+    expect(sql).not.toMatch(/ARRAY\(SELECT topic_slug\)\s+FROM/i);
+    expect(sql).toMatch(
+      /ARRAY\(\s*SELECT topic_slug\s+FROM[\s\S]+document_topic_map[\s\S]+WHERE document_id = t\.document_id\s*\)\s+AS topic_slugs/,
+    );
+    const coreSql = buildDocumentReadCoreSql(tables);
+    expect(coreSql).not.toMatch(/ARRAY\(SELECT topic_slug\)\s+FROM/i);
+  });
+
   it("falls back to a core bundle that omits optional thin tables", () => {
     const sql = buildDocumentReadCoreSql(tables);
     expect(sql).toContain("jfk_document_entity_map");
