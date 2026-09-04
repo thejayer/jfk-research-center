@@ -52,4 +52,45 @@ describe("first-party document route", () => {
       { chunkOrder: 40 },
     );
   });
+
+  it("marks successful public JSON as CDN-cacheable without admin fields", async () => {
+    warehouse.fetchDocument.mockResolvedValue({
+      document: { id: "124-10190-10075", title: "Untitled Record" },
+      mentions: [],
+      relatedTopics: [],
+      relatedEntities: [],
+      relatedDocuments: [],
+    });
+
+    const response = await getDocument(
+      new NextRequest("https://example.test/api/document/124-10190-10075"),
+      { params: Promise.resolve({ id: "124-10190-10075" }) },
+    );
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(response.headers.get("cache-control")).toBe(
+      "public, s-maxage=300, stale-while-revalidate=1800",
+    );
+    expect(Object.keys(body).sort()).toEqual([
+      "document",
+      "mentions",
+      "relatedDocuments",
+      "relatedEntities",
+      "relatedTopics",
+    ]);
+    expect(body).not.toHaveProperty("review_status");
+    expect(body).not.toHaveProperty("reviewed_by");
+    expect(body).not.toHaveProperty("reviewer_notes");
+    expect(JSON.stringify(body)).not.toMatch(/review_status|reviewed_by|reviewer_notes/);
+  });
+
+  it("does not advertise a shared cache for misses", async () => {
+    warehouse.fetchDocument.mockResolvedValue(null);
+    const response = await getDocument(
+      new NextRequest("https://example.test/api/document/missing"),
+      { params: Promise.resolve({ id: "missing" }) },
+    );
+    expect(response.status).toBe(404);
+    expect(response.headers.get("cache-control")).toBeNull();
+  });
 });

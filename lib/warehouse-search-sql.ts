@@ -36,6 +36,25 @@ export const SEARCH_DOCUMENT_COLUMNS = [
   "release_set",
 ] as const;
 
+/**
+ * Columns needed to render /api/document detail (including the release
+ * strip). Related-document cards stay on SEARCH_DOCUMENT_COLUMNS.
+ */
+export const DOCUMENT_DETAIL_COLUMNS = [
+  ...SEARCH_DOCUMENT_COLUMNS,
+  "collection_name",
+  "end_date",
+  "release_date",
+  "source_url",
+  "thumbnail_url",
+  "digital_object_url",
+  "has_digital_object",
+  "num_pages",
+  "pages_released",
+  "withholding_status",
+  "release_history",
+] as const;
+
 export function recordsTable({ project, curatedDataset }: WarehouseTableRef): string {
   return `\`${project}.${curatedDataset}.jfk_records\``;
 }
@@ -90,6 +109,10 @@ export function entitiesTable({ project, curatedDataset }: WarehouseTableRef): s
 
 export function searchDocumentSelectSql(alias = "r"): string {
   return SEARCH_DOCUMENT_COLUMNS.map((column) => `${alias}.${column}`).join(",\n              ");
+}
+
+export function documentDetailSelectSql(alias = "t"): string {
+  return DOCUMENT_DETAIL_COLUMNS.map((column) => `${alias}.${column}`).join(",\n              ");
 }
 
 /**
@@ -330,6 +353,110 @@ export function buildDocumentOnePageSql(tables: WarehouseTableRef): string {
           AND document_id = @id
           AND chunk_order = @chunkOrder
         LIMIT 1`;
+}
+
+/**
+ * One or two OCR pages in a single partitioned job (requested page plus
+ * the last page when the reader needs `ocrLastPageLabel`). Same prune
+ * rules as {@link buildDocumentOnePageSql}.
+ */
+export function buildDocumentPagesSql(tables: WarehouseTableRef): string {
+  return `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type,
+              prev_chunk_order, next_chunk_order
+         FROM ${ocrPagesTable(tables)}
+        WHERE doc_shard = @shard
+          AND document_id = @id
+          AND chunk_order IN UNNEST(@chunkOrders)`;
+}
+
+/**
+ * One warehouse job for the public document payload except OCR body.
+ *
+ * Collapses the former fan-out (jfk_records + entity map + related
+ * records + topic slugs + page meta) so a first view is one metadata
+ * job plus one partitioned page job, not six independent 10 MiB floors.
+ *
+ * Does not read search_ocr_chunks, jfk_text_chunks, or embeddings.
+ * Related cards use slim columns — not r.* / release_history.
+ *
+ * Optional tables (document_topic_map, search_ocr_page_meta) are
+ * referenced here. If they are missing, the app falls back to
+ * {@link buildDocumentReadCoreSql}.
+ */
+export function buildDocumentReadBundleSql(tables: WarehouseTableRef): string {
+  return `WITH target AS (
+         SELECT ${documentDetailSelectSql("r")}
+           FROM ${recordsTable(tables)} r
+          WHERE r.document_id = @id OR CAST(r.naid AS STRING) = @id
+          ORDER BY IF(r.document_id = @id, 0, 1)
+          LIMIT 1
+       ),
+       map_rows AS (
+         SELECT m.entity_id, m.confidence, m.match_source
+           FROM ${entityMapTable(tables)} m
+          WHERE m.document_id = (SELECT document_id FROM target)
+       ),
+       related_ids AS (
+         SELECT m.document_id, COUNT(*) AS shared
+           FROM ${entityMapTable(tables)} m
+           JOIN map_rows USING (entity_id)
+          WHERE m.document_id != (SELECT document_id FROM target)
+          GROUP BY m.document_id
+          ORDER BY shared DESC
+          LIMIT 6
+       )
+       SELECT ${documentDetailSelectSql("t")},
+              ARRAY(SELECT AS STRUCT entity_id, confidence, match_source
+                      FROM map_rows) AS map_rows,
+              ARRAY(SELECT AS STRUCT ${searchDocumentSelectSql("rel")}
+                      FROM ${recordsTable(tables)} rel
+                      JOIN related_ids ri USING (document_id)
+                     ORDER BY ri.shared DESC, rel.document_id) AS related_rows,
+              ARRAY(SELECT topic_slug)
+                      FROM ${documentTopicMapTable(tables)}
+                     WHERE document_id = t.document_id) AS topic_slugs,
+              (SELECT AS STRUCT document_id, chunk_count, first_chunk_order,
+                      last_chunk_order, doc_shard
+                 FROM ${ocrPageMetaTable(tables)}
+                WHERE document_id = t.document_id
+                LIMIT 1) AS ocr_meta
+         FROM target t`;
+}
+
+/**
+ * Same as {@link buildDocumentReadBundleSql} without optional thin
+ * tables. Used only when topic map / page meta are missing.
+ */
+export function buildDocumentReadCoreSql(tables: WarehouseTableRef): string {
+  return `WITH target AS (
+         SELECT ${documentDetailSelectSql("r")}
+           FROM ${recordsTable(tables)} r
+          WHERE r.document_id = @id OR CAST(r.naid AS STRING) = @id
+          ORDER BY IF(r.document_id = @id, 0, 1)
+          LIMIT 1
+       ),
+       map_rows AS (
+         SELECT m.entity_id, m.confidence, m.match_source
+           FROM ${entityMapTable(tables)} m
+          WHERE m.document_id = (SELECT document_id FROM target)
+       ),
+       related_ids AS (
+         SELECT m.document_id, COUNT(*) AS shared
+           FROM ${entityMapTable(tables)} m
+           JOIN map_rows USING (entity_id)
+          WHERE m.document_id != (SELECT document_id FROM target)
+          GROUP BY m.document_id
+          ORDER BY shared DESC
+          LIMIT 6
+       )
+       SELECT ${documentDetailSelectSql("t")},
+              ARRAY(SELECT AS STRUCT entity_id, confidence, match_source
+                      FROM map_rows) AS map_rows,
+              ARRAY(SELECT AS STRUCT ${searchDocumentSelectSql("rel")}
+                      FROM ${recordsTable(tables)} rel
+                      JOIN related_ids ri USING (document_id)
+                     ORDER BY ri.shared DESC, rel.document_id) AS related_rows
+         FROM target t`;
 }
 
 export function buildIdentifierSearchSql(

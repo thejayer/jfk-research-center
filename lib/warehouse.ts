@@ -120,6 +120,10 @@ import {
   isArchiveIdentifierQuery,
   readBigQueryMaximumBytesBilled,
 } from "./cost-controls";
+import {
+  documentCacheKey,
+  withDocumentCache,
+} from "./document-cache";
 import { searchCacheKey, withSearchCache } from "./search-cache";
 import { extractSearchTokens, ocrTokenRangeParams } from "./search-tokens";
 import { warehouseJobLabels } from "./warehouse-request-context";
@@ -146,6 +150,9 @@ import {
   buildCorpusYearFacetSql,
   buildDocumentOnePageSql,
   buildDocumentPageMetaSql,
+  buildDocumentPagesSql,
+  buildDocumentReadBundleSql,
+  buildDocumentReadCoreSql,
   buildDocumentTopicCountSql,
   buildDocumentTopicSlugsSql,
   sortTopicSlugsByDisplayOrder,
@@ -212,6 +219,12 @@ function bigQueryParamTypes(
   for (const [key, value] of Object.entries(params)) {
     if (Array.isArray(value) && value.length === 0) {
       types[key] = ["STRING"];
+    } else if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      value.every((item) => typeof item === "number")
+    ) {
+      types[key] = ["INT64"];
     }
   }
   return Object.keys(types).length > 0 ? types : undefined;
@@ -1374,51 +1387,55 @@ export async function fetchDocument(
 ): Promise<DocumentResponse | null> {
   if (useMockData()) return buildDocumentResponse(id);
 
-  const rows = await query<RecordRow>(
-    `SELECT *
-       FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\`
-      WHERE document_id = @id OR CAST(naid AS STRING) = @id
-      ORDER BY IF(document_id = @id, 0, 1)
-      LIMIT 1`,
-    { id },
+  return withDocumentCache(
+    documentCacheKey(id, options.chunkOrder),
+    () => loadWarehouseDocument(id, options),
+    {
+      aliasKeys: (result) => [
+        documentCacheKey(result.document.id, options.chunkOrder),
+        documentCacheKey(result.document.naid, options.chunkOrder),
+      ],
+    },
   );
-  const doc = rows[0];
-  if (!doc) return null;
-  const canonicalId = doc.document_id;
+}
 
-  const [mapRows, related, ocrBody, relatedTopics] = await Promise.all([
-    query<{
-      entity_id: string;
-      confidence: ConfidenceLevel;
-      match_source: string;
-    }>(
-      `SELECT entity_id, confidence, match_source
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
-        WHERE document_id = @id`,
-      { id: canonicalId },
-    ),
-    query<RecordRow>(
-      `WITH this_entities AS (
-         SELECT entity_id
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
-          WHERE document_id = @id
-       ),
-       candidates AS (
-         SELECT m.document_id, COUNT(*) AS shared
-           FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\` m
-           JOIN this_entities USING (entity_id)
-          WHERE m.document_id != @id
-          GROUP BY m.document_id
-          ORDER BY shared DESC
-          LIMIT 6
-       )
-       SELECT r.*
-         FROM \`${PROJECT}.${DATASET_CURATED}.jfk_records\` r
-         JOIN candidates USING (document_id)`,
-      { id: canonicalId },
-    ),
-    fetchDocumentOcrFirstPage(canonicalId, options.chunkOrder),
-    fetchDocumentTopics(canonicalId),
+type DocumentMapRow = {
+  entity_id: string;
+  confidence: ConfidenceLevel;
+  match_source: string;
+};
+
+type DocumentBundleRow = RecordRow & {
+  map_rows?: DocumentMapRow[] | null;
+  related_rows?: RecordRow[] | null;
+  topic_slugs?: string[] | null;
+  ocr_meta?: OcrPageMetaRecord | null;
+};
+
+async function loadWarehouseDocument(
+  id: string,
+  options: FetchDocumentOptions,
+): Promise<DocumentResponse | null> {
+  const bundle = await loadDocumentReadBundle(id);
+  if (!bundle) return null;
+  const doc = bundle;
+  const canonicalId = doc.document_id;
+  const mapRows = Array.isArray(doc.map_rows) ? doc.map_rows : [];
+  const related = Array.isArray(doc.related_rows) ? doc.related_rows : [];
+  const bundledTopics = Array.isArray(doc.topic_slugs);
+  const bundledOcrMeta = Object.prototype.hasOwnProperty.call(doc, "ocr_meta");
+
+  const [ocrBody, relatedTopics] = await Promise.all([
+    bundledOcrMeta
+      ? fetchDocumentOcrFirstPageFromMeta(
+          canonicalId,
+          doc.ocr_meta ? normalizePageMeta(doc.ocr_meta) : null,
+          options.chunkOrder,
+        )
+      : fetchDocumentOcrFirstPage(canonicalId, options.chunkOrder),
+    bundledTopics
+      ? topicCardsFromSlugs(doc.topic_slugs ?? [])
+      : fetchDocumentTopics(canonicalId),
   ]);
 
   const entities = await loadEntities();
@@ -1489,6 +1506,66 @@ export async function fetchDocument(
     relatedEntities,
     relatedDocuments: related.map((r) => rowToCard(r)),
   };
+}
+
+const DOCUMENT_READ_BUNDLE_UNAVAILABLE_TTL_MS = 5 * 60 * 1000;
+let documentReadBundleUnavailableUntil = 0;
+
+function isDocumentReadBundleUnavailable(now = Date.now()): boolean {
+  return now < documentReadBundleUnavailableUntil;
+}
+
+function markDocumentReadBundleUnavailable(now = Date.now()): void {
+  documentReadBundleUnavailableUntil = now + DOCUMENT_READ_BUNDLE_UNAVAILABLE_TTL_MS;
+}
+
+/** Clears the optional-table unavailable marker. Used by tests. */
+export function resetDocumentReadBundleUnavailableForTests(): void {
+  documentReadBundleUnavailableUntil = 0;
+}
+
+async function loadDocumentReadBundle(
+  id: string,
+): Promise<DocumentBundleRow | null> {
+  if (isDocumentReadBundleUnavailable()) {
+    const rows = await query<DocumentBundleRow>(
+      buildDocumentReadCoreSql(WAREHOUSE_TABLES),
+      { id },
+    );
+    return rows[0] ?? null;
+  }
+  try {
+    const rows = await query<DocumentBundleRow>(
+      buildDocumentReadBundleSql(WAREHOUSE_TABLES),
+      { id },
+    );
+    return rows[0] ?? null;
+  } catch (error) {
+    if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+      console.warn(
+        "[warehouse] document read bundle optional tables unavailable; using core bundle",
+      );
+      markDocumentReadBundleUnavailable();
+      const rows = await query<DocumentBundleRow>(
+        buildDocumentReadCoreSql(WAREHOUSE_TABLES),
+        { id },
+      );
+      return rows[0] ?? null;
+    }
+    throw error;
+  }
+}
+
+async function topicCardsFromSlugs(slugs: string[]): Promise<TopicCard[]> {
+  const counts = await getThinTopicCountsCached();
+  const ordered = sortTopicSlugsByDisplayOrder(
+    slugs.filter(
+      (slug): slug is string =>
+        Boolean(slug && MVP_QUERYABLE_TOPIC_SLUGS.includes(slug)),
+    ),
+    TOPIC_DISPLAY_ORDER,
+  );
+  return ordered.map((slug) => topicToCard(slug, counts.get(slug) ?? 0));
 }
 
 const DOCUMENT_SITEMAP_TTL_MS = 24 * 60 * 60 * 1000;
@@ -2568,13 +2645,39 @@ async function fetchDocumentOcrPageRow(
   shard: number,
   chunkOrder: number,
 ): Promise<DocumentOcrPageRow | "unavailable" | null> {
+  const pages = await fetchDocumentOcrPageRows(documentId, shard, [chunkOrder]);
+  if (pages === "unavailable") return "unavailable";
+  return pages.get(chunkOrder) ?? null;
+}
+
+async function fetchDocumentOcrPageRows(
+  documentId: string,
+  shard: number,
+  chunkOrders: number[],
+): Promise<Map<number, DocumentOcrPageRow> | "unavailable"> {
+  const unique = [
+    ...new Set(
+      chunkOrders.filter((order) => Number.isFinite(order)).map((order) =>
+        Math.trunc(order),
+      ),
+    ),
+  ];
+  if (unique.length === 0) return new Map();
   try {
     const rows = await query<Record<string, unknown>>(
-      buildDocumentOnePageSql(WAREHOUSE_TABLES),
-      { id: documentId, shard, chunkOrder },
+      unique.length === 1
+        ? buildDocumentOnePageSql(WAREHOUSE_TABLES)
+        : buildDocumentPagesSql(WAREHOUSE_TABLES),
+      unique.length === 1
+        ? { id: documentId, shard, chunkOrder: unique[0] }
+        : { id: documentId, shard, chunkOrders: unique },
     );
-    const page = rows[0] ? normalizePageRow(rows[0]) : null;
-    return page;
+    const pages = new Map<number, DocumentOcrPageRow>();
+    for (const row of rows) {
+      const page = normalizePageRow(row);
+      if (page) pages.set(page.chunk_order, page);
+    }
+    return pages;
   } catch (error) {
     if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
       console.warn(
@@ -2592,36 +2695,44 @@ async function fetchDocumentOcrFirstPage(
 ): Promise<DocumentOcrFirstPage> {
   const metaResult = await fetchDocumentOcrPageMeta(documentId);
   if (metaResult.kind !== "meta") return metaResult;
-  const meta = metaResult.meta;
+  return fetchDocumentOcrFirstPageFromMeta(documentId, metaResult.meta, chunkOrder);
+}
+
+async function fetchDocumentOcrFirstPageFromMeta(
+  documentId: string,
+  meta: OcrPageMetaRecord | null,
+  chunkOrder?: number | null,
+): Promise<DocumentOcrFirstPage> {
+  if (!meta) return { kind: "none" };
+  ocrPageMetaCache.setPositive(documentId, meta);
   const requested =
     chunkOrder == null || !Number.isFinite(chunkOrder)
       ? meta.first_chunk_order
       : Math.trunc(chunkOrder);
-  const needsLastLabel = requested !== meta.last_chunk_order;
-  const [requestedPage, lastPage] = await Promise.all([
-    fetchDocumentOcrPageRow(documentId, meta.doc_shard, requested),
-    needsLastLabel
-      ? fetchDocumentOcrPageRow(documentId, meta.doc_shard, meta.last_chunk_order)
-      : Promise.resolve(null),
-  ]);
-  if (requestedPage === "unavailable") return { kind: "unavailable" };
-  let page = requestedPage;
+  const chunkOrders = [requested];
+  if (requested !== meta.last_chunk_order) {
+    chunkOrders.push(meta.last_chunk_order);
+  }
+  const pages = await fetchDocumentOcrPageRows(
+    documentId,
+    meta.doc_shard,
+    chunkOrders,
+  );
+  if (pages === "unavailable") return { kind: "unavailable" };
+  let page = pages.get(requested) ?? null;
   if (!page && requested !== meta.first_chunk_order) {
-    const firstPage = await fetchDocumentOcrPageRow(
+    const firstPages = await fetchDocumentOcrPageRows(
       documentId,
       meta.doc_shard,
-      meta.first_chunk_order,
+      [meta.first_chunk_order],
     );
-    if (firstPage === "unavailable") return { kind: "unavailable" };
-    page = firstPage;
+    if (firstPages === "unavailable") return { kind: "unavailable" };
+    page = firstPages.get(meta.first_chunk_order) ?? null;
   }
   if (!page) return { kind: "unavailable" };
   const lastLabelSource =
-    lastPage && lastPage !== "unavailable"
-      ? lastPage
-      : requested === meta.last_chunk_order
-        ? page
-        : null;
+    pages.get(meta.last_chunk_order) ??
+    (requested === meta.last_chunk_order ? page : null);
   return {
     kind: "page",
     meta,
