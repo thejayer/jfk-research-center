@@ -205,10 +205,39 @@ describe("warehouse search SQL cost envelope", () => {
     // ARRAY(SELECT topic_slug) FROM … )  — BigQuery: Expected end of input but got ")"
     expect(sql).not.toMatch(/ARRAY\(SELECT topic_slug\)\s+FROM/i);
     expect(sql).toMatch(
-      /ARRAY\(\s*SELECT topic_slug\s+FROM[\s\S]+document_topic_map[\s\S]+WHERE document_id = t\.document_id\s*\)\s+AS topic_slugs/,
+      /ARRAY\(\s*SELECT topic_slug\s+FROM[\s\S]+document_topic_map[\s\S]+WHERE document_id = \(SELECT document_id FROM target\)\s*\)\s+AS topic_slugs/,
     );
     const coreSql = buildDocumentReadCoreSql(tables);
     expect(coreSql).not.toMatch(/ARRAY\(SELECT topic_slug\)\s+FROM/i);
+  });
+
+  it("de-correlates topic_slugs and ocr_meta from outer t.document_id", () => {
+    const sql = buildDocumentReadBundleSql(tables);
+    // BigQuery: "Correlated subqueries that reference other tables are not
+    // supported unless they can be de-correlated, such as by transforming
+    // them into an efficient JOIN." Outer `t.document_id` against
+    // document_topic_map / search_ocr_page_meta fails; the scalar
+    // `(SELECT document_id FROM target)` de-correlates and succeeds.
+    const topicStart = sql.indexOf("ARRAY(SELECT topic_slug");
+    const topicEnd = sql.indexOf("AS topic_slugs");
+    const topicBlock = sql.slice(topicStart, topicEnd);
+    expect(topicStart).toBeGreaterThan(-1);
+    expect(topicBlock).toContain("document_id = (SELECT document_id FROM target)");
+    expect(topicBlock).not.toContain("= t.document_id");
+
+    const ocrStart = sql.indexOf("(SELECT AS STRUCT document_id, chunk_count");
+    const ocrEnd = sql.indexOf("AS ocr_meta");
+    const ocrBlock = sql.slice(ocrStart, ocrEnd);
+    expect(ocrStart).toBeGreaterThan(-1);
+    expect(ocrBlock).toContain("document_id = (SELECT document_id FROM target)");
+    expect(ocrBlock).not.toContain("= t.document_id");
+
+    expect(sql).not.toMatch(/document_id = t\.document_id/);
+
+    const coreSql = buildDocumentReadCoreSql(tables);
+    expect(coreSql).not.toContain("document_topic_map");
+    expect(coreSql).not.toContain("search_ocr_page_meta");
+    expect(coreSql).not.toMatch(/document_id = t\.document_id/);
   });
 
   it("falls back to a core bundle that omits optional thin tables", () => {
