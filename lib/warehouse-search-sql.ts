@@ -382,6 +382,11 @@ export function buildDocumentPagesSql(tables: WarehouseTableRef): string {
  * Optional tables (document_topic_map, search_ocr_page_meta) are
  * referenced here. If they are missing, the app falls back to
  * {@link buildDocumentReadCoreSql}.
+ *
+ * Subqueries against those external tables must filter with
+ * `(SELECT document_id FROM target)` — not outer `t.document_id`.
+ * BigQuery rejects correlated subqueries that reference other tables
+ * unless they can be de-correlated into an efficient JOIN.
  */
 export function buildDocumentReadBundleSql(tables: WarehouseTableRef): string {
   return `WITH target AS (
@@ -414,11 +419,11 @@ export function buildDocumentReadBundleSql(tables: WarehouseTableRef): string {
                      ORDER BY ri.shared DESC, rel.document_id) AS related_rows,
               ARRAY(SELECT topic_slug
                       FROM ${documentTopicMapTable(tables)}
-                     WHERE document_id = t.document_id) AS topic_slugs,
+                     WHERE document_id = (SELECT document_id FROM target)) AS topic_slugs,
               (SELECT AS STRUCT document_id, chunk_count, first_chunk_order,
                       last_chunk_order, doc_shard
                  FROM ${ocrPageMetaTable(tables)}
-                WHERE document_id = t.document_id
+                WHERE document_id = (SELECT document_id FROM target)
                 LIMIT 1) AS ocr_meta
          FROM target t`;
 }
