@@ -412,7 +412,7 @@ export function buildDocumentReadBundleSql(tables: WarehouseTableRef): string {
                       FROM ${recordsTable(tables)} rel
                       JOIN related_ids ri USING (document_id)
                      ORDER BY ri.shared DESC, rel.document_id) AS related_rows,
-              ARRAY(SELECT topic_slug)
+              ARRAY(SELECT topic_slug
                       FROM ${documentTopicMapTable(tables)}
                      WHERE document_id = t.document_id) AS topic_slugs,
               (SELECT AS STRUCT document_id, chunk_count, first_chunk_order,
