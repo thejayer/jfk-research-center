@@ -8,6 +8,7 @@ import {
   fetchTopics,
 } from "@/lib/api-client";
 import type { TopicCard, TopicResponse } from "@/lib/api-types";
+import { isRedirectOnlyTopicSlug } from "@/lib/topic-slugs";
 import { Badge } from "@/components/ui/badge";
 import { LinkButton } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
@@ -91,7 +92,11 @@ async function fetchTopicDetailsInBatches(
   for (let index = 0; index < topics.length; index += batchSize) {
     const batch = topics.slice(index, index + batchSize);
     const batchDetails = await Promise.all(
-      batch.map((topic) => fetchTopic(topic.slug).catch(() => null)),
+      batch.map((topic) =>
+        isRedirectOnlyTopicSlug(topic.slug)
+          ? Promise.resolve(null)
+          : fetchTopic(topic.slug).catch(() => null),
+      ),
     );
     details.push(...batchDetails);
   }
