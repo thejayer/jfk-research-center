@@ -16,6 +16,7 @@
  */
 
 import { BigQuery } from "@google-cloud/bigquery";
+import { isRedirectOnlyTopicSlug } from "./topic-slugs";
 import type {
   ConfidenceLevel,
   CorpusManifest,
@@ -753,8 +754,13 @@ const TOPIC_DISPLAY_ORDER = [
 // joins topic docs against the MVP layer MUST iterate this list
 // instead of TOPIC_DISPLAY_ORDER to avoid querying a non-existent table.
 const MVP_QUERYABLE_TOPIC_SLUGS = TOPIC_DISPLAY_ORDER.filter(
-  (s) => s !== "physical-evidence",
+  (s) => !isRedirectOnlyTopicSlug(s),
 );
+
+/** True when a topic slug is backed by a real jfk_mvp.* table. */
+export function isMvpQueryableTopicSlug(slug: string): boolean {
+  return MVP_QUERYABLE_TOPIC_SLUGS.includes(slug);
+}
 
 function queryableTopicTables(): TopicTableRef[] {
   return MVP_QUERYABLE_TOPIC_SLUGS.map((slug) => ({
@@ -1223,6 +1229,9 @@ export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
 
   const t = TOPIC_CATALOG[slug];
   if (!t) return null;
+  // Redirect-only topics (physical-evidence) have no jfk_mvp table; skip
+  // BigQuery entirely so the API returns 404 instead of a failed-query 500.
+  if (!isMvpQueryableTopicSlug(slug)) return null;
 
   const [docs, count, entityCoOcc, aiRows, articleRows, addendaRows] = await Promise.all([
     query<RecordRow>(
