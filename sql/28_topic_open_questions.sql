@@ -14,7 +14,7 @@
 --
 -- Framing reminder:
 --   Same constraints as sql/27. The article surfaces tensions; it does
---   not adjudicate them. See CLAUDE.md neutral-framing principle.
+--   not adjudicate them. See the README data rules and editorial policy.
 --
 -- Cost:
 --   6 topics × ~30k input / ~3k output tokens = roughly $0.30 total per

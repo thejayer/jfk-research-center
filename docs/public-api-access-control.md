@@ -1,8 +1,8 @@
 # Public API Access Control
 
-COM-60 defined the access-control layer for the public `/api/v1/*` API. COM-167
-added the first enforcement pass. Warehouse and Vertex endpoints now require an
-API key; the OpenAPI contract stays readable without one.
+This document defines the access-control layer for the public `/api/v1/*` API.
+Warehouse and Vertex endpoints now require an API key; the OpenAPI contract
+stays readable without one.
 
 ## Current State
 
@@ -125,14 +125,13 @@ Kill switches should fail closed with `503` and a short public error message.
 
 ## Rollout Sequence
 
-1. Land this policy inventory and documentation. Done in COM-60.
-2. Add route-helper enforcement that reads `lib/public-api-access.ts`. Done in
-   COM-167.
+1. Land this policy inventory and documentation. Done.
+2. Add route-helper enforcement that reads `lib/public-api-access.ts`. Done.
 3. Update OpenAPI with security schemes and `429` / `401` / `403` responses.
-   Done in COM-167.
-4. Turn on metering for `GET /api/v1/documents`. Done in COM-167; superseded
-   by key-required warehouse access.
-5. Require keys for `GET /api/v1/search/semantic`. Done in COM-167.
+   Done.
+4. Turn on metering for `GET /api/v1/documents`. Done; superseded by
+   key-required warehouse access.
+5. Require keys for `GET /api/v1/search/semantic`. Done.
 6. Require keys for all warehouse `/api/v1` routes. Done.
 7. Replace the environment/in-memory key and counter store with durable
    hashed-key metadata and distributed counters.
@@ -143,4 +142,5 @@ Kill switches should fail closed with `503` and a short public error message.
 - No billing.
 - No account dashboard.
 - No write API.
-- No public BigQuery mirror changes; that belongs to COM-61.
+- No public BigQuery mirror changes; that belongs to a separate dataset-mirror
+  effort.

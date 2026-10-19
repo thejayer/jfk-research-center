@@ -1,8 +1,8 @@
 # Grounded /ask Evaluation And Citation Guardrails
 
-COM-59 defines the safety bar for a future `/ask` research assistant. The
-public chat UI should not ship until these rules are wired into prompt tests,
-retrieval tests, and model-change regression checks.
+This document defines the safety bar for a future `/ask` research assistant.
+The public chat UI should not ship until these rules are wired into prompt
+tests, retrieval tests, and model-change regression checks.
 
 ## Goal
 

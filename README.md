@@ -26,9 +26,9 @@ fall back to description-only chunking.
 
 ## Development workflow
 
-This repo uses Linear as the planning layer and GitHub as the code/deploy layer.
-See `docs/development-workflow.md` before starting substantial app, deploy, or
-data-ingestion work.
+This repo uses GitHub Issues for planning and GitHub pull requests for review
+and deploy. See `docs/development-workflow.md` before starting substantial app,
+deploy, or data-ingestion work.
 
 The deferred `/ask` assistant is gated on
 `docs/ask-evaluation-guardrails.md`, which defines the gold-set questions,
@@ -240,12 +240,9 @@ connects via `@google-cloud/bigquery` using Application Default Credentials.
 The UI never imports warehouse code directly; the canonical contract is
 `lib/api-types.ts`.
 
-On Cloud Run, the runtime service account needs:
-- `roles/bigquery.dataViewer` on the `jfk_curated` and `jfk_mvp` datasets
-- `roles/bigquery.jobUser` at the project level
-
-The default compute service account already has `roles/editor`, which
-covers both.
+On Cloud Run, grant the runtime service account least privilege: only the
+BigQuery dataset-read and job-user roles required to serve curated and MVP
+tables. Do not use a broad editor role.
 
 ## Data rules
 

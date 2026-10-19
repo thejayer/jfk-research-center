@@ -15,7 +15,7 @@ describe("ask gold question set", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("covers the required risk cases from COM-59", () => {
+  it("covers the required risk cases from the /ask guardrail spec", () => {
     expect(askGoldQuestionsByRisk("ambiguous_identity")).not.toHaveLength(0);
     expect(askGoldQuestionsByRisk("unsupported_claim")).not.toHaveLength(0);
     expect(askGoldQuestionsByRisk("conspiracy_framed_prompt")).not.toHaveLength(0);
