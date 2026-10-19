@@ -38,7 +38,8 @@
     "three": "^0.184.0"
   },
   "overrides": {
-    "postcss": "8.5.13"
+    "postcss": ">=8.5.23",
+    "sharp": ">=0.35.5"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
