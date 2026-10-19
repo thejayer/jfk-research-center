@@ -1,285 +1,116 @@
 # JFK Research Center
 
-An editorial archival research site for records related to the assassination
-of President John F. Kennedy. Metadata comes from the U.S. National Archives
-JFK Records Collection; searchable OCR text comes from the
-[abbyy/JFK-OCR](https://github.com/abbyy/JFK-OCR) repository.
+Search, read, and connect primary-source JFK assassination records from the U.S. National Archives.
+
+[![CI](https://github.com/thejayer/jfk-research-center/actions/workflows/deploy.yml/badge.svg?branch=main)](https://github.com/thejayer/jfk-research-center/actions/workflows/deploy.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Live site](https://img.shields.io/badge/live-researchjfk.ai-0b6e4f.svg)](https://researchjfk.ai)
+
+**Live:** [researchjfk.ai](https://researchjfk.ai)
+
+![Home page of the JFK Research Center](docs/screenshots/home.png)
+
+## Features
+
+- **Archive search** — keyword search across 37,000+ indexed NARA records, with agency/year facets, confidence labels, and OCR excerpts when coverage exists.
+- **Document reader** — page-at-a-time OCR for records that have text, plus NARA metadata, release history, and links to related topics and entities.
+- **Topics and entities** — curated dossiers (Warren Commission, FBI, CIA, Dealey Plaza, and more) and profiles for people, agencies, and organizations.
+- **Timeline and evidence** — case chronology, official exhibits, and a Dealey Plaza witness map with a trajectory sandbox for comparing published assumptions.
+- **Official media pointers** — public JFK Library catalog references (metadata and eligibility notes; media files are not vendored in this repo).
+- **Public JSON API** — first-party `/api/*` routes power the site; warehouse `/api/v1/*` routes require an API key and are rate-limited.
+- **Cost and abuse guards** — per-query BigQuery byte caps, in-process search/document caches, crawler blocks, and per-route rate limits in front of warehouse work.
+
+![Search results for “oswald”](docs/screenshots/search-oswald.png)
+
+![Document reader for a NARA record](docs/screenshots/document.png)
+
+![Warren Commission topic dossier](docs/screenshots/topic.png)
+
+## Architecture
+
+NARA JFK collection metadata and public OCR text are loaded into BigQuery. A Next.js App Router app reads that warehouse through server-side `/api/*` handlers, then runs on Cloud Run behind an HTTPS load balancer with Cloud Armor. Cost-sensitive routes apply byte caps, rate limits, and short-lived caches so a single search or document open cannot scan the full OCR corpus.
+
+```mermaid
+flowchart LR
+  nara[NARA JFK metadata] --> bq[BigQuery]
+  ocr[Public OCR text] --> bq
+  bq --> api[Next.js API routes]
+  api --> ui[Next.js App Router]
+  ui --> run[Cloud Run]
+  armor[Cloud Armor] --> lb[HTTPS load balancer]
+  lb --> run
+  api --> guards[Per-query cost guards and caches]
+```
+
+Warehouse SQL lives in `sql/`. Runtime guards live in `middleware.ts` and `lib/cost-controls.ts`.
 
 ## Data sources
 
-| Role | Source | Coverage |
-|---|---|---|
-| Metadata | NARA XLSX manifests (2017-18, 2021, 2022, 2023 releases) | 37,138 unique record numbers |
-| OCR text | [abbyy/JFK-OCR](https://github.com/abbyy/JFK-OCR), Git LFS | 2,176 unique RIFs with full OCR |
+Primary records in this project are **U.S. government works** from the National Archives and Records Administration (NARA). Those source records are in the **public domain**.
 
-The warehouse joins these sources in `jfk_staging.abbyy_to_nara_map` and
-promotes matched ABBYY chunks into `jfk_curated.jfk_text_chunks` with a
-`source_type = 'abbyy_ocr'` discriminator. Records without ABBYY coverage
-fall back to description-only chunking.
+| Role | Source | Notes |
+| --- | --- | --- |
+| Record metadata | [NARA JFK Assassination Records Collection](https://www.archives.gov/research/jfk) release manifests (2017–2018, 2021, 2022, 2023, 2025) | Catalog identifiers, titles, agencies, dates, and release status for the indexed subset |
+| Searchable OCR | [abbyy/JFK-OCR](https://github.com/abbyy/JFK-OCR) | Public OCR for a subset of RIFs; records without OCR fall back to NARA description text |
+| Official media references | [JFK Library](https://www.jfklibrary.org/) public catalog metadata | Pointers and eligibility notes only; binaries are not vendored here |
 
-## Stack
+Coverage is a curated working subset of the broader collection. OCR is partial and marked as machine-generated on document pages. Provenance (`abbyy_ocr` vs description) is retained in the warehouse.
 
-- **Next.js 15** (App Router, TypeScript, React Server Components)
-- **No CSS framework** — the design system lives in `app/globals.css`
-  (tokens) and colocated inline styles (rendered on the server).
-- **BigQuery** (eventual backend) — schema and example queries in `sql/`.
-
-## Development workflow
-
-This repo uses GitHub Issues for planning and GitHub pull requests for review
-and deploy. See `docs/development-workflow.md` before starting substantial app,
-deploy, or data-ingestion work.
-
-The deferred `/ask` assistant is gated on
-`docs/ask-evaluation-guardrails.md`, which defines the gold-set questions,
-citation contract, refusal behavior, and regression checks required before any
-public chat UI ships.
-
-Warehouse and Vertex routes under `/api/v1/*` require an API key
-(`Authorization: Bearer <key>` or `X-JFKRC-API-Key`) and are rate-limited.
-`GET /api/v1/openapi.json` stays anonymous so the contract is readable.
-Configure keys with the comma-separated `JFK_API_KEYS` environment variable.
-See `docs/public-api-access-control.md`.
-
-## Running locally
+## Local development
 
 ```bash
 npm install
-# Required only for BigQuery-backed dev (`npm run dev`)
-gcloud auth application-default login
-npm run dev
-```
-
-The app starts on `http://localhost:3000`. Every route is wired through
-`lib/api-client.ts`, which fetches the internal `/api/*` endpoints. Those
-endpoints read from BigQuery via `lib/warehouse.ts`. Set `JFK_BQ_PROJECT`
-if your project is not `jfk-vault`.
-
-For offline demos without a BigQuery connection, `lib/mock-data.ts` is still
-in the tree and can be enabled for the core public pages:
-
-```bash
 npm run dev:mock
 ```
 
-Mock mode sets `JFK_DATA_SOURCE=mock` and serves home, search, topic,
-entity, document, entities, topics, and corpus-manifest API responses from
-local fixtures. It runs offline without `gcloud` ADC authentication. BigQuery
-remains the default for `npm run dev`.
+Mock mode (`JFK_DATA_SOURCE=mock`) serves home, search, topic, entity, and document routes from local fixtures. It does not need cloud credentials.
+
+To run against a BigQuery warehouse:
+
+```bash
+gcloud auth application-default login
+export JFK_BQ_PROJECT=YOUR_GCP_PROJECT
+npm run dev
+```
+
+The app listens on `http://localhost:3000`.
+
+| Variable | Purpose |
+| --- | --- |
+| `JFK_BQ_PROJECT` | GCP project that hosts the warehouse (placeholder: `YOUR_GCP_PROJECT`) |
+| `JFK_DATA_SOURCE` | `mock` for fixtures; omit or use any other value for BigQuery |
+| `JFK_API_BASE_URL` | Optional override when pages should call a remote API host |
+| `JFK_BQ_MAX_BYTES_BILLED` | Optional per-job BigQuery byte cap |
+| `JFK_SEARCH_CACHE_TTL_SECONDS` | Optional in-process search cache lifetime |
+| `JFK_API_KEYS` | Comma-separated keys for `/api/v1/*` warehouse routes |
+
+Do not commit real keys, tokens, or credential files. See `docs/development-workflow.md` for the typecheck / test / build / accessibility gates.
 
 ### Scripts
 
 | Script | Purpose |
-|---|---|
-| `npm run dev` | Start the Next.js dev server |
-| `npm run dev:mock` | Start the dev server with local fixture data |
+| --- | --- |
+| `npm run dev` | Next.js dev server (BigQuery by default) |
+| `npm run dev:mock` | Dev server with local fixture data |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run test` | Vitest |
 | `npm run build` | Production build |
-| `npm run start` | Run the production build |
-| `npm run typecheck` | `tsc --noEmit` against the project |
-| `npm run test` | Run Vitest tests |
+| `npm run start` | Serve the production build |
+| `npm run audit:a11y` | Accessibility and layout regression gate |
 
 ## Project layout
 
 ```
-app/                Next.js App Router pages and API routes
-components/
-  layout/           site header, footer, shell, theme toggle
-  search/           search bar, filters, result cards, mention snippet
-  entities/         hero, timeline, related entities, document list
-  topics/           topic hero, document grid
-  documents/        header, metadata panel, OCR panel, source links
-  ui/               badge, button, card, section heading, stat pill, empty state
-lib/
-  api-types.ts      canonical UI-facing contract types
-  api-client.ts     server-side fetcher used by pages; calls /api/*
-  mock-data.ts      mock data factory (behind the API routes)
-  format.ts         date, number, truncate, highlight helpers
-  search.ts         search param parsing + URL building
-  constants.ts      featured slugs, agency list, confidence levels
-data/               JSON snapshots of mock payloads (not loaded at runtime)
-sql/                BigQuery SQL for the curated + MVP warehouse layers
-scripts/            helper scripts (e.g. export_mock_data.ts)
+app/           App Router pages and API routes
+components/    Search, documents, topics, layout, and shared UI
+lib/           Warehouse adapter, cost guards, API types, and tests
+sql/           BigQuery SQL for curated and search tables
+data/          Fixture snapshots used by mock mode
+docs/          Workflow, cost, and API notes
 ```
-
-## Design system
-
-Tokens are declared in `app/globals.css` and used throughout the components:
-
-- **Color:** warm paper-like light mode, charcoal dark mode. The `data-theme`
-  attribute on `<html>` switches palettes; `ThemeToggle` persists the choice
-  to `localStorage` under `jfkrc-theme`.
-- **Typography:** Source Serif 4 for display, Inter for body. Body text
-  sits around 17 px with a 70-character reading width.
-- **Layout:** a single `.container` rule caps content at 1200 px.
-- **Motion:** 150–220 ms transitions on borders, backgrounds, and a subtle
-  reveal animation (`.reveal`). Respects `prefers-reduced-motion`.
-
-## API contract
-
-All page data flows through the `/api/*` JSON endpoints. Types are defined
-in `lib/api-types.ts`.
-
-| Route | Response |
-|---|---|
-| `GET /api/home` | `HomeResponse` |
-| `GET /api/search?q=…&mode=document\|mention` | `SearchResponse` |
-| `GET /api/entity/:slug` | `EntityResponse` |
-| `GET /api/topic/:slug` | `TopicResponse` |
-| `GET /api/document/:id` | `DocumentResponse` |
-
-Pages consume these via `lib/api-client.ts`, which accepts an optional
-`JFK_API_BASE_URL` environment variable for pointing at a non-local API
-host (e.g. a Cloud Run deployment). Production Cloud Run sets it to
-`https://researchjfk.ai`.
-
-## Warehouse pipeline
-
-The `sql/` folder is the full warehouse build. Run files in the order their
-filename prefix implies (`05_` → `10_` → `11_` → …). `sql/00_raw_notes.md`
-documents the assumed inputs and the promotion logic.
-
-### 1. Load NARA manifests into `jfk_raw.nara_manifest`
-
-```bash
-# Download the XLSX manifests for each release
-for r in 2017-2018 2021 2022 2023; do
-  curl -sSL -o "/tmp/jfk-$r.xlsx" \
-    "https://www.archives.gov/files/research/jfk/national-archives-jfk-assassination-records-$r-release.xlsx"
-done
-
-# Normalize into one unified CSV
-# (see scripts/normalize_nara_manifests.py for the full script)
-python3 scripts/normalize_nara_manifests.py \
-  --inputs /tmp/jfk-*.xlsx --out /tmp/jfk-data/jfk-records.csv
-
-# Load into BigQuery
-bq load --source_format=CSV --skip_leading_rows=1 --allow_quoted_newlines \
-  --replace jfk_raw.nara_manifest /tmp/jfk-data/jfk-records.csv \
-  record_num:STRING,file_name:STRING,release_date:STRING,formerly_withheld:STRING,agency:STRING,doc_date:STRING,doc_type:STRING,file_num:STRING,to_name:STRING,from_name:STRING,title:STRING,num_pages:STRING,originator:STRING,record_series:STRING,review_date:STRING,comments:STRING,pages_released:STRING,release_set:STRING,agency_from_prefix:STRING,pdf_url:STRING
-```
-
-### 2. Load ABBYY OCR into `jfk_staging`
-
-The `scripts/ingest_abbyy.py` script handles the full pipeline: it lists
-the 2,182 PDFs in the ABBYY repo via GitHub's tree API, downloads each
-through the LFS media URL (one PDF on disk at a time — safe on tiny VMs),
-runs `pdftotext`, chunks the output, and loads
-`jfk_staging.abbyy_documents` + `jfk_staging.abbyy_text_chunks`.
-
-```bash
-# Default: streaming mode (disk-safe — never holds more than one PDF locally)
-python3 scripts/ingest_abbyy.py \
-  --out-dir /tmp/abbyy-out \
-  --project jfk-vault \
-  --dataset jfk_staging
-
-# Faster for repeat runs if you have ~300 MB free:
-python3 scripts/ingest_abbyy.py --clone \
-  --repo-dir /tmp/abbyy/JFK-OCR \
-  --out-dir /tmp/abbyy-out \
-  --project jfk-vault --dataset jfk_staging
-
-# Quick sanity check with 25 documents, no upload:
-python3 scripts/ingest_abbyy.py --limit 25 --skip-load --out-dir /tmp/abbyy-out
-```
-
-Set `GITHUB_TOKEN` in the environment if you hit GitHub's unauthenticated
-tree-API rate limit (60 req/hr).
-
-### 3. Build curated + MVP tables
-
-```bash
-# Join ABBYY to NARA (produces jfk_staging.abbyy_to_nara_map)
-bq query --use_legacy_sql=false < sql/05_abbyy_to_nara_map.sql
-
-# Canonical record table (one row per RIF, latest-release wins)
-bq query --use_legacy_sql=false < sql/10_curated_jfk_records.sql
-
-# Text chunks (ABBYY preferred, description fallback)
-bq query --use_legacy_sql=false < sql/11_curated_jfk_text_chunks.sql
-
-# Entities + document-entity map (OCR now adds a real 'low'-confidence tier)
-bq query --use_legacy_sql=false < sql/12_curated_jfk_entities.sql
-bq query --use_legacy_sql=false < sql/13_curated_jfk_document_entity_map.sql
-
-# MVP per-topic and per-entity tables
-bq query --use_legacy_sql=false < sql/20_mvp_oswald_mentions.sql
-bq query --use_legacy_sql=false < sql/21_mvp_topic_views.sql
-
-# (Optional) Search indexes for SEARCH() queries
-bq query --use_legacy_sql=false < sql/30_search_indexes.sql
-
-# Data-quality views
-bq query --use_legacy_sql=false < sql/90_dq_reports.sql
-```
-
-Re-run the appropriate subset whenever a source layer updates:
-
-| Change | Re-run |
-|---|---|
-| New NARA release | `sql/10_` → `sql/13_` → `sql/21_` |
-| New ABBYY documents | `scripts/ingest_abbyy.py` → `sql/05_` → `sql/11_` → `sql/13_` → `sql/20_` |
-| Entity aliases edited | `sql/12_` → `sql/13_` → `sql/20_` |
-
-### 4. Data-quality checks
-
-After the pipeline runs, `jfk_staging` has five DQ views:
-
-```sql
-SELECT * FROM `jfk-vault.jfk_staging.dq_unmatched_abbyy`      LIMIT 50;
-SELECT * FROM `jfk-vault.jfk_staging.dq_duplicate_abbyy_matches` LIMIT 20;
-SELECT * FROM `jfk-vault.jfk_staging.dq_short_chunks`          LIMIT 20;
-SELECT * FROM `jfk-vault.jfk_staging.dq_ocr_coverage_by_release`;
-SELECT * FROM `jfk-vault.jfk_staging.dq_join_summary`;
-```
-
-### 5. Frontend → BigQuery
-
-Each `app/api/*/route.ts` handler imports from `@/lib/warehouse.ts`, which
-connects via `@google-cloud/bigquery` using Application Default Credentials.
-The UI never imports warehouse code directly; the canonical contract is
-`lib/api-types.ts`.
-
-On Cloud Run, grant the runtime service account least privilege: only the
-BigQuery dataset-read and job-user roles required to serve curated and MVP
-tables. Do not use a broad editor role.
-
-## Data rules
-
-- **Neutral archival language.** No sensational framing, no conspiracy
-  tone, no lorem ipsum.
-- **Machine-generated OCR is marked as such.** The document page shows a
-  note under the OCR Excerpt heading; descriptions reference specific
-  record groups (RG 65, 233, 263, 272, 541) rather than generic claims.
-- **Confidence is not a judgment call.** It reflects where the match
-  landed: `high` = title, `medium` = description, `low` = ABBYY OCR only.
-- **Provenance is preserved.** Every row in `jfk_curated.jfk_text_chunks`
-  records its `source_type` (`abbyy_ocr` or `description`), and every
-  ABBYY chunk traces back to its source filename via
-  `jfk_staging.abbyy_to_nara_map`.
-
-## Accessibility
-
-- Semantic HTML throughout (`<header>`, `<nav>`, `<main>`, `<footer>`,
-  `<article>`, `<aside>`, `<section>`).
-- Visible focus rings via `:focus-visible`.
-- `prefers-reduced-motion` is honored.
-- Search has a keyboard shortcut (`/`).
-- Theme toggle exposes `aria-label` and title text.
-
-## Non-goals (MVP)
-
-- Live National Archives API calls.
-- Semantic / vector retrieval — rule-based matching only. The `chunk` table
-  is structured so embeddings can be layered on later.
-- OCR of the full NARA collection. ABBYY's 2,176 RIFs cover the 2025
-  release; older releases rely on description-level search until either
-  ABBYY extends their corpus or we run Document AI ourselves.
-- User accounts, bookmarks, annotations.
 
 ## License
 
-This repository is intended for non-commercial research use. Underlying
-primary records are produced by the U.S. federal government and are
-in the public domain; derivative editorial content in this codebase is
-released for archival study purposes only.
+Code in this repository is released under the [MIT License](LICENSE).
+
+NARA source records are U.S. government works and are in the public domain. OCR text from [abbyy/JFK-OCR](https://github.com/abbyy/JFK-OCR) remains subject to that repository’s license. Editorial summaries on topic pages are generated from the retrieved records and should be checked against the primary documents.
