@@ -175,8 +175,7 @@ export const ROADMAP: RoadmapItem[] = [
     phase: "Phase 5-D",
     description:
       "Hard-cited Q&A grounded in the corpus via Vertex AI. Gold-set eval and citation guardrails are documented before public UI work.",
-    trackingUrl:
-      "https://linear.app/commerce-street/issue/COM-59/define-grounded-ask-chatbot-evaluation-and-citation-guardrails",
+    trackingUrl: "https://github.com/thejayer/jfk-research-center/issues",
   },
   {
     surface: "/compare",
@@ -185,8 +184,7 @@ export const ROADMAP: RoadmapItem[] = [
     phase: "Phase 5-B",
     description:
       "Foundation view for comparing the same NAID/RIF across releases. Visual diffs remain gated on per-release OCR and source PDF provenance.",
-    trackingUrl:
-      "https://linear.app/commerce-street/issue/COM-58/build-per-release-redaction-diff-foundation-for-compare",
+    trackingUrl: "https://github.com/thejayer/jfk-research-center/issues",
   },
   {
     surface: "BigQuery public dataset mirror",
@@ -203,7 +201,6 @@ export const ROADMAP: RoadmapItem[] = [
     phase: "Phase 5-E follow-up",
     description:
       "API-key and rate-limit enforcement on warehouse and Vertex /api/v1 routes. OpenAPI remains anonymous; first-party /api/* site routes are unchanged.",
-    trackingUrl:
-      "https://linear.app/commerce-street/issue/COM-60/plan-public-api-key-and-rate-limit-layer",
+    trackingUrl: "https://github.com/thejayer/jfk-research-center/issues",
   },
 ];

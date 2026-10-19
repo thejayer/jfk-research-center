@@ -17,8 +17,8 @@
 -- Framing:
 --   This is NOT a conspiracy page. The prompt asks the model to note
 --   what is in tension, missing, or unexplained — without drawing any
---   conclusion about whether the official account is correct. See
---   CLAUDE.md (neutral-framing principle).
+--   conclusion about whether the official account is correct. See the
+--   README data rules and editorial policy (neutral-framing principle).
 --
 -- Dependencies:
 --   - jfk_curated.gemini_pro   (sql/24_remote_models.sql)

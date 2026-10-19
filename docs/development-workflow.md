@@ -1,37 +1,14 @@
 # Development Workflow
 
-Commerce Street Manage is the planning and work-tracking layer for this repo.
-GitHub is the code, review, and deploy layer. BigQuery and GCS are data
-infrastructure, and changes there should be tracked with the same care as
-application code.
+GitHub is the planning, review, and deploy layer for this repo. Track work in
+[GitHub Issues](https://github.com/thejayer/jfk-research-center/issues).
+BigQuery and GCS are data infrastructure, and changes there should be tracked
+with the same care as application code.
 
-## Manage Work Packets
+## Issues And Pull Requests
 
-Every meaningful change should start from a ready CSC packet in Manage:
-
-<https://manage.commercestreet.studio>
-
-Claim a packet before implementation and keep its branch, pull request,
-validation, changed files, blockers, and next steps current. The lifecycle is:
-
-```text
-ready -> claimed -> in_progress -> needs_review -> done
-```
-
-Use `blocked` only when work cannot continue. Close a packet as `done` only
-after its pull request is merged and the completion evidence is recorded.
-
-From the `csc-workspace` repository, the agent helper supports the standard
-workflow:
-
-```bash
-node scripts/manage-agent.mjs claim CSC-123
-node scripts/manage-agent.mjs progress CSC-123 --branch codex/csc-123-description
-node scripts/manage-agent.mjs review CSC-123 --pr https://github.com/owner/repo/pull/123
-node scripts/manage-agent.mjs closeout CSC-123 --repo owner/repo --pr 123
-```
-
-A packet should include:
+Every meaningful change should start from a GitHub issue (or an equivalent
+written goal in the pull request) that names:
 
 - goal and user or research value;
 - affected surface, such as app, API, deploy, data ingest, warehouse, or docs;
@@ -39,7 +16,7 @@ A packet should include:
 - rollout or rollback notes when production, BigQuery, GCS, or public data
   release behavior is involved.
 
-Data-ingestion packets must also name:
+Data-ingestion work must also name:
 
 - public source or mirror;
 - destination bucket or table;
@@ -47,16 +24,13 @@ Data-ingestion packets must also name:
 - rerun scope for downstream SQL or search indexes;
 - whether mock mode or warehouse mode is affected.
 
-## Branches, Commits, And Pull Requests
-
-Branch names should include the CSC packet key:
+Branch names should be descriptive:
 
 ```text
-codex/csc-123-jfk-search-filters
+fix/jfk-search-filters
 ```
 
-Commits and pull request descriptions should reference the packet key and
-include:
+Commits and pull request descriptions should include:
 
 - implementation summary;
 - commands run;
@@ -64,9 +38,8 @@ include:
 - data loaded, if any;
 - source-provenance or warehouse caveats.
 
-Move the packet to `needs_review` after code is pushed, the pull request is
-ready, and validation evidence is known. Close it only after merge
-verification.
+Open the pull request when the code is pushed and validation evidence is
+known. Merge only after review and CI are green.
 
 ## Build And Regression Gates
 
@@ -101,13 +74,12 @@ warehouse data are not part of the task:
 npm run dev:mock
 ```
 
-After a GitHub deploy, record the result on the Manage packet. If a deploy
-fails, keep the packet in `in_progress` or `needs_review` and include the
-failing workflow and job detail.
+After a GitHub deploy, record the result on the tracking issue. If a deploy
+fails, keep the issue open and include the failing workflow and job detail.
 
 ## Warehouse Safety
 
-Production warehouse work should stay packet-tracked and explicit.
+Production warehouse work should stay issue-tracked and explicit.
 
 Before enabling or changing warehouse-backed behavior, confirm:
 

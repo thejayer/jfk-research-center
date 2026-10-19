@@ -1,8 +1,8 @@
 # JFK Research Center Cost Observability
 
 The Cost Console starts as a small in-repo ledger so project spend can be tied
-back to features, services, workflows, and Manage work packets before Cloud
-Billing reconciliation is enabled.
+back to features, services, workflows, and GitHub issues before Cloud Billing
+reconciliation is enabled.
 
 ## Current Console
 
@@ -123,8 +123,8 @@ Each event should include:
 - `operation`: stable operation name.
 - `workflow` and optional `workflowRunId`: GitHub Actions or manual workflow
   attribution.
-- `linearIssue`: legacy packet-attribution field retained for compatibility;
-  use the corresponding Manage packet id when the run belongs to packet work.
+- `linearIssue`: legacy issue-attribution field retained for schema
+  compatibility; use a GitHub issue number when attributing a run.
 - `estimatedCostUsd` and optional `actualCostUsd`.
 - Usage counters: `requestCount`, `inputTokens`, `outputTokens`, `rowCount`,
   `byteCount`, and `billingRows`.
@@ -154,13 +154,13 @@ net/actual field is provided. Missing feature labels are grouped under
 
 ## Reconciliation Path
 
-The intended reconciliation path matches the RegVault pattern:
+The intended reconciliation path:
 
 1. Add a BigQuery cost ledger table for estimated events.
 2. Add a scheduled exporter that writes a compact Cost Console JSON payload.
 3. Enable Google Cloud Billing export to BigQuery.
 4. Create reconciliation views that allocate actual service spend back to
-   ledger rows by date, service, workflow, feature, and Manage packet.
+   ledger rows by date, service, workflow, feature, and GitHub issue.
 5. Switch the Cost Console source from `manual_seed` or `ledger` to
    `reconciliation`.
 
@@ -374,11 +374,11 @@ curl -sS -o /tmp/jfk-doc.json -w "%{http_code}\n" \
 Cost-producing jobs should set these values before they run:
 
 - `COST_FEATURE`
-- the Manage packet id in the legacy `LINEAR_ISSUE` compatibility field
+- optional GitHub issue number in the legacy `LINEAR_ISSUE` compatibility field
 - `GITHUB_WORKFLOW`
 - `GITHUB_RUN_ID`
 
-Good Manage packet update format after a paid or potentially paid run:
+Good GitHub issue or pull-request comment after a paid or potentially paid run:
 
 ```text
 Cost run summary
