@@ -7,7 +7,7 @@ on:
       - "**.md"
       - ".gitignore"
   # PR CI for branch protection. Do not add pull_request_target.
-  # Required checks to enable after this lands: typecheck, axe.
+  # Required checks to enable after this lands: typecheck, test, axe.
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -36,10 +36,23 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
   deploy:
     # Never run on pull_request (including forks). Secrets stay off PR CI.
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
-    needs: [typecheck, axe]
+    needs: [typecheck, test, axe]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
