@@ -86,13 +86,27 @@ jobs:
             --format=json \
             > "$limits_json"
 
-          bq query \
+          # --quiet --headless drop most bq chatter, but WIF still prints
+          # a --scopes WARNING on stdout ahead of the JSON array. Keep
+          # only from the first "[" line so $jobs_json is JSON.
+          bq_raw="$RUNNER_TEMP/jfk-query-jobs.raw"
+          bq --quiet --headless query \
             --project_id=jfk-vault \
             --location=US \
             --use_legacy_sql=false \
             --format=json \
             < sql/92_cost_guardrail_daily_summary.sql \
-            > "$jobs_json"
+            > "$bq_raw"
+
+          sed -n '/^[[:space:]]*\[/,$p' "$bq_raw" > "$jobs_json"
+
+          if ! jq -e . "$jobs_json" >/dev/null; then
+            echo "::error::BigQuery daily-summary output was not valid JSON. First lines:"
+            head -n 5 "$jobs_json"
+            echo "Raw bq stdout (first lines):"
+            head -n 5 "$bq_raw"
+            exit 1
+          fi
 
           echo "blocks=$(jq 'length' "$blocks_json")" >> "$GITHUB_OUTPUT"
           echo "rate_limits=$(jq 'length' "$limits_json")" >> "$GITHUB_OUTPUT"
