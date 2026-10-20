@@ -86,13 +86,21 @@ jobs:
             --format=json \
             > "$limits_json"
 
-          bq query \
+          # --quiet --headless keep bq status lines / first-run banners
+          # off stdout so $jobs_json is only the --format=json result.
+          bq --quiet --headless query \
             --project_id=jfk-vault \
             --location=US \
             --use_legacy_sql=false \
             --format=json \
             < sql/92_cost_guardrail_daily_summary.sql \
             > "$jobs_json"
+
+          if ! jq -e . "$jobs_json" >/dev/null; then
+            echo "::error::BigQuery daily-summary output was not valid JSON. First lines:"
+            head -n 5 "$jobs_json"
+            exit 1
+          fi
 
           echo "blocks=$(jq 'length' "$blocks_json")" >> "$GITHUB_OUTPUT"
           echo "rate_limits=$(jq 'length' "$limits_json")" >> "$GITHUB_OUTPUT"
