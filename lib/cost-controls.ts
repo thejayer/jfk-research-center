@@ -130,8 +130,19 @@ export function isBlockedCrawlerUserAgent(userAgent: string | null): boolean {
  * document pages. Blocked training/SEO crawlers are checked first so
  * Google-Extended and Applebot-Extended stay denied.
  */
+export function isServerFetchUserAgent(userAgent: string | null): boolean {
+  if (!userAgent) return false;
+  return /^(?:node|undici)(?:\/|$)/i.test(userAgent.trim());
+}
+
 export function isAllowedSearchBotUserAgent(userAgent: string | null): boolean {
-  if (!userAgent || isBlockedCrawlerUserAgent(userAgent)) return false;
+  if (
+    !userAgent ||
+    isBlockedCrawlerUserAgent(userAgent) ||
+    isServerFetchUserAgent(userAgent)
+  ) {
+    return false;
+  }
   return ALLOWED_SEARCH_BOT_PATTERNS.some((pattern) => pattern.test(userAgent));
 }
 
@@ -169,8 +180,8 @@ export function classifyCostTrafficUserAgent(
     return "legacy_mobile_automation";
   }
   if (!userAgent) return "unknown";
+  if (isServerFetchUserAgent(userAgent)) return "server_fetch";
   if (isAllowedSearchBotUserAgent(userAgent)) return "browser";
-  if (/^(?:node|undici)(?:\/|$)/i.test(userAgent.trim())) return "server_fetch";
   if (/mozilla\/5\.0/i.test(userAgent)) return "browser";
   return "unknown";
 }
@@ -208,6 +219,7 @@ export function readAutomatedTrafficBlockReason(
 export function shouldBlockUnknownDocumentTraffic(
   userAgent: string | null,
 ): boolean {
+  if (isServerFetchUserAgent(userAgent)) return true;
   if (isAllowedSearchBotUserAgent(userAgent)) return false;
   return classifyCostTrafficUserAgent(userAgent) !== "browser";
 }

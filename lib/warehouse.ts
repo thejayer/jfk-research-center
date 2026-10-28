@@ -874,9 +874,25 @@ type ManifestRow = {
   records_with_2025_ocr: number;
 };
 
+const CORPUS_MANIFEST_TTL_MS = 60_000;
+let corpusManifestCache: TtlPromiseCache<CorpusManifest> | null = null;
+
 export async function fetchCorpusManifest(): Promise<CorpusManifest> {
   if (useMockData()) return buildHomeResponse().corpusManifest;
+  const cached = readTtlPromiseCache(corpusManifestCache);
+  if (cached) return cached;
+  const promise = loadWarehouseCorpusManifest();
+  corpusManifestCache = {
+    expiresAt: Date.now() + CORPUS_MANIFEST_TTL_MS,
+    promise,
+  };
+  promise.catch(() => {
+    corpusManifestCache = null;
+  });
+  return promise;
+}
 
+async function loadWarehouseCorpusManifest(): Promise<CorpusManifest> {
   const rows = await query<ManifestRow>(
     `SELECT * FROM \`${PROJECT}.${DATASET_CURATED}.corpus_manifest\``,
   );
@@ -3568,9 +3584,25 @@ type CaseTimelineRow = {
   importance: number | null;
 };
 
+const CASE_TIMELINE_TTL_MS = 60_000;
+let caseTimelineCache: TtlPromiseCache<CaseTimelineIndex> | null = null;
+
 export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
   if (useMockData()) return buildCaseTimelineIndex();
+  const cached = readTtlPromiseCache(caseTimelineCache);
+  if (cached) return cached;
+  const promise = loadWarehouseCaseTimeline();
+  caseTimelineCache = {
+    expiresAt: Date.now() + CASE_TIMELINE_TTL_MS,
+    promise,
+  };
+  promise.catch(() => {
+    caseTimelineCache = null;
+  });
+  return promise;
+}
 
+async function loadWarehouseCaseTimeline(): Promise<CaseTimelineIndex> {
   const [rows, docLinkRows] = await Promise.all([
     query<CaseTimelineRow>(
       `SELECT event_id, event_date, event_time_local, title, description,

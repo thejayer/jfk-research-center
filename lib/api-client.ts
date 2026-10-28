@@ -148,6 +148,7 @@ async function loadWarehouseDirect<T>(
     );
   } catch (error) {
     if (error instanceof ApiRequestError) throw error;
+    console.error(`[api-client] in-process read failed for ${route}`, error);
     throw new ApiRequestError(500, path);
   }
 }

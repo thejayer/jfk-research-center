@@ -49,6 +49,17 @@ describe("document read warehouse path", () => {
     expect(load).not.toMatch(/SELECT entity_id, confidence, match_source/);
   });
 
+  it("caches corpus manifest and case timeline reads with a short TTL", () => {
+    expect(warehouseSource).toContain("CORPUS_MANIFEST_TTL_MS = 60_000");
+    expect(warehouseSource).toContain("CASE_TIMELINE_TTL_MS = 60_000");
+    expect(warehouseSource).toContain("loadWarehouseCorpusManifest");
+    expect(warehouseSource).toContain("loadWarehouseCaseTimeline");
+    expect(warehouseSource).toMatch(
+      /readTtlPromiseCache\(corpusManifestCache\)/,
+    );
+    expect(warehouseSource).toMatch(/readTtlPromiseCache\(caseTimelineCache\)/);
+  });
+
   it("does not cache an empty entity graph when the thin-table index is over cap", () => {
     const start = warehouseSource.indexOf("async function loadDocumentEntityGraph");
     const end = warehouseSource.indexOf("async function loadDocumentTopicMap");

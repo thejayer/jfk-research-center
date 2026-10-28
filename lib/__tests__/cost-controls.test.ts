@@ -66,6 +66,12 @@ describe("cost controls", () => {
     expect(shouldBlockUnknownDocumentTraffic(null)).toBe(true);
     expect(shouldBlockUnknownDocumentTraffic("node")).toBe(true);
     expect(shouldBlockUnknownDocumentTraffic("undici/6.0")).toBe(true);
+    expect(shouldBlockUnknownDocumentTraffic("node/20 Googlebot")).toBe(true);
+    expect(classifyCostTrafficUserAgent("node/20 Googlebot")).toBe("server_fetch");
+    expect(isAllowedSearchBotUserAgent("node/20 Googlebot")).toBe(false);
+    expect(shouldBlockUnknownDocumentTraffic("undici/6.0 bingbot/2.0")).toBe(
+      true,
+    );
     expect(
       shouldBlockUnknownDocumentTraffic(
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0",

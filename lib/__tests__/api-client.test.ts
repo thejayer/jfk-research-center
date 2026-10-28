@@ -140,6 +140,23 @@ describe("api-client in-process SSR reads", () => {
     expect(warehouse.fetchCorpusManifest).toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("logs the original warehouse error before wrapping it as a 500", async () => {
+    const cause = new Error("bytes billed exceeded");
+    warehouse.fetchDocument.mockRejectedValue(cause);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(fetchDocument("104-10004-10143")).rejects.toMatchObject({
+      name: "ApiRequestError",
+      status: 500,
+      path: "/api/document/104-10004-10143",
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[api-client] in-process read failed for ssr_document",
+      cause,
+    );
+    errorSpy.mockRestore();
+  });
 });
 
 describe("api-client search errors", () => {
