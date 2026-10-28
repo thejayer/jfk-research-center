@@ -172,8 +172,17 @@ export function isLegacyMobileAutomationUserAgent(
 /**
  * Returns a privacy-safe traffic class for request and BigQuery attribution.
  */
+export type CostTrafficClassifyOptions = {
+  /**
+   * Result of IP verification for a declared search-bot UA.
+   * `false` means the UA was spoofed — treat as unknown.
+   */
+  searchBotVerified?: boolean;
+};
+
 export function classifyCostTrafficUserAgent(
   userAgent: string | null,
+  options: CostTrafficClassifyOptions = {},
 ): CostTrafficClass {
   if (isBlockedCrawlerUserAgent(userAgent)) return "known_crawler";
   if (isLegacyMobileAutomationUserAgent(userAgent)) {
@@ -181,7 +190,9 @@ export function classifyCostTrafficUserAgent(
   }
   if (!userAgent) return "unknown";
   if (isServerFetchUserAgent(userAgent)) return "server_fetch";
-  if (isAllowedSearchBotUserAgent(userAgent)) return "browser";
+  if (isAllowedSearchBotUserAgent(userAgent)) {
+    return options.searchBotVerified === false ? "unknown" : "browser";
+  }
   if (/mozilla\/5\.0/i.test(userAgent)) return "browser";
   return "unknown";
 }
@@ -190,10 +201,20 @@ export function classifyCostTrafficUserAgent(
  * Identifies high-confidence automated traffic that should never reach a
  * warehouse-backed route.
  */
+export type AutomatedTrafficBlockOptions = {
+  /**
+   * When the UA claims to be an allowlisted search bot, pass the IP
+   * verification result. `false` treats the request as unknown (403).
+   * Omit on non-document paths or when verification was not attempted.
+   */
+  searchBotVerified?: boolean;
+};
+
 export function readAutomatedTrafficBlockReason(
   userAgent: string | null,
   env: Record<string, string | undefined> = readProcessEnv(),
   pathname = "",
+  options: AutomatedTrafficBlockOptions = {},
 ): AutomatedTrafficBlockReason | null {
   if (isBlockedCrawlerUserAgent(userAgent)) return "known-crawler";
   if (
@@ -202,11 +223,16 @@ export function readAutomatedTrafficBlockReason(
   ) {
     return "legacy-mobile-fingerprint";
   }
-  if (
-    isDocumentWarehousePath(pathname) &&
-    shouldBlockUnknownDocumentTraffic(userAgent)
-  ) {
-    return "unknown-user-agent";
+  if (isDocumentWarehousePath(pathname)) {
+    if (
+      isAllowedSearchBotUserAgent(userAgent) &&
+      options.searchBotVerified === false
+    ) {
+      return "unknown-user-agent";
+    }
+    if (shouldBlockUnknownDocumentTraffic(userAgent)) {
+      return "unknown-user-agent";
+    }
   }
   return null;
 }
