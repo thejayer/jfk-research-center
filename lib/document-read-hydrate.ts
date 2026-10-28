@@ -1,0 +1,191 @@
+/**
+ * In-process helpers for the document-page payload.
+ *
+ * The live document job reads jfk_records only. Entity rows, related
+ * document ids, and topic slugs come from thin tables that are loaded
+ * once per Cloud Run instance — not joined into every page job.
+ */
+
+export type DocumentEntityMapRow = {
+  document_id: string;
+  entity_id: string;
+  confidence: string;
+  match_source: string;
+};
+
+export type DocumentMapRow = {
+  entity_id: string;
+  confidence: string;
+  match_source: string;
+};
+
+export type RelatedDocumentId = {
+  document_id: string;
+  shared: number;
+};
+
+export type DocumentEntityGraph = {
+  byDocument: Map<string, DocumentMapRow[]>;
+  byEntity: Map<string, string[]>;
+};
+
+export const RELATED_DOCUMENT_LIMIT = 6;
+
+/** How long one Cloud Run instance keeps a thin-table index. */
+export const DOCUMENT_READ_INDEX_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Hard caps so a surprise table-growth cannot pin the 1 GiB instance.
+ * Current corpus sizes sit well under these (see PR notes).
+ */
+export const DOCUMENT_ENTITY_MAP_MAX_ROWS = 250_000;
+export const DOCUMENT_TOPIC_MAP_MAX_ROWS = 100_000;
+export const DOCUMENT_OCR_META_MAX_ROWS = 10_000;
+
+export type TtlPromiseCache<T> = {
+  expiresAt: number;
+  promise: Promise<T>;
+};
+
+export function readTtlPromiseCache<T>(
+  cache: TtlPromiseCache<T> | null,
+  now = Date.now(),
+): Promise<T> | null {
+  if (!cache || cache.expiresAt <= now) return null;
+  return cache.promise;
+}
+
+export function isOverIndexCap(rowCount: number, maxRows: number): boolean {
+  return rowCount > maxRows;
+}
+
+/** LIMIT max+1 so the client can detect overflow without an unbounded scan. */
+export function documentReadIndexScanLimit(maxRows: number): number {
+  return maxRows + 1;
+}
+
+export function parseDocumentEntityFallbackRow(row: {
+  map_rows?: readonly {
+    entity_id?: string | null;
+    confidence?: string | null;
+    match_source?: string | null;
+  }[] | null;
+  related_ids?: readonly {
+    document_id?: string | null;
+    shared?: unknown;
+  }[] | null;
+}): { mapRows: DocumentMapRow[]; relatedIds: RelatedDocumentId[] } {
+  const mapRows = (row.map_rows ?? []).flatMap((item) => {
+    const entityId = item.entity_id?.trim();
+    if (!entityId) return [];
+    return [
+      {
+        entity_id: entityId,
+        confidence: item.confidence ?? "",
+        match_source: item.match_source ?? "",
+      },
+    ];
+  });
+  const relatedIds = (row.related_ids ?? []).flatMap((item) => {
+    const documentId = item.document_id?.trim();
+    if (!documentId) return [];
+    return [{ document_id: documentId, shared: asSharedCount(item.shared) }];
+  });
+  return { mapRows, relatedIds };
+}
+
+function asSharedCount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (value && typeof value === "object" && "value" in value) {
+    return asSharedCount((value as { value: unknown }).value);
+  }
+  return 0;
+}
+
+/**
+ * Builds inverted indexes for one-document lookups after a single
+ * entity-map scan.
+ */
+export function buildDocumentEntityGraph(
+  rows: readonly DocumentEntityMapRow[],
+): DocumentEntityGraph {
+  const byDocument = new Map<string, DocumentMapRow[]>();
+  const byEntity = new Map<string, string[]>();
+
+  for (const row of rows) {
+    const documentId = row.document_id?.trim();
+    const entityId = row.entity_id?.trim();
+    if (!documentId || !entityId) continue;
+
+    const mapRows = byDocument.get(documentId) ?? [];
+    mapRows.push({
+      entity_id: entityId,
+      confidence: row.confidence,
+      match_source: row.match_source,
+    });
+    byDocument.set(documentId, mapRows);
+
+    const documents = byEntity.get(entityId) ?? [];
+    documents.push(documentId);
+    byEntity.set(entityId, documents);
+  }
+
+  return { byDocument, byEntity };
+}
+
+export function mapRowsForDocument(
+  graph: DocumentEntityGraph,
+  documentId: string,
+): DocumentMapRow[] {
+  return graph.byDocument.get(documentId) ?? [];
+}
+
+/**
+ * Same ranking as the retired bundle SQL: other documents that share
+ * the most mapped entities, then document_id, capped at six.
+ */
+export function relatedDocumentIdsFor(
+  graph: DocumentEntityGraph,
+  documentId: string,
+  limit = RELATED_DOCUMENT_LIMIT,
+): RelatedDocumentId[] {
+  const mapRows = mapRowsForDocument(graph, documentId);
+  if (mapRows.length === 0) return [];
+
+  const shared = new Map<string, number>();
+  for (const row of mapRows) {
+    const others = graph.byEntity.get(row.entity_id) ?? [];
+    for (const otherId of others) {
+      if (otherId === documentId) continue;
+      shared.set(otherId, (shared.get(otherId) ?? 0) + 1);
+    }
+  }
+
+  return [...shared.entries()]
+    .map(([id, count]) => ({ document_id: id, shared: count }))
+    .sort(
+      (left, right) =>
+        right.shared - left.shared ||
+        left.document_id.localeCompare(right.document_id),
+    )
+    .slice(0, limit);
+}
+
+export function sortRelatedRows<T extends { document_id: string }>(
+  rows: readonly T[],
+  relatedIds: readonly RelatedDocumentId[],
+): T[] {
+  const rank = new Map(
+    relatedIds.map((item, index) => [item.document_id, index]),
+  );
+  return [...rows].sort((left, right) => {
+    const leftRank = rank.get(left.document_id) ?? Number.MAX_SAFE_INTEGER;
+    const rightRank = rank.get(right.document_id) ?? Number.MAX_SAFE_INTEGER;
+    return leftRank - rightRank || left.document_id.localeCompare(right.document_id);
+  });
+}

@@ -7,6 +7,8 @@ const COST_SENSITIVE_PATH_PREFIXES = [
   "/api/search",
   "/document",
   "/api/document",
+  "/entity",
+  "/api/entity",
   "/compare",
   "/api/compare",
   "/api/v1/documents",
@@ -32,6 +34,18 @@ const BLOCKED_CRAWLER_PATTERNS = [
   /petalbot/i,
 ] as const;
 
+const ALLOWED_SEARCH_BOT_PATTERNS = [
+  /googlebot/i,
+  /bingbot/i,
+  /msnbot/i,
+  /adidxbot/i,
+  /slurp/i,
+  /duckduckbot/i,
+  /applebot/i,
+  /yandex(?:bot|images|mobile)?/i,
+  /baiduspider/i,
+] as const;
+
 const LEGACY_MOBILE_AUTOMATION_PATTERN =
   /Mozilla\/5\.0 \(Linux; Android 6(?:\.0(?:\.1)?)?; Nexus 5(?: Build\/[^)]+)?\).*Chrome\/65(?:\.\d+){0,3}.*Mobile Safari\/537\.36/i;
 
@@ -44,6 +58,8 @@ const COST_RATE_LIMIT_RULES = [
   { prefix: "/compare", key: "compare", maxRequests: 30 },
   { prefix: "/api/document", key: "api-document", maxRequests: 60 },
   { prefix: "/document", key: "document", maxRequests: 60 },
+  { prefix: "/api/entity", key: "api-entity", maxRequests: 60 },
+  { prefix: "/entity", key: "entity", maxRequests: 60 },
 ] as const;
 
 export type CostRateLimitRule = {
@@ -61,7 +77,8 @@ export type CostTrafficClass =
 
 export type AutomatedTrafficBlockReason =
   | "known-crawler"
-  | "legacy-mobile-fingerprint";
+  | "legacy-mobile-fingerprint"
+  | "unknown-user-agent";
 
 /**
  * Returns true when the pathname can fan out into live warehouse work.
@@ -92,6 +109,8 @@ export function isPubliclyCacheableCostApi(pathname: string): boolean {
   }
   if (pathname.startsWith("/api/document/")) return true;
   if (pathMatchesPrefix(pathname, "/document")) return true;
+  if (pathname.startsWith("/api/entity/")) return true;
+  if (pathMatchesPrefix(pathname, "/entity")) return true;
   return /^\/api\/v1\/documents\/[^/]+$/.test(pathname);
 }
 
@@ -104,6 +123,35 @@ export function isPubliclyCacheableCostApi(pathname: string): boolean {
 export function isBlockedCrawlerUserAgent(userAgent: string | null): boolean {
   if (!userAgent) return false;
   return BLOCKED_CRAWLER_PATTERNS.some((pattern) => pattern.test(userAgent));
+}
+
+/**
+ * Declared search-engine crawlers that may keep hitting warehouse-backed
+ * document pages. Blocked training/SEO crawlers are checked first so
+ * Google-Extended and Applebot-Extended stay denied.
+ */
+export function isServerFetchUserAgent(userAgent: string | null): boolean {
+  if (!userAgent) return false;
+  return /^(?:node|undici)(?:\/|$)/i.test(userAgent.trim());
+}
+
+export function isAllowedSearchBotUserAgent(userAgent: string | null): boolean {
+  if (
+    !userAgent ||
+    isBlockedCrawlerUserAgent(userAgent) ||
+    isServerFetchUserAgent(userAgent)
+  ) {
+    return false;
+  }
+  return ALLOWED_SEARCH_BOT_PATTERNS.some((pattern) => pattern.test(userAgent));
+}
+
+/** HTML and JSON document routes that fan out into a warehouse read. */
+export function isDocumentWarehousePath(pathname: string): boolean {
+  return (
+    pathMatchesPrefix(pathname, "/document") ||
+    pathMatchesPrefix(pathname, "/api/document")
+  );
 }
 
 /**
@@ -132,7 +180,8 @@ export function classifyCostTrafficUserAgent(
     return "legacy_mobile_automation";
   }
   if (!userAgent) return "unknown";
-  if (/^(?:node|undici)(?:\/|$)/i.test(userAgent.trim())) return "server_fetch";
+  if (isServerFetchUserAgent(userAgent)) return "server_fetch";
+  if (isAllowedSearchBotUserAgent(userAgent)) return "browser";
   if (/mozilla\/5\.0/i.test(userAgent)) return "browser";
   return "unknown";
 }
@@ -144,13 +193,35 @@ export function classifyCostTrafficUserAgent(
 export function readAutomatedTrafficBlockReason(
   userAgent: string | null,
   env: Record<string, string | undefined> = readProcessEnv(),
+  pathname = "",
 ): AutomatedTrafficBlockReason | null {
   if (isBlockedCrawlerUserAgent(userAgent)) return "known-crawler";
-  if (env.JFK_LEGACY_MOBILE_BLOCK_DISABLED === "1") return null;
-  if (isLegacyMobileAutomationUserAgent(userAgent)) {
+  if (
+    env.JFK_LEGACY_MOBILE_BLOCK_DISABLED !== "1" &&
+    isLegacyMobileAutomationUserAgent(userAgent)
+  ) {
     return "legacy-mobile-fingerprint";
   }
+  if (
+    isDocumentWarehousePath(pathname) &&
+    shouldBlockUnknownDocumentTraffic(userAgent)
+  ) {
+    return "unknown-user-agent";
+  }
   return null;
+}
+
+/**
+ * Unknown or non-browser agents (pdf miners, empty UA, node/undici)
+ * must not open a document warehouse job. Declared search bots and
+ * Mozilla browsers stay allowed.
+ */
+export function shouldBlockUnknownDocumentTraffic(
+  userAgent: string | null,
+): boolean {
+  if (isServerFetchUserAgent(userAgent)) return true;
+  if (isAllowedSearchBotUserAgent(userAgent)) return false;
+  return classifyCostTrafficUserAgent(userAgent) !== "browser";
 }
 
 /**

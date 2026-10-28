@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyCostTrafficUserAgent,
+  isAllowedSearchBotUserAgent,
   isArchiveIdentifierQuery,
   isBlockedCrawlerUserAgent,
   isCostSensitivePath,
+  isDocumentWarehousePath,
   isPubliclyCacheableCostApi,
   isLegacyMobileAutomationUserAgent,
   readAutomatedTrafficBlockReason,
   isSemanticSearchDisabled,
   readBigQueryMaximumBytesBilled,
   readCostRateLimitRule,
+  shouldBlockUnknownDocumentTraffic,
 } from "../cost-controls";
 
 describe("cost controls", () => {
@@ -21,7 +24,14 @@ describe("cost controls", () => {
     expect(isCostSensitivePath("/api/document/104-10086-10152/ocr")).toBe(true);
     expect(isCostSensitivePath("/api/v1/documents")).toBe(true);
     expect(isCostSensitivePath("/api/v1/search/semantic")).toBe(true);
+    expect(isCostSensitivePath("/api/entity/oswald")).toBe(true);
+    expect(isCostSensitivePath("/entity/oswald")).toBe(true);
     expect(isCostSensitivePath("/about")).toBe(false);
+    expect(isDocumentWarehousePath("/document/104-10004-10143")).toBe(true);
+    expect(isDocumentWarehousePath("/api/document/104-10004-10143/ocr")).toBe(
+      true,
+    );
+    expect(isDocumentWarehousePath("/api/entity/oswald")).toBe(false);
   });
 
   it("lets public document JSON share a CDN cache without touching admin routes", () => {
@@ -33,6 +43,8 @@ describe("cost controls", () => {
       true,
     );
     expect(isPubliclyCacheableCostApi("/document/124-10190-10075")).toBe(true);
+    expect(isPubliclyCacheableCostApi("/api/entity/oswald")).toBe(true);
+    expect(isPubliclyCacheableCostApi("/entity/oswald")).toBe(true);
     expect(isPubliclyCacheableCostApi("/api/v1/documents/124-10190-10075")).toBe(
       true,
     );
@@ -46,6 +58,77 @@ describe("cost controls", () => {
     expect(isBlockedCrawlerUserAgent("Mozilla/5.0 Bytespider")).toBe(true);
     expect(isBlockedCrawlerUserAgent("Mozilla/5.0 Safari/605.1.15")).toBe(false);
     expect(isBlockedCrawlerUserAgent(null)).toBe(false);
+  });
+
+  it("blocks unknown and non-browser agents on document warehouse paths", () => {
+    expect(classifyCostTrafficUserAgent("msh-pdfmin/1")).toBe("unknown");
+    expect(shouldBlockUnknownDocumentTraffic("msh-pdfmin/1")).toBe(true);
+    expect(shouldBlockUnknownDocumentTraffic(null)).toBe(true);
+    expect(shouldBlockUnknownDocumentTraffic("node")).toBe(true);
+    expect(shouldBlockUnknownDocumentTraffic("undici/6.0")).toBe(true);
+    expect(shouldBlockUnknownDocumentTraffic("node/20 Googlebot")).toBe(true);
+    expect(classifyCostTrafficUserAgent("node/20 Googlebot")).toBe("server_fetch");
+    expect(isAllowedSearchBotUserAgent("node/20 Googlebot")).toBe(false);
+    expect(shouldBlockUnknownDocumentTraffic("undici/6.0 bingbot/2.0")).toBe(
+      true,
+    );
+    expect(
+      shouldBlockUnknownDocumentTraffic(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0",
+      ),
+    ).toBe(false);
+    expect(
+      readAutomatedTrafficBlockReason(
+        "msh-pdfmin/1",
+        {},
+        "/document/104-10004-10143",
+      ),
+    ).toBe("unknown-user-agent");
+    expect(
+      readAutomatedTrafficBlockReason(
+        "msh-pdfmin/1",
+        {},
+        "/api/document/104-10004-10143",
+      ),
+    ).toBe("unknown-user-agent");
+    expect(readAutomatedTrafficBlockReason("msh-pdfmin/1", {}, "/search")).toBeNull();
+    expect(
+      readAutomatedTrafficBlockReason(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0",
+        {},
+        "/document/104-10004-10143",
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps declared search bots allowed on document pages", () => {
+    const googlebot =
+      "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+    const bingbot =
+      "Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)";
+    const duckduck = "DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)";
+
+    expect(isAllowedSearchBotUserAgent(googlebot)).toBe(true);
+    expect(isAllowedSearchBotUserAgent(bingbot)).toBe(true);
+    expect(isAllowedSearchBotUserAgent(duckduck)).toBe(true);
+    expect(isAllowedSearchBotUserAgent("Google-Extended")).toBe(false);
+    expect(isAllowedSearchBotUserAgent("Applebot-Extended/1.0")).toBe(false);
+    expect(classifyCostTrafficUserAgent(duckduck)).toBe("browser");
+    expect(shouldBlockUnknownDocumentTraffic(duckduck)).toBe(false);
+    expect(
+      readAutomatedTrafficBlockReason(googlebot, {}, "/document/104-10004-10143"),
+    ).toBeNull();
+    expect(
+      readAutomatedTrafficBlockReason(duckduck, {}, "/api/document/104-10004-10143"),
+    ).toBeNull();
+    expect(isBlockedCrawlerUserAgent("Google-Extended")).toBe(true);
+    expect(
+      readAutomatedTrafficBlockReason(
+        "Google-Extended",
+        {},
+        "/document/104-10004-10143",
+      ),
+    ).toBe("known-crawler");
   });
 
   it("narrowly detects and blocks the July legacy-mobile campaign", () => {
@@ -110,6 +193,11 @@ describe("cost controls", () => {
     });
     expect(readCostRateLimitRule("/document/104-10338-10005")).toEqual({
       key: "document",
+      maxRequests: 60,
+      windowMs: 60000,
+    });
+    expect(readCostRateLimitRule("/api/entity/oswald")).toEqual({
+      key: "api-entity",
       maxRequests: 60,
       windowMs: 60000,
     });

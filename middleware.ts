@@ -51,7 +51,11 @@ export async function middleware(req: NextRequest) {
   // Emergency cost-control gate: named crawlers and the high-confidence
   // rotating legacy-mobile campaign get a 403 before route rendering.
   const blockReason = costSensitive
-    ? readAutomatedTrafficBlockReason(req.headers.get("user-agent"))
+    ? readAutomatedTrafficBlockReason(
+        req.headers.get("user-agent"),
+        undefined,
+        pathname,
+      )
     : null;
   if (blockReason) {
     logCostControlEvent("cost_control_block", req, costSignals, blockReason);
@@ -309,6 +313,8 @@ export const config = {
     "/api/search/:path*",
     "/document/:path*",
     "/api/document/:path*",
+    "/entity/:path*",
+    "/api/entity/:path*",
     "/compare/:path*",
     "/api/compare/:path*",
     "/api/v1/:path*",

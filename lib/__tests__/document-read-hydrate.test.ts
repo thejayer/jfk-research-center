@@ -1,0 +1,165 @@
+import { describe, expect, it } from "vitest";
+import {
+  DOCUMENT_ENTITY_MAP_MAX_ROWS,
+  DOCUMENT_OCR_META_MAX_ROWS,
+  DOCUMENT_READ_INDEX_TTL_MS,
+  DOCUMENT_TOPIC_MAP_MAX_ROWS,
+  RELATED_DOCUMENT_LIMIT,
+  buildDocumentEntityGraph,
+  documentReadIndexScanLimit,
+  isOverIndexCap,
+  mapRowsForDocument,
+  parseDocumentEntityFallbackRow,
+  readTtlPromiseCache,
+  relatedDocumentIdsFor,
+  sortRelatedRows,
+} from "../document-read-hydrate";
+
+const rows = [
+  {
+    document_id: "doc-a",
+    entity_id: "oswald",
+    confidence: "high",
+    match_source: "title",
+  },
+  {
+    document_id: "doc-a",
+    entity_id: "cia",
+    confidence: "medium",
+    match_source: "description",
+  },
+  {
+    document_id: "doc-b",
+    entity_id: "oswald",
+    confidence: "low",
+    match_source: "ocr",
+  },
+  {
+    document_id: "doc-c",
+    entity_id: "oswald",
+    confidence: "low",
+    match_source: "ocr",
+  },
+  {
+    document_id: "doc-c",
+    entity_id: "cia",
+    confidence: "high",
+    match_source: "title",
+  },
+  {
+    document_id: "doc-d",
+    entity_id: "ruby",
+    confidence: "low",
+    match_source: "ocr",
+  },
+];
+
+describe("document read hydrate", () => {
+  it("returns map rows for one document", () => {
+    const graph = buildDocumentEntityGraph(rows);
+    expect(mapRowsForDocument(graph, "doc-a")).toEqual([
+      { entity_id: "oswald", confidence: "high", match_source: "title" },
+      { entity_id: "cia", confidence: "medium", match_source: "description" },
+    ]);
+    expect(mapRowsForDocument(graph, "missing")).toEqual([]);
+  });
+
+  it("ranks related documents by shared entities then id", () => {
+    const graph = buildDocumentEntityGraph(rows);
+    expect(relatedDocumentIdsFor(graph, "doc-a")).toEqual([
+      { document_id: "doc-c", shared: 2 },
+      { document_id: "doc-b", shared: 1 },
+    ]);
+    expect(relatedDocumentIdsFor(graph, "doc-d")).toEqual([]);
+  });
+
+  it("caps related documents at six", () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({
+      document_id: `other-${String(index).padStart(2, "0")}`,
+      entity_id: "oswald",
+      confidence: "low",
+      match_source: "ocr",
+    }));
+    const graph = buildDocumentEntityGraph([
+      {
+        document_id: "doc-a",
+        entity_id: "oswald",
+        confidence: "high",
+        match_source: "title",
+      },
+      ...many,
+    ]);
+    const related = relatedDocumentIdsFor(graph, "doc-a");
+    expect(related).toHaveLength(RELATED_DOCUMENT_LIMIT);
+    expect(related.map((item) => item.document_id)).toEqual([
+      "other-00",
+      "other-01",
+      "other-02",
+      "other-03",
+      "other-04",
+      "other-05",
+    ]);
+  });
+
+  it("reorders related record rows to match shared rank", () => {
+    const graph = buildDocumentEntityGraph(rows);
+    const relatedIds = relatedDocumentIdsFor(graph, "doc-a");
+    expect(
+      sortRelatedRows(
+        [{ document_id: "doc-b" }, { document_id: "doc-c" }],
+        relatedIds,
+      ).map((row) => row.document_id),
+    ).toEqual(["doc-c", "doc-b"]);
+  });
+
+  it("bounds thin-table indexes with a TTL and hard row caps", () => {
+    expect(DOCUMENT_READ_INDEX_TTL_MS).toBe(5 * 60 * 1000);
+    expect(DOCUMENT_ENTITY_MAP_MAX_ROWS).toBe(250_000);
+    expect(DOCUMENT_TOPIC_MAP_MAX_ROWS).toBe(100_000);
+    expect(DOCUMENT_OCR_META_MAX_ROWS).toBe(10_000);
+    expect(isOverIndexCap(47_000, DOCUMENT_TOPIC_MAP_MAX_ROWS)).toBe(false);
+    expect(isOverIndexCap(100_001, DOCUMENT_TOPIC_MAP_MAX_ROWS)).toBe(true);
+    expect(documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS)).toBe(
+      DOCUMENT_ENTITY_MAP_MAX_ROWS + 1,
+    );
+    expect(
+      isOverIndexCap(
+        documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS),
+        DOCUMENT_ENTITY_MAP_MAX_ROWS,
+      ),
+    ).toBe(true);
+    expect(
+      readTtlPromiseCache({ expiresAt: 1_000, promise: Promise.resolve(1) }, 999),
+    ).not.toBeNull();
+    expect(
+      readTtlPromiseCache({ expiresAt: 1_000, promise: Promise.resolve(1) }, 1_000),
+    ).toBeNull();
+  });
+
+  it("parses a per-document entity fallback row without dropping mapped entities", () => {
+    expect(
+      parseDocumentEntityFallbackRow({
+        map_rows: [
+          { entity_id: "oswald", confidence: "high", match_source: "title" },
+          { entity_id: "  ", confidence: "low", match_source: "ocr" },
+        ],
+        related_ids: [
+          { document_id: "doc-c", shared: { value: "2" } },
+          { document_id: "doc-b", shared: "1" },
+        ],
+      }),
+    ).toEqual({
+      mapRows: [
+        { entity_id: "oswald", confidence: "high", match_source: "title" },
+      ],
+      relatedIds: [
+        { document_id: "doc-c", shared: 2 },
+        { document_id: "doc-b", shared: 1 },
+      ],
+    });
+    expect(parseDocumentEntityFallbackRow({})).toEqual({
+      mapRows: [],
+      relatedIds: [],
+    });
+  });
+});

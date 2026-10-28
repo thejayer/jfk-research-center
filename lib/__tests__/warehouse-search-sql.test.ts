@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   buildCorpusAgencyFacetSql,
   buildCorpusTopicFacetSql,
+  buildDocumentEntityFallbackSql,
+  buildDocumentEntityMapSql,
+  buildDocumentOcrPageMetaIndexSql,
   buildDocumentOnePageSql,
   buildDocumentPageMetaSql,
   buildDocumentPagesSql,
   buildDocumentReadBundleSql,
   buildDocumentReadCoreSql,
+  buildDocumentRelatedCardsSql,
+  buildDocumentTopicMapAllSql,
   buildDocumentSearchSql,
   buildFilterOnlyDocumentsSql,
   buildIdentifierSearchSql,
@@ -34,7 +39,15 @@ import {
   sqlExistsScansMvpTopicDocs,
   sqlUsesPagedOcrTables,
   sqlHasOcrPagePartitionFilter,
+  sqlReferencedTableNames,
 } from "../warehouse-search-sql";
+import {
+  DOCUMENT_ENTITY_MAP_MAX_ROWS,
+  DOCUMENT_OCR_META_MAX_ROWS,
+  DOCUMENT_TOPIC_MAP_MAX_ROWS,
+  RELATED_DOCUMENT_LIMIT,
+  documentReadIndexScanLimit,
+} from "../document-read-hydrate";
 
 const tables = {
   project: "jfk-vault",
@@ -161,22 +174,26 @@ describe("warehouse search SQL cost envelope", () => {
 
   it("reads the first-page plus last-label pages in one partitioned job", () => {
     const sql = buildDocumentPagesSql(tables);
+    expect(sqlReferencedTableNames(sql)).toEqual(["search_ocr_pages"]);
     expect(sqlUsesPagedOcrTables(sql)).toBe(true);
     expect(sqlHasOcrPagePartitionFilter(sql)).toBe(true);
+    expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
     expect(sql).toContain("chunk_order IN UNNEST(@chunkOrders)");
+    expect(sql).not.toMatch(/source_type/);
     expect(sql).not.toMatch(/search_ocr_chunks/i);
     expect(sql).not.toMatch(/jfk_text_chunks/i);
     expect(sql).not.toMatch(/FARM_FINGERPRINT/i);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
   });
 
-  it("bundles document metadata into one job without fat OCR or MVP EXISTS", () => {
+  it("reads document metadata from jfk_records only — no 10 MiB join tax", () => {
     const sql = buildDocumentReadBundleSql(tables);
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sqlReferencedTableNames(sql).length).toBeLessThanOrEqual(2);
     expect(sql).toContain("jfk_records");
-    expect(sql).toContain("jfk_document_entity_map");
-    expect(sqlUsesDocumentTopicMap(sql)).toBe(true);
-    expect(sqlUsesPagedOcrTables(sql)).toBe(true);
-    expect(sql).toContain("search_ocr_page_meta");
+    expect(sql).not.toContain("jfk_document_entity_map");
+    expect(sqlUsesDocumentTopicMap(sql)).toBe(false);
+    expect(sql).not.toContain("search_ocr_page_meta");
     expect(sql).not.toContain("search_ocr_pages");
     expect(sql).not.toMatch(/search_ocr_chunks/i);
     expect(sql).not.toMatch(/jfk_text_chunks/i);
@@ -185,78 +202,84 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlExistsScansMvpTopicDocs(sql)).toBe(false);
     expect(sqlSelectsStarFromRecords(sql)).toBe(false);
     expect(sql).toMatch(/document_id = @id/);
-    expect(sql).toContain("AS related_rows");
+    expect(sql).not.toContain("AS related_rows");
     expect(sql).not.toMatch(/SELECT\s+r\.\*/);
     expect(sql).toContain("release_history");
-    expect(sql).toContain("ORDER BY ri.shared DESC, rel.document_id");
-    const relatedStart = sql.lastIndexOf(
-      "ARRAY(SELECT AS STRUCT",
-      sql.indexOf("AS related_rows"),
-    );
-    const relatedBlock = sql.slice(relatedStart, sql.indexOf("AS related_rows"));
-    expect(relatedStart).toBeGreaterThan(-1);
-    expect(relatedBlock).toContain("rel.document_id");
-    expect(relatedBlock).not.toContain("release_history");
+    expect(sql).toContain("AS is_target");
   });
 
-  it("keeps topic_slugs as one ARRAY subquery, not a closed SELECT then FROM", () => {
-    const sql = buildDocumentReadBundleSql(tables);
-    // Regression for the PR 134 syntax error:
-    // ARRAY(SELECT topic_slug) FROM … )  — BigQuery: Expected end of input but got ")"
-    expect(sql).not.toMatch(/ARRAY\(SELECT topic_slug\)\s+FROM/i);
-    expect(sql).toMatch(
-      /ARRAY\(\s*SELECT topic_slug\s+FROM[\s\S]+document_topic_map[\s\S]+WHERE document_id = \(SELECT document_id FROM target\)\s*\)\s+AS topic_slugs/,
-    );
-    const coreSql = buildDocumentReadCoreSql(tables);
-    expect(coreSql).not.toMatch(/ARRAY\(SELECT topic_slug\)\s+FROM/i);
+  it("keeps related ids on the same records table when they are already known", () => {
+    const sql = buildDocumentReadBundleSql(tables, [
+      "104-10004-10143",
+      "124-10158-10023",
+    ]);
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sql).toContain("'104-10004-10143'");
+    expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
+    expect(sql).not.toContain("jfk_document_entity_map");
+    expect(sqlUsesDocumentTopicMap(sql)).toBe(false);
   });
 
-  it("de-correlates topic_slugs and ocr_meta from outer t.document_id", () => {
-    const sql = buildDocumentReadBundleSql(tables);
-    // BigQuery: "Correlated subqueries that reference other tables are not
-    // supported unless they can be de-correlated, such as by transforming
-    // them into an efficient JOIN." Outer `t.document_id` against
-    // document_topic_map / search_ocr_page_meta fails; the scalar
-    // `(SELECT document_id FROM target)` de-correlates and succeeds.
-    const topicStart = sql.indexOf("ARRAY(SELECT topic_slug");
-    const topicEnd = sql.indexOf("AS topic_slugs");
-    const topicBlock = sql.slice(topicStart, topicEnd);
-    expect(topicStart).toBeGreaterThan(-1);
-    expect(topicBlock).toContain("document_id = (SELECT document_id FROM target)");
-    expect(topicBlock).not.toContain("= t.document_id");
-
-    const ocrStart = sql.indexOf("(SELECT AS STRUCT document_id, chunk_count");
-    const ocrEnd = sql.indexOf("AS ocr_meta");
-    const ocrBlock = sql.slice(ocrStart, ocrEnd);
-    expect(ocrStart).toBeGreaterThan(-1);
-    expect(ocrBlock).toContain("document_id = (SELECT document_id FROM target)");
-    expect(ocrBlock).not.toContain("= t.document_id");
-
-    expect(sql).not.toMatch(/document_id = t\.document_id/);
-
-    const coreSql = buildDocumentReadCoreSql(tables);
-    expect(coreSql).not.toContain("document_topic_map");
-    expect(coreSql).not.toContain("search_ocr_page_meta");
-    expect(coreSql).not.toMatch(/document_id = t\.document_id/);
+  it("loads related cards from jfk_records only", () => {
+    const sql = buildDocumentRelatedCardsSql(tables, ["104-10004-10143"]);
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sqlSelectsReleaseHistory(sql)).toBe(false);
+    expect(sql).toContain("'104-10004-10143'");
   });
 
-  it("falls back to a core bundle that omits optional thin tables", () => {
+  it("scans thin entity/topic/page-meta tables as full-index jobs, not per-page joins", () => {
+    const entityLimit = documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS);
+    const topicLimit = documentReadIndexScanLimit(DOCUMENT_TOPIC_MAP_MAX_ROWS);
+    const ocrLimit = documentReadIndexScanLimit(DOCUMENT_OCR_META_MAX_ROWS);
+    expect(sqlReferencedTableNames(buildDocumentEntityMapSql(tables, entityLimit))).toEqual([
+      "jfk_document_entity_map",
+    ]);
+    expect(sqlReferencedTableNames(buildDocumentTopicMapAllSql(tables, topicLimit))).toEqual([
+      "document_topic_map",
+    ]);
+    expect(
+      sqlReferencedTableNames(buildDocumentOcrPageMetaIndexSql(tables, ocrLimit)),
+    ).toEqual(["search_ocr_page_meta"]);
+    expect(buildDocumentEntityMapSql(tables, entityLimit)).toContain("confidence");
+    expect(buildDocumentEntityMapSql(tables, entityLimit)).not.toContain("match_text");
+    expect(buildDocumentEntityMapSql(tables, entityLimit)).toContain(`LIMIT ${entityLimit}`);
+    expect(buildDocumentTopicMapAllSql(tables, topicLimit)).toContain(`LIMIT ${topicLimit}`);
+    expect(buildDocumentOcrPageMetaIndexSql(tables, ocrLimit)).toContain(`LIMIT ${ocrLimit}`);
+    expect(buildDocumentOcrPageMetaIndexSql(tables, ocrLimit)).not.toMatch(/chunk_text/i);
+  });
+
+  it("falls back to a one-document entity-map job when the full index is over cap", () => {
+    const sql = buildDocumentEntityFallbackSql(tables);
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_document_entity_map"]);
+    expect(sql).toContain("WHERE document_id = @id");
+    expect(sql).toContain("AS map_rows");
+    expect(sql).toContain("AS related_ids");
+    expect(sql).toContain(`LIMIT ${RELATED_DOCUMENT_LIMIT}`);
+    expect(sql).not.toContain("jfk_records");
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
+  });
+
+  it("uses a records-only core alias when no related ids are known", () => {
     const sql = buildDocumentReadCoreSql(tables);
-    expect(sql).toContain("jfk_document_entity_map");
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sql).not.toContain("jfk_document_entity_map");
     expect(sqlUsesDocumentTopicMap(sql)).toBe(false);
     expect(sql).not.toContain("search_ocr_page_meta");
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
     expect(sqlSelectsStarFromRecords(sql)).toBe(false);
-    expect(sql).toContain("ORDER BY ri.shared DESC, rel.document_id");
   });
 
   it("reads one document OCR page from the partitioned table, never fat bodies", () => {
     const sql = buildDocumentOnePageSql(tables);
+    expect(sqlReferencedTableNames(sql)).toEqual(["search_ocr_pages"]);
     expect(sqlUsesPagedOcrTables(sql)).toBe(true);
     expect(sqlHasOcrPagePartitionFilter(sql)).toBe(true);
+    expect(sqlHasSelectiveDocumentIdFilter(sql)).toBe(true);
     expect(sql).toContain("search_ocr_pages");
     expect(sql).toContain("doc_shard = @shard");
     expect(sql).toContain("chunk_order = @chunkOrder");
+    expect(sql).toContain("chunk_id, chunk_order, chunk_text, page_label");
+    expect(sql).not.toMatch(/source_type/);
     expect(sql).not.toMatch(/search_ocr_chunks/i);
     expect(sql).not.toMatch(/jfk_text_chunks/i);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);

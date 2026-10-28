@@ -145,21 +145,43 @@ import {
   type OcrPageMetaRecord,
 } from "./ocr-page-meta-cache";
 import {
+  DOCUMENT_ENTITY_MAP_MAX_ROWS,
+  DOCUMENT_OCR_META_MAX_ROWS,
+  DOCUMENT_READ_INDEX_TTL_MS,
+  DOCUMENT_TOPIC_MAP_MAX_ROWS,
+  buildDocumentEntityGraph,
+  documentReadIndexScanLimit,
+  isOverIndexCap,
+  mapRowsForDocument,
+  parseDocumentEntityFallbackRow,
+  readTtlPromiseCache,
+  relatedDocumentIdsFor,
+  sortRelatedRows,
+  type DocumentEntityGraph,
+  type DocumentEntityMapRow,
+  type DocumentMapRow as HydratedDocumentMapRow,
+  type RelatedDocumentId,
+  type TtlPromiseCache,
+} from "./document-read-hydrate";
+import {
   buildCorpusAgencyFacetSql,
   buildCorpusEntityFacetSql,
   buildCorpusTopicFacetSql,
   buildCorpusYearFacetSql,
+  buildDocumentEntityFallbackSql,
+  buildDocumentEntityMapSql,
+  buildDocumentOcrPageMetaIndexSql,
   buildDocumentOnePageSql,
   buildDocumentPageMetaSql,
   buildDocumentPagesSql,
   buildDocumentReadBundleSql,
-  buildDocumentReadCoreSql,
+  buildDocumentRelatedCardsSql,
   buildDocumentTopicCountSql,
+  buildDocumentTopicMapAllSql,
   buildDocumentTopicSlugsSql,
   sortTopicSlugsByDisplayOrder,
   buildDocumentSearchCountSql,
   buildDocumentSearchSql,
-  buildEntityMembershipSql,
   buildFilterOnlyDocumentsSql,
   buildIdentifierSearchSql,
   buildMentionSearchCountSql,
@@ -852,9 +874,25 @@ type ManifestRow = {
   records_with_2025_ocr: number;
 };
 
+const CORPUS_MANIFEST_TTL_MS = 60_000;
+let corpusManifestCache: TtlPromiseCache<CorpusManifest> | null = null;
+
 export async function fetchCorpusManifest(): Promise<CorpusManifest> {
   if (useMockData()) return buildHomeResponse().corpusManifest;
+  const cached = readTtlPromiseCache(corpusManifestCache);
+  if (cached) return cached;
+  const promise = loadWarehouseCorpusManifest();
+  corpusManifestCache = {
+    expiresAt: Date.now() + CORPUS_MANIFEST_TTL_MS,
+    promise,
+  };
+  promise.catch(() => {
+    corpusManifestCache = null;
+  });
+  return promise;
+}
 
+async function loadWarehouseCorpusManifest(): Promise<CorpusManifest> {
   const rows = await query<ManifestRow>(
     `SELECT * FROM \`${PROJECT}.${DATASET_CURATED}.corpus_manifest\``,
   );
@@ -1408,42 +1446,51 @@ export async function fetchDocument(
   );
 }
 
-type DocumentMapRow = {
-  entity_id: string;
-  confidence: ConfidenceLevel;
-  match_source: string;
-};
-
 type DocumentBundleRow = RecordRow & {
-  map_rows?: DocumentMapRow[] | null;
-  related_rows?: RecordRow[] | null;
-  topic_slugs?: string[] | null;
-  ocr_meta?: OcrPageMetaRecord | null;
+  is_target?: boolean | null;
 };
 
 async function loadWarehouseDocument(
   id: string,
   options: FetchDocumentOptions,
 ): Promise<DocumentResponse | null> {
-  const bundle = await loadDocumentReadBundle(id);
+  const [entityIndex, topicIndex] = await Promise.all([
+    loadDocumentEntityGraph(),
+    loadDocumentTopicMap(),
+  ]);
+  const seedRelatedIds =
+    entityIndex.kind === "ready"
+      ? relatedDocumentIdsFor(entityIndex.graph, id)
+      : [];
+  const bundle = await loadDocumentReadBundle(
+    id,
+    seedRelatedIds.map((item) => item.document_id),
+  );
   if (!bundle) return null;
   const doc = bundle;
   const canonicalId = doc.document_id;
-  const mapRows = Array.isArray(doc.map_rows) ? doc.map_rows : [];
-  const related = Array.isArray(doc.related_rows) ? doc.related_rows : [];
-  const bundledTopics = Array.isArray(doc.topic_slugs);
-  const bundledOcrMeta = Object.prototype.hasOwnProperty.call(doc, "ocr_meta");
+  const { mapRows, relatedIds } = await resolveDocumentEntityRows(
+    entityIndex,
+    id,
+    canonicalId,
+    seedRelatedIds,
+  );
+  let related = await loadRelatedDocumentRows(
+    relatedIds,
+    bundle.related_rows,
+    seedRelatedIds.map((item) => item.document_id),
+  );
+  related = sortRelatedRows(related, relatedIds);
+
+  const topicSlugs =
+    topicIndex.kind === "ready"
+      ? (topicIndex.byId.get(canonicalId) ?? [])
+      : null;
 
   const [ocrBody, relatedTopics] = await Promise.all([
-    bundledOcrMeta
-      ? fetchDocumentOcrFirstPageFromMeta(
-          canonicalId,
-          doc.ocr_meta ? normalizePageMeta(doc.ocr_meta) : null,
-          options.chunkOrder,
-        )
-      : fetchDocumentOcrFirstPage(canonicalId, options.chunkOrder),
-    bundledTopics
-      ? topicCardsFromSlugs(doc.topic_slugs ?? [])
+    fetchDocumentOcrFirstPage(canonicalId, options.chunkOrder),
+    topicSlugs
+      ? topicCardsFromSlugs(topicSlugs)
       : fetchDocumentTopics(canonicalId),
   ]);
 
@@ -1480,7 +1527,7 @@ async function loadWarehouseDocument(
       documentHref: documentReaderHref(canonicalId, loadedPage.chunk_order),
       excerpt: truncateAround(loadedPage.chunk_text, aliases, 280),
       matchedTerms: aliases.slice(0, 3),
-      confidence: m.confidence,
+      confidence: asConfidenceLevel(m.confidence),
       source: "ocr",
       pageLabel: loadedPage.page_label,
       chunkOrder: loadedPage.chunk_order,
@@ -1517,52 +1564,241 @@ async function loadWarehouseDocument(
   };
 }
 
-const DOCUMENT_READ_BUNDLE_UNAVAILABLE_TTL_MS = 5 * 60 * 1000;
-let documentReadBundleUnavailableUntil = 0;
-
-function isDocumentReadBundleUnavailable(now = Date.now()): boolean {
-  return now < documentReadBundleUnavailableUntil;
-}
-
-function markDocumentReadBundleUnavailable(now = Date.now()): void {
-  documentReadBundleUnavailableUntil = now + DOCUMENT_READ_BUNDLE_UNAVAILABLE_TTL_MS;
-}
-
-/** Clears the optional-table unavailable marker. Used by tests. */
-export function resetDocumentReadBundleUnavailableForTests(): void {
-  documentReadBundleUnavailableUntil = 0;
-}
+type LoadedDocumentBundle = DocumentBundleRow & {
+  related_rows: RecordRow[];
+};
 
 async function loadDocumentReadBundle(
   id: string,
-): Promise<DocumentBundleRow | null> {
-  if (isDocumentReadBundleUnavailable()) {
-    const rows = await query<DocumentBundleRow>(
-      buildDocumentReadCoreSql(WAREHOUSE_TABLES),
-      { id },
-    );
-    return rows[0] ?? null;
+  relatedIds: readonly string[] = [],
+): Promise<LoadedDocumentBundle | null> {
+  const rows = await query<DocumentBundleRow>(
+    buildDocumentReadBundleSql(WAREHOUSE_TABLES, relatedIds),
+    { id },
+  );
+  if (rows.length === 0) return null;
+  const target =
+    rows.find((row) => row.is_target) ??
+    rows.find(
+      (row) => row.document_id === id || String(row.naid ?? "") === id,
+    ) ??
+    rows[0];
+  if (!target) return null;
+  return {
+    ...target,
+    related_rows: rows.filter((row) => row.document_id !== target.document_id),
+  };
+}
+
+async function loadRelatedDocumentRows(
+  relatedIds: readonly RelatedDocumentId[],
+  bundledRelated: readonly RecordRow[],
+  alreadyRequestedIds: readonly string[],
+): Promise<RecordRow[]> {
+  if (relatedIds.length === 0) return [];
+  const requested = new Set(alreadyRequestedIds);
+  const bundledById = new Map(
+    bundledRelated.map((row) => [row.document_id, row]),
+  );
+  const missing = relatedIds
+    .map((item) => item.document_id)
+    .filter((documentId) => !bundledById.has(documentId) && !requested.has(documentId));
+  if (missing.length === 0) {
+    return relatedIds
+      .map((item) => bundledById.get(item.document_id))
+      .filter((row): row is RecordRow => !!row);
   }
+  const fetched = await query<RecordRow>(
+    buildDocumentRelatedCardsSql(WAREHOUSE_TABLES, missing),
+  );
+  const fetchedById = new Map(fetched.map((row) => [row.document_id, row]));
+  return relatedIds
+    .map(
+      (item) =>
+        bundledById.get(item.document_id) ?? fetchedById.get(item.document_id),
+    )
+    .filter((row): row is RecordRow => !!row);
+}
+
+type ThinIndex<T> =
+  | { kind: "ready"; byId: Map<string, T> }
+  | { kind: "over_cap" }
+  | { kind: "unavailable" };
+
+type EntityGraphIndex =
+  | { kind: "ready"; graph: DocumentEntityGraph }
+  | { kind: "over_cap" }
+  | { kind: "unavailable" };
+
+let documentEntityGraphCache: TtlPromiseCache<EntityGraphIndex> | null = null;
+let documentTopicMapCache: TtlPromiseCache<ThinIndex<string[]>> | null = null;
+let documentOcrPageMetaIndexCache: TtlPromiseCache<ThinIndex<OcrPageMetaRecord>> | null =
+  null;
+
+async function resolveDocumentEntityRows(
+  entityIndex: EntityGraphIndex,
+  lookupId: string,
+  canonicalId: string,
+  seedRelatedIds: readonly RelatedDocumentId[],
+): Promise<{ mapRows: HydratedDocumentMapRow[]; relatedIds: RelatedDocumentId[] }> {
+  if (entityIndex.kind === "ready") {
+    const relatedIds =
+      canonicalId === lookupId
+        ? [...seedRelatedIds]
+        : relatedDocumentIdsFor(entityIndex.graph, canonicalId);
+    return {
+      mapRows: mapRowsForDocument(entityIndex.graph, canonicalId),
+      relatedIds,
+    };
+  }
+  return loadDocumentEntityFallback(canonicalId);
+}
+
+async function loadDocumentEntityFallback(
+  documentId: string,
+): Promise<{ mapRows: HydratedDocumentMapRow[]; relatedIds: RelatedDocumentId[] }> {
   try {
-    const rows = await query<DocumentBundleRow>(
-      buildDocumentReadBundleSql(WAREHOUSE_TABLES),
-      { id },
-    );
-    return rows[0] ?? null;
+    const rows = await query<{
+      map_rows?: HydratedDocumentMapRow[] | null;
+      related_ids?: RelatedDocumentId[] | null;
+    }>(buildDocumentEntityFallbackSql(WAREHOUSE_TABLES), { id: documentId });
+    return parseDocumentEntityFallbackRow(rows[0] ?? {});
   } catch (error) {
     if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
       console.warn(
-        "[warehouse] document read bundle optional tables unavailable; using core bundle",
+        "[warehouse] document entity fallback unavailable; related entities empty",
       );
-      markDocumentReadBundleUnavailable();
-      const rows = await query<DocumentBundleRow>(
-        buildDocumentReadCoreSql(WAREHOUSE_TABLES),
-        { id },
-      );
-      return rows[0] ?? null;
+      return { mapRows: [], relatedIds: [] };
     }
     throw error;
   }
+}
+
+async function loadDocumentEntityGraph(): Promise<EntityGraphIndex> {
+  const cached = readTtlPromiseCache(documentEntityGraphCache);
+  if (cached) return cached;
+  const promise = query<DocumentEntityMapRow>(
+    buildDocumentEntityMapSql(
+      WAREHOUSE_TABLES,
+      documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS),
+    ),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_ENTITY_MAP_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] document entity map has ${rows.length} rows; over cap ${DOCUMENT_ENTITY_MAP_MAX_ROWS}, using per-document fallback`,
+        );
+        return { kind: "over_cap" as const };
+      }
+      return { kind: "ready" as const, graph: buildDocumentEntityGraph(rows) };
+    })
+    .catch((error) => {
+      documentEntityGraphCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] document entity map unavailable; using per-document fallback",
+        );
+        return { kind: "unavailable" as const };
+      }
+      throw error;
+    });
+  documentEntityGraphCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
+}
+
+async function loadDocumentTopicMap(): Promise<ThinIndex<string[]>> {
+  const cached = readTtlPromiseCache(documentTopicMapCache);
+  if (cached) return cached;
+  const promise = query<{ document_id: string; topic_slug: string }>(
+    buildDocumentTopicMapAllSql(
+      WAREHOUSE_TABLES,
+      documentReadIndexScanLimit(DOCUMENT_TOPIC_MAP_MAX_ROWS),
+    ),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_TOPIC_MAP_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] document_topic_map has ${rows.length} rows; over cap ${DOCUMENT_TOPIC_MAP_MAX_ROWS}, using per-document fallback`,
+        );
+        return { kind: "over_cap" as const };
+      }
+      const byId = new Map<string, string[]>();
+      for (const row of rows) {
+        if (!row.document_id || !row.topic_slug) continue;
+        const slugs = byId.get(row.document_id) ?? [];
+        slugs.push(row.topic_slug);
+        byId.set(row.document_id, slugs);
+      }
+      return { kind: "ready" as const, byId };
+    })
+    .catch((error) => {
+      documentTopicMapCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] document_topic_map unavailable; falling back to per-document slugs",
+        );
+        return { kind: "unavailable" as const };
+      }
+      throw error;
+    });
+  documentTopicMapCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
+}
+
+async function loadOcrPageMetaIndex(): Promise<ThinIndex<OcrPageMetaRecord>> {
+  if (isOcrPageMetaTableUnavailable()) return { kind: "unavailable" };
+  const cached = readTtlPromiseCache(documentOcrPageMetaIndexCache);
+  if (cached) return cached;
+  const promise = query<Record<string, unknown>>(
+    buildDocumentOcrPageMetaIndexSql(
+      WAREHOUSE_TABLES,
+      documentReadIndexScanLimit(DOCUMENT_OCR_META_MAX_ROWS),
+    ),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_OCR_META_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] search_ocr_page_meta has ${rows.length} rows; over cap ${DOCUMENT_OCR_META_MAX_ROWS}, using per-document fallback`,
+        );
+        return { kind: "over_cap" as const };
+      }
+      const byId = new Map<string, OcrPageMetaRecord>();
+      for (const row of rows) {
+        const meta = normalizePageMeta(row);
+        if (!meta) continue;
+        byId.set(meta.document_id, meta);
+      }
+      return { kind: "ready" as const, byId };
+    })
+    .catch((error) => {
+      documentOcrPageMetaIndexCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] search_ocr_page_meta index unavailable; document OCR will not scan fat chunk tables",
+        );
+        markOcrPageMetaTableUnavailable();
+        return { kind: "unavailable" as const };
+      }
+      throw error;
+    });
+  documentOcrPageMetaIndexCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
+}
+
+/** Clears document-page thin-table caches. Used by tests. */
+export function resetDocumentReadBundleUnavailableForTests(): void {
+  documentEntityGraphCache = null;
+  documentTopicMapCache = null;
+  documentOcrPageMetaIndexCache = null;
 }
 
 async function topicCardsFromSlugs(slugs: string[]): Promise<TopicCard[]> {
@@ -2436,7 +2672,6 @@ function cooccurrencePairKey(source: string, target: string): string {
 }
 
 let corpusSearchFacetsPromise: Promise<SearchFacetData> | null = null;
-let entityMembershipPromise: Promise<Map<string, string[]>> | null = null;
 let topicMembershipPromise: Promise<Map<string, string[]>> | null = null;
 
 type MentionRow = {
@@ -2585,6 +2820,13 @@ function asInt(value: unknown): number | null {
   return null;
 }
 
+function asConfidenceLevel(value: string): ConfidenceLevel {
+  if (value === "high" || value === "medium" || value === "low" || value === "none") {
+    return value;
+  }
+  return "low";
+}
+
 function normalizePageMeta(
   row: Record<string, unknown> | DocumentOcrPageMeta,
 ): DocumentOcrPageMeta | null {
@@ -2628,6 +2870,15 @@ async function fetchDocumentOcrPageMeta(
   if (isOcrPageMetaTableUnavailable()) return { kind: "unavailable" };
   const cached = ocrPageMetaCache.get(documentId);
   if (cached) return { kind: "meta", meta: cached };
+
+  const index = await loadOcrPageMetaIndex();
+  if (index.kind === "ready") {
+    const meta = index.byId.get(documentId) ?? null;
+    if (!meta) return { kind: "none" };
+    ocrPageMetaCache.setPositive(documentId, meta);
+    return { kind: "meta", meta };
+  }
+
   try {
     const rows = await query<Record<string, unknown>>(
       buildDocumentPageMetaSql(WAREHOUSE_TABLES),
@@ -2845,31 +3096,16 @@ export async function fetchDocumentOcrPage(
 }
 
 async function loadEntityMembership(): Promise<Map<string, string[]>> {
-  if (!entityMembershipPromise) {
-    entityMembershipPromise = query<{ document_id: string; entity_id: string }>(
-      buildEntityMembershipSql(WAREHOUSE_TABLES),
-    )
-      .then((rows) => {
-        const membership = new Map<string, string[]>();
-        for (const row of rows) {
-          const list = membership.get(row.document_id) ?? [];
-          list.push(row.entity_id);
-          membership.set(row.document_id, list);
-        }
-        return membership;
-      })
-      .catch((error) => {
-        // Reset so a later request retries instead of serving empty facets
-        // for the life of this Cloud Run instance.
-        entityMembershipPromise = null;
-        if (isBigQueryBytesBilledExceeded(error)) {
-          console.warn("[warehouse] entity membership scan skipped: bytes billed cap");
-          return new Map<string, string[]>();
-        }
-        throw error;
-      });
+  const index = await loadDocumentEntityGraph();
+  const membership = new Map<string, string[]>();
+  if (index.kind !== "ready") return membership;
+  for (const [documentId, rows] of index.graph.byDocument) {
+    membership.set(
+      documentId,
+      rows.map((row) => row.entity_id),
+    );
   }
-  return entityMembershipPromise;
+  return membership;
 }
 
 async function loadTopicMembership(): Promise<Map<string, string[]>> {
@@ -3348,9 +3584,25 @@ type CaseTimelineRow = {
   importance: number | null;
 };
 
+const CASE_TIMELINE_TTL_MS = 60_000;
+let caseTimelineCache: TtlPromiseCache<CaseTimelineIndex> | null = null;
+
 export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
   if (useMockData()) return buildCaseTimelineIndex();
+  const cached = readTtlPromiseCache(caseTimelineCache);
+  if (cached) return cached;
+  const promise = loadWarehouseCaseTimeline();
+  caseTimelineCache = {
+    expiresAt: Date.now() + CASE_TIMELINE_TTL_MS,
+    promise,
+  };
+  promise.catch(() => {
+    caseTimelineCache = null;
+  });
+  return promise;
+}
 
+async function loadWarehouseCaseTimeline(): Promise<CaseTimelineIndex> {
   const [rows, docLinkRows] = await Promise.all([
     query<CaseTimelineRow>(
       `SELECT event_id, event_date, event_time_local, title, description,

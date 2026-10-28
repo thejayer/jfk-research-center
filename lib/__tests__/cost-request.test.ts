@@ -42,6 +42,19 @@ describe("cost request signals", () => {
     expect(left).not.toContain("oswald");
   });
 
+  it("fingerprints /api/entity paths so entity warehouse jobs can be labeled", async () => {
+    const oswald = await buildCostRequestFingerprint(
+      new URL("https://researchjfk.ai/api/entity/oswald"),
+    );
+    const ruby = await buildCostRequestFingerprint(
+      new URL("https://researchjfk.ai/api/entity/ruby"),
+    );
+    expect(oswald).toMatch(/^[a-f0-9]{24}$/);
+    expect(ruby).toMatch(/^[a-f0-9]{24}$/);
+    expect(oswald).not.toBe(ruby);
+    expect(oswald).not.toContain("oswald");
+  });
+
   it("accepts attribution only with a valid server-generated marker", async () => {
     const secret = "test-internal-marker-secret";
     const headers = new Headers({
