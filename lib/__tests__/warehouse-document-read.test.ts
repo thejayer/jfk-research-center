@@ -60,6 +60,12 @@ describe("document read warehouse path", () => {
     expect(warehouseSource).toMatch(/readTtlPromiseCache\(caseTimelineCache\)/);
   });
 
+  it("caches the home payload for 10 minutes after the in-process SSR move", () => {
+    expect(warehouseSource).toContain("HOME_TTL_MS = 10 * 60_000");
+    expect(warehouseSource).toContain("fetchHomeUncached");
+    expect(warehouseSource).toMatch(/readTtlPromiseCache\(homeCache\)/);
+  });
+
   it("does not cache an empty entity graph when the thin-table index is over cap", () => {
     const start = warehouseSource.indexOf("async function loadDocumentEntityGraph");
     const end = warehouseSource.indexOf("async function loadDocumentTopicMap");

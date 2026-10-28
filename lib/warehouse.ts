@@ -795,9 +795,25 @@ function queryableTopicTables(): TopicTableRef[] {
 // HOME
 // ---------------------------------------------------------------------------
 
+const HOME_TTL_MS = 10 * 60_000;
+let homeCache: TtlPromiseCache<HomeResponse> | null = null;
+
 export async function fetchHome(): Promise<HomeResponse> {
   if (useMockData()) return buildHomeResponse();
+  const cached = readTtlPromiseCache(homeCache);
+  if (cached) return cached;
+  const promise = fetchHomeUncached();
+  homeCache = {
+    expiresAt: Date.now() + HOME_TTL_MS,
+    promise,
+  };
+  promise.catch(() => {
+    homeCache = null;
+  });
+  return promise;
+}
 
+async function fetchHomeUncached(): Promise<HomeResponse> {
   const [stats, entities, topicCounts, recent, manifest] = await Promise.all([
     query<{ records: number; entities: number; mapped: number }>(
       `SELECT
