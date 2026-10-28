@@ -112,7 +112,17 @@ export async function verifyDeclaredSearchBot(
     const resolver =
       input.resolver === undefined ? createDohResolver() : input.resolver;
     if (resolver) {
-      verified = await reverseForwardVerify(ip, family.suffixes, resolver);
+      const dnsResult = await reverseForwardVerify(
+        ip,
+        family.suffixes,
+        resolver,
+      );
+      if (dnsResult === "verified") {
+        verified = true;
+      } else if (dnsResult === "error") {
+        // Transient DoH/DNS failures must not become a 30-minute 403.
+        return false;
+      }
     }
   }
 
@@ -215,18 +225,21 @@ function pruneCache(now: number, maxEntries: number): void {
   }
 }
 
+type DnsVerifyResult = "verified" | "denied" | "error";
+
 async function reverseForwardVerify(
   ip: string,
   suffixes: readonly string[],
   resolver: DnsResolver,
-): Promise<boolean> {
+): Promise<DnsVerifyResult> {
   let hostnames: string[];
   try {
     hostnames = await resolver.reverse(ip);
   } catch {
-    return false;
+    return "error";
   }
 
+  let forwardError = false;
   for (const rawHost of hostnames) {
     const hostname = rawHost.replace(/\.$/, "").toLowerCase();
     if (!hostnameMatchesSuffix(hostname, suffixes)) continue;
@@ -237,16 +250,17 @@ async function reverseForwardVerify(
         ? await resolver.resolve6(hostname)
         : await resolver.resolve4(hostname);
     } catch {
-      forwards = [];
+      forwardError = true;
+      continue;
     }
 
     if (
       forwards.some((candidate) => normalizeLookupAddress(candidate) === ip)
     ) {
-      return true;
+      return "verified";
     }
   }
-  return false;
+  return forwardError ? "error" : "denied";
 }
 
 export function hostnameMatchesSuffix(

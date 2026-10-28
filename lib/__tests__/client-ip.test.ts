@@ -58,14 +58,17 @@ describe("client IP behind a Google load balancer", () => {
   });
 
   it("ignores forwarded headers when trusted hops are unset", () => {
-    const ip = readTrustedClientIp({
-      headers: new Headers({
-        "x-forwarded-for": "203.0.113.10, 35.191.0.1",
-        "x-real-ip": "203.0.113.10",
-      }),
-    });
+    const ip = readTrustedClientIp(
+      {
+        headers: new Headers({
+          "x-forwarded-for": "203.0.113.10, 35.191.0.1",
+          "x-real-ip": "203.0.113.10",
+        }),
+      },
+      {},
+    );
     expect(ip).toBe("");
-    expect(clientIpOrUnknown({ headers: new Headers() })).toBe("unknown");
+    expect(clientIpOrUnknown({ headers: new Headers() }, {})).toBe("unknown");
   });
 
   it("normalizes IPv4-mapped IPv6, brackets, and IPv4:port", () => {

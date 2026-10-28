@@ -248,13 +248,17 @@ describe("search bot IP verification", () => {
     ).resolves.toBe(true);
     expect(searchBotVerifyCacheSizeForTests()).toBe(1);
 
-    const resolver = dnsResolver({});
+    const emptyPtr: DnsResolver = {
+      reverse: async () => [],
+      resolve4: async () => [],
+      resolve6: async () => [],
+    };
     await expect(
       verifyDeclaredSearchBot({
         userAgent: GOOGLEBOT,
         clientIp: SPOOF_IP,
         now: t0,
-        resolver,
+        resolver: emptyPtr,
       }),
     ).resolves.toBe(false);
     expect(searchBotVerifyCacheSizeForTests()).toBe(2);
@@ -270,6 +274,28 @@ describe("search bot IP verification", () => {
         }),
       }),
     ).resolves.toBe(false);
+
+    clearSearchBotVerifyCacheForTests();
+    await expect(
+      verifyDeclaredSearchBot({
+        userAgent: GOOGLEBOT,
+        clientIp: SPOOF_IP,
+        now: t0,
+        resolver: dnsResolver({}),
+      }),
+    ).resolves.toBe(false);
+    expect(searchBotVerifyCacheSizeForTests()).toBe(0);
+    await expect(
+      verifyDeclaredSearchBot({
+        userAgent: GOOGLEBOT,
+        clientIp: SPOOF_IP,
+        now: t0,
+        resolver: dnsResolver({
+          reverse: { [SPOOF_IP]: ["crawl-198-51-100-20.googlebot.com"] },
+          a: { "crawl-198-51-100-20.googlebot.com": [SPOOF_IP] },
+        }),
+      }),
+    ).resolves.toBe(true);
 
     await verifyDeclaredSearchBot({
       userAgent: GOOGLEBOT,
