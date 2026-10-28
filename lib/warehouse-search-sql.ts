@@ -7,8 +7,9 @@
  * mention excerpts come from search_ocr_card_excerpts (sql/34). Document
  * reader pages come from search_ocr_page_meta + search_ocr_pages (sql/35).
  * Document topic chips come from document_topic_map (sql/36), not EXISTS
- * over jfk_mvp.*_docs. Record jobs select only the card columns — never
- * r.* / release_history.
+ * over jfk_mvp.*_docs. The document-page bundle reads jfk_records only;
+ * entity/topic/page-meta are hydrated from thin full-table caches.
+ * Record jobs select only the card columns — never r.* / release_history.
  */
 
 export type WarehouseTableRef = {
@@ -346,7 +347,7 @@ export function buildDocumentPageMetaSql(tables: WarehouseTableRef): string {
  * FARM_FINGERPRINT(@id) in this WHERE — that does not reliably prune.
  */
 export function buildDocumentOnePageSql(tables: WarehouseTableRef): string {
-  return `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type,
+  return `SELECT chunk_id, chunk_order, chunk_text, page_label,
               prev_chunk_order, next_chunk_order
          FROM ${ocrPagesTable(tables)}
         WHERE doc_shard = @shard
@@ -361,7 +362,7 @@ export function buildDocumentOnePageSql(tables: WarehouseTableRef): string {
  * rules as {@link buildDocumentOnePageSql}.
  */
 export function buildDocumentPagesSql(tables: WarehouseTableRef): string {
-  return `SELECT chunk_id, chunk_order, chunk_text, page_label, source_type,
+  return `SELECT chunk_id, chunk_order, chunk_text, page_label,
               prev_chunk_order, next_chunk_order
          FROM ${ocrPagesTable(tables)}
         WHERE doc_shard = @shard
@@ -372,96 +373,77 @@ export function buildDocumentPagesSql(tables: WarehouseTableRef): string {
 /**
  * One warehouse job for the public document payload except OCR body.
  *
- * Collapses the former fan-out (jfk_records + entity map + related
- * records + topic slugs + page meta) so a first view is one metadata
- * job plus one partitioned page job, not six independent 10 MiB floors.
+ * Reads `jfk_records` only. Each extra table in the same job is another
+ * on-demand 10 MiB floor, so entity rows, related cards, topic slugs,
+ * and page-meta are hydrated in-process from thin full-table caches
+ * (see {@link buildDocumentEntityMapSql}).
  *
- * Does not read search_ocr_chunks, jfk_text_chunks, or embeddings.
- * Related cards use slim columns — not r.* / release_history.
- *
- * Optional tables (document_topic_map, search_ocr_page_meta) are
- * referenced here. If they are missing, the app falls back to
- * {@link buildDocumentReadCoreSql}.
- *
- * Subqueries against those external tables must filter with
- * `(SELECT document_id FROM target)` — not outer `t.document_id`.
- * BigQuery rejects correlated subqueries that reference other tables
- * unless they can be de-correlated into an efficient JOIN.
+ * Optional `relatedIds` are already-ranked neighbors included in this
+ * same records scan so a warm instance does not pay a second 10 MiB
+ * floor for related cards. Does not read search_ocr_chunks,
+ * jfk_text_chunks, or embeddings.
  */
-export function buildDocumentReadBundleSql(tables: WarehouseTableRef): string {
-  return `WITH target AS (
-         SELECT ${documentDetailSelectSql("r")}
-           FROM ${recordsTable(tables)} r
-          WHERE r.document_id = @id OR CAST(r.naid AS STRING) = @id
-          ORDER BY IF(r.document_id = @id, 0, 1)
-          LIMIT 1
-       ),
-       map_rows AS (
-         SELECT m.entity_id, m.confidence, m.match_source
-           FROM ${entityMapTable(tables)} m
-          WHERE m.document_id = (SELECT document_id FROM target)
-       ),
-       related_ids AS (
-         SELECT m.document_id, COUNT(*) AS shared
-           FROM ${entityMapTable(tables)} m
-           JOIN map_rows USING (entity_id)
-          WHERE m.document_id != (SELECT document_id FROM target)
-          GROUP BY m.document_id
-          ORDER BY shared DESC
-          LIMIT 6
-       )
-       SELECT ${documentDetailSelectSql("t")},
-              ARRAY(SELECT AS STRUCT entity_id, confidence, match_source
-                      FROM map_rows) AS map_rows,
-              ARRAY(SELECT AS STRUCT ${searchDocumentSelectSql("rel")}
-                      FROM ${recordsTable(tables)} rel
-                      JOIN related_ids ri USING (document_id)
-                     ORDER BY ri.shared DESC, rel.document_id) AS related_rows,
-              ARRAY(SELECT topic_slug
-                      FROM ${documentTopicMapTable(tables)}
-                     WHERE document_id = (SELECT document_id FROM target)) AS topic_slugs,
-              (SELECT AS STRUCT document_id, chunk_count, first_chunk_order,
-                      last_chunk_order, doc_shard
-                 FROM ${ocrPageMetaTable(tables)}
-                WHERE document_id = (SELECT document_id FROM target)
-                LIMIT 1) AS ocr_meta
-         FROM target t`;
+export function buildDocumentReadBundleSql(
+  tables: WarehouseTableRef,
+  relatedIds: readonly string[] = [],
+): string {
+  const relatedFilter = sqlDocumentIdInList("r.document_id", relatedIds);
+  return `SELECT ${documentDetailSelectSql("r")},
+              IF(r.document_id = @id OR CAST(r.naid AS STRING) = @id, TRUE, FALSE) AS is_target
+         FROM ${recordsTable(tables)} r
+        WHERE r.document_id = @id
+           OR CAST(r.naid AS STRING) = @id
+           OR ${relatedFilter}
+        ORDER BY IF(r.document_id = @id OR CAST(r.naid AS STRING) = @id, 0, 1),
+                 r.document_id`;
 }
 
 /**
- * Same as {@link buildDocumentReadBundleSql} without optional thin
- * tables. Used only when topic map / page meta are missing.
+ * Same records-only job as {@link buildDocumentReadBundleSql} without
+ * related ids. Kept as a named alias for the older optional-table
+ * fallback path.
  */
 export function buildDocumentReadCoreSql(tables: WarehouseTableRef): string {
-  return `WITH target AS (
-         SELECT ${documentDetailSelectSql("r")}
-           FROM ${recordsTable(tables)} r
-          WHERE r.document_id = @id OR CAST(r.naid AS STRING) = @id
-          ORDER BY IF(r.document_id = @id, 0, 1)
-          LIMIT 1
-       ),
-       map_rows AS (
-         SELECT m.entity_id, m.confidence, m.match_source
-           FROM ${entityMapTable(tables)} m
-          WHERE m.document_id = (SELECT document_id FROM target)
-       ),
-       related_ids AS (
-         SELECT m.document_id, COUNT(*) AS shared
-           FROM ${entityMapTable(tables)} m
-           JOIN map_rows USING (entity_id)
-          WHERE m.document_id != (SELECT document_id FROM target)
-          GROUP BY m.document_id
-          ORDER BY shared DESC
-          LIMIT 6
-       )
-       SELECT ${documentDetailSelectSql("t")},
-              ARRAY(SELECT AS STRUCT entity_id, confidence, match_source
-                      FROM map_rows) AS map_rows,
-              ARRAY(SELECT AS STRUCT ${searchDocumentSelectSql("rel")}
-                      FROM ${recordsTable(tables)} rel
-                      JOIN related_ids ri USING (document_id)
-                     ORDER BY ri.shared DESC, rel.document_id) AS related_rows
-         FROM target t`;
+  return buildDocumentReadBundleSql(tables);
+}
+
+/**
+ * Slim related-document cards from jfk_records. Used only when the
+ * first records job could not include neighbors (NAID lookup).
+ */
+export function buildDocumentRelatedCardsSql(
+  tables: WarehouseTableRef,
+  documentIds: readonly string[],
+): string {
+  const idFilter = sqlDocumentIdInList("r.document_id", documentIds);
+  if (idFilter === "FALSE") {
+    return `SELECT ${searchDocumentSelectSql("r")}
+         FROM ${recordsTable(tables)} r
+        WHERE FALSE`;
+  }
+  return `SELECT ${searchDocumentSelectSql("r")}
+         FROM ${recordsTable(tables)} r
+        WHERE ${idFilter}`;
+}
+
+/** Full entity-map scan — one 10 MiB floor, then in-process lookups. */
+export function buildDocumentEntityMapSql(tables: WarehouseTableRef): string {
+  return `SELECT document_id, entity_id, confidence, match_source
+         FROM ${entityMapTable(tables)}`;
+}
+
+/** Full topic-map scan — one 10 MiB floor, then in-process lookups. */
+export function buildDocumentTopicMapAllSql(tables: WarehouseTableRef): string {
+  return `SELECT document_id, topic_slug
+         FROM ${documentTopicMapTable(tables)}`;
+}
+
+/** Full page-meta scan — one 10 MiB floor, then in-process lookups. */
+export function buildDocumentOcrPageMetaIndexSql(
+  tables: WarehouseTableRef,
+): string {
+  return `SELECT document_id, chunk_count, first_chunk_order, last_chunk_order, doc_shard
+         FROM ${ocrPageMetaTable(tables)}`;
 }
 
 export function buildIdentifierSearchSql(
@@ -592,6 +574,20 @@ export function sqlHasOcrPagePartitionFilter(sql: string): boolean {
 
 export function sqlUsesDocumentTopicMap(sql: string): boolean {
   return /document_topic_map/i.test(sql);
+}
+
+/**
+ * Unique warehouse table names referenced as `project.dataset.table`.
+ * Used by tests to keep document-page jobs at one or two table reads.
+ */
+export function sqlReferencedTableNames(sql: string): string[] {
+  const names = new Set<string>();
+  for (const match of sql.matchAll(
+    /`[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.([A-Za-z0-9_]+)`/g,
+  )) {
+    names.add(match[1]);
+  }
+  return [...names].sort();
 }
 
 /** True when a job EXISTS-scans full-width jfk_mvp topic copies. */

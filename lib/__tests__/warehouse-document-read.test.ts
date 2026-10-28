@@ -15,11 +15,12 @@ describe("document read warehouse path", () => {
     expect(fetchDocument).toContain("withDocumentCache");
     expect(fetchDocument).toContain("documentCacheKey");
     expect(fetchDocument).toContain("buildDocumentReadBundleSql");
-    expect(fetchDocument).toContain("buildDocumentReadCoreSql");
     expect(fetchDocument).toContain("loadDocumentReadBundle");
-    expect(fetchDocument).toContain("isDocumentReadBundleUnavailable");
-    expect(fetchDocument).toContain("markDocumentReadBundleUnavailable");
-    expect(fetchDocument).not.toContain("isOcrPageMetaTableUnavailable");
+    expect(fetchDocument).toContain("loadDocumentEntityGraph");
+    expect(fetchDocument).toContain("loadDocumentTopicMap");
+    expect(fetchDocument).toContain("relatedDocumentIdsFor");
+    expect(fetchDocument).not.toContain("isDocumentReadBundleUnavailable");
+    expect(fetchDocument).not.toContain("markDocumentReadBundleUnavailable");
     expect(fetchDocument).not.toMatch(/SELECT \*\s+FROM `\$\{PROJECT\}.*jfk_records`/);
     expect(fetchDocument).not.toMatch(/SELECT r\.\*/);
     expect(fetchDocument).not.toMatch(/search_ocr_chunks/);
@@ -32,7 +33,7 @@ describe("document read warehouse path", () => {
     const end = warehouseSource.indexOf("const DOCUMENT_SITEMAP_TTL_MS");
     const load = warehouseSource.slice(start, end);
     expect(load).toContain("loadDocumentReadBundle");
-    expect(load).toContain("fetchDocumentOcrFirstPageFromMeta");
+    expect(load).toContain("fetchDocumentOcrFirstPage");
     expect(load).not.toMatch(/WITH this_entities AS/);
     expect(load).not.toMatch(/SELECT entity_id, confidence, match_source/);
   });

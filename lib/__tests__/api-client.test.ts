@@ -5,14 +5,33 @@ const nextHeaders = vi.hoisted(() => ({
   headers: vi.fn(),
 }));
 
+const warehouse = vi.hoisted(() => ({
+  fetchDocument: vi.fn(),
+  fetchDocumentOcrPage: vi.fn(),
+  fetchCaseTimeline: vi.fn(),
+  fetchCorpusManifest: vi.fn(),
+  fetchMediaIndex: vi.fn(),
+}));
+
+const mediaAssets = vi.hoisted(() => ({
+  getMediaAsset: vi.fn(),
+}));
+
 vi.mock("next/headers", () => ({
   headers: nextHeaders.headers,
 }));
 
+vi.mock("../warehouse", () => warehouse);
+vi.mock("../media-assets", () => mediaAssets);
+
 import {
   ApiRequestError,
   buildInternalFetchHeaders,
+  fetchCaseTimeline,
+  fetchCorpusManifest,
+  fetchDocument,
   fetchMediaAsset,
+  fetchMediaIndex,
   fetchSearch,
 } from "../api-client";
 import {
@@ -47,8 +66,10 @@ const mediaAsset: MediaAsset = {
 
 describe("api-client media helpers", () => {
   beforeEach(() => {
-    vi.stubEnv("JFK_API_BASE_URL", "");
+    vi.stubEnv("JFK_API_BASE_URL", "https://researchjfk.ai");
     nextHeaders.headers.mockResolvedValue(new Headers({ host: "example.test" }));
+    mediaAssets.getMediaAsset.mockReturnValue(mediaAsset);
+    warehouse.fetchMediaIndex.mockResolvedValue({ assets: [mediaAsset] });
   });
 
   afterEach(() => {
@@ -57,28 +78,67 @@ describe("api-client media helpers", () => {
     vi.clearAllMocks();
   });
 
-  it("fetches one media asset", async () => {
-    const fetchMock = vi.fn(async () =>
-      Response.json(mediaAsset, { status: 200 }),
-    );
+  it("loads one media asset in-process without looping through the public origin", async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
     await expect(fetchMediaAsset(mediaAsset.id)).resolves.toEqual(mediaAsset);
-    expect(fetchMock).toHaveBeenCalledWith(
-      `https://example.test/api/media/${mediaAsset.id}`,
-      expect.objectContaining({
-        next: { revalidate: 600 },
+    expect(mediaAssets.getMediaAsset).toHaveBeenCalledWith(mediaAsset.id);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns null when one media asset is missing", async () => {
+    mediaAssets.getMediaAsset.mockReturnValue(null);
+    vi.stubGlobal("fetch", vi.fn());
+
+    await expect(fetchMediaAsset("missing-media")).resolves.toBeNull();
+  });
+
+  it("loads the media index in-process", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchMediaIndex()).resolves.toEqual({ assets: [mediaAsset] });
+    expect(warehouse.fetchMediaIndex).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("api-client in-process SSR reads", () => {
+  beforeEach(() => {
+    vi.stubEnv("JFK_API_BASE_URL", "https://researchjfk.ai");
+    nextHeaders.headers.mockResolvedValue(
+      new Headers({
+        host: "researchjfk.ai",
+        "x-jfk-traffic-class": "browser",
       }),
     );
   });
 
-  it("returns null when one media asset is missing", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response(null, { status: 404 })),
-    );
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
 
-    await expect(fetchMediaAsset("missing-media")).resolves.toBeNull();
+  it("loads documents, timeline, and corpus manifest without fetching the public origin", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    warehouse.fetchDocument.mockResolvedValue({ document: { id: "104-10004-10143" } });
+    warehouse.fetchCaseTimeline.mockResolvedValue({ events: [] });
+    warehouse.fetchCorpusManifest.mockResolvedValue({ totalRecords: 1 });
+
+    await expect(fetchDocument("104-10004-10143", 2)).resolves.toEqual({
+      document: { id: "104-10004-10143" },
+    });
+    await expect(fetchCaseTimeline()).resolves.toEqual({ events: [] });
+    await expect(fetchCorpusManifest()).resolves.toEqual({ totalRecords: 1 });
+
+    expect(warehouse.fetchDocument).toHaveBeenCalledWith("104-10004-10143", {
+      chunkOrder: 2,
+    });
+    expect(warehouse.fetchCaseTimeline).toHaveBeenCalled();
+    expect(warehouse.fetchCorpusManifest).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

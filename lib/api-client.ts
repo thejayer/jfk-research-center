@@ -1,14 +1,11 @@
 /**
  * API client used by server components.
  *
- * This module is the single point of data access for pages. It calls
- * the internal Next.js API routes so the UI never imports mock-data
- * or warehouse code directly.
- *
- * In production, JFK_API_BASE_URL may point to a Cloud Run service or
- * an absolute URL for a separate deployment. In local development, the
- * same-host API routes are used via an absolute URL derived from
- * the request headers.
+ * Document, timeline, media, and corpus-manifest reads go straight to
+ * warehouse/data helpers so SSR never loops through JFK_API_BASE_URL
+ * (the public load balancer). Other surfaces still call same-host or
+ * configured API routes. Public /api/* handlers stay available for
+ * browsers.
  */
 
 import { headers } from "next/headers";
@@ -20,6 +17,18 @@ import {
   JFK_TRAFFIC_CLASS_HEADER,
 } from "./cost-request";
 import { ApiRequestError } from "./api-request-error";
+import {
+  warehouseRequestContextFromHeaders,
+  withWarehouseRequestContext,
+} from "./warehouse-request-context";
+import { getMediaAsset } from "./media-assets";
+import {
+  fetchCaseTimeline as fetchWarehouseCaseTimeline,
+  fetchCorpusManifest as fetchWarehouseCorpusManifest,
+  fetchDocument as fetchWarehouseDocument,
+  fetchDocumentOcrPage as fetchWarehouseDocumentOcrPage,
+  fetchMediaIndex as fetchWarehouseMediaIndex,
+} from "./warehouse";
 import type {
   BibliographyIndex,
   CaseTimelineIndex,
@@ -126,24 +135,49 @@ export async function fetchHome(): Promise<HomeResponse> {
   return data;
 }
 
+async function loadWarehouseDirect<T>(
+  path: string,
+  route: string,
+  loader: () => Promise<T>,
+): Promise<T> {
+  try {
+    const incomingHeaders = await headers();
+    return await withWarehouseRequestContext(
+      warehouseRequestContextFromHeaders(incomingHeaders, route),
+      loader,
+    );
+  } catch (error) {
+    if (error instanceof ApiRequestError) throw error;
+    throw new ApiRequestError(500, path);
+  }
+}
+
 export async function fetchCorpusManifest(): Promise<CorpusManifest> {
-  const data = await get<CorpusManifest>("/api/corpus-manifest", {
-    revalidate: 600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/corpus-manifest",
+    "ssr_corpus_manifest",
+    () => fetchWarehouseCorpusManifest(),
+  );
   if (!data) throw new Error("Corpus manifest missing");
   return data;
 }
 
 export async function fetchMediaIndex(): Promise<MediaIndexResponse> {
-  const data = await get<MediaIndexResponse>("/api/media", { revalidate: 600 });
+  const data = await loadWarehouseDirect(
+    "/api/media",
+    "ssr_media",
+    () => fetchWarehouseMediaIndex(),
+  );
   if (!data) throw new Error("Media index missing");
   return data;
 }
 
 export async function fetchMediaAsset(id: string): Promise<MediaAsset | null> {
-  return get<MediaAsset>(`/api/media/${encodeURIComponent(id)}`, {
-    revalidate: 600,
-  });
+  return loadWarehouseDirect(
+    `/api/media/${encodeURIComponent(id)}`,
+    "ssr_media",
+    async () => getMediaAsset(id),
+  );
 }
 
 export async function fetchSearch(
@@ -209,11 +243,16 @@ export async function fetchDocument(
     chunkOrder != null && Number.isFinite(chunkOrder)
       ? `?chunk=${Math.trunc(chunkOrder)}`
       : "";
-  return get<DocumentResponse>(
+  return loadWarehouseDirect(
     `/api/document/${encodeURIComponent(id)}${query}`,
-    {
-      revalidate: 300,
-    },
+    "ssr_document",
+    () =>
+      fetchWarehouseDocument(id, {
+        chunkOrder:
+          chunkOrder != null && Number.isFinite(chunkOrder)
+            ? Math.trunc(chunkOrder)
+            : null,
+      }),
   );
 }
 
@@ -221,9 +260,10 @@ export async function fetchDocumentOcrPage(
   id: string,
   chunkOrder: number,
 ): Promise<DocumentOcrPageResponse | null> {
-  return get<DocumentOcrPageResponse>(
+  return loadWarehouseDirect(
     `/api/document/${encodeURIComponent(id)}/ocr?chunk=${Math.trunc(chunkOrder)}`,
-    { revalidate: 300 },
+    "ssr_document",
+    () => fetchWarehouseDocumentOcrPage(id, Math.trunc(chunkOrder)),
   );
 }
 
@@ -271,9 +311,11 @@ export async function fetchEstablishedFactsIndex(): Promise<EstablishedFactsInde
 }
 
 export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
-  const data = await get<CaseTimelineIndex>("/api/timeline", {
-    revalidate: 600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/timeline",
+    "ssr_timeline",
+    () => fetchWarehouseCaseTimeline(),
+  );
   if (!data) throw new Error("Timeline index missing");
   return data;
 }
