@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  DOCUMENT_ENTITY_MAP_MAX_ROWS,
+  DOCUMENT_OCR_META_MAX_ROWS,
+  DOCUMENT_READ_INDEX_TTL_MS,
+  DOCUMENT_TOPIC_MAP_MAX_ROWS,
   RELATED_DOCUMENT_LIMIT,
   buildDocumentEntityGraph,
+  isOverIndexCap,
   mapRowsForDocument,
+  readTtlPromiseCache,
   relatedDocumentIdsFor,
   sortRelatedRows,
 } from "../document-read-hydrate";
@@ -102,5 +108,20 @@ describe("document read hydrate", () => {
         relatedIds,
       ).map((row) => row.document_id),
     ).toEqual(["doc-c", "doc-b"]);
+  });
+
+  it("bounds thin-table indexes with a TTL and hard row caps", () => {
+    expect(DOCUMENT_READ_INDEX_TTL_MS).toBe(5 * 60 * 1000);
+    expect(DOCUMENT_ENTITY_MAP_MAX_ROWS).toBe(250_000);
+    expect(DOCUMENT_TOPIC_MAP_MAX_ROWS).toBe(100_000);
+    expect(DOCUMENT_OCR_META_MAX_ROWS).toBe(10_000);
+    expect(isOverIndexCap(47_000, DOCUMENT_TOPIC_MAP_MAX_ROWS)).toBe(false);
+    expect(isOverIndexCap(100_001, DOCUMENT_TOPIC_MAP_MAX_ROWS)).toBe(true);
+    expect(
+      readTtlPromiseCache({ expiresAt: 1_000, promise: Promise.resolve(1) }, 999),
+    ).not.toBeNull();
+    expect(
+      readTtlPromiseCache({ expiresAt: 1_000, promise: Promise.resolve(1) }, 1_000),
+    ).toBeNull();
   });
 });

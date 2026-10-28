@@ -145,13 +145,20 @@ import {
   type OcrPageMetaRecord,
 } from "./ocr-page-meta-cache";
 import {
+  DOCUMENT_ENTITY_MAP_MAX_ROWS,
+  DOCUMENT_OCR_META_MAX_ROWS,
+  DOCUMENT_READ_INDEX_TTL_MS,
+  DOCUMENT_TOPIC_MAP_MAX_ROWS,
   buildDocumentEntityGraph,
+  isOverIndexCap,
   mapRowsForDocument,
+  readTtlPromiseCache,
   relatedDocumentIdsFor,
   sortRelatedRows,
   type DocumentEntityGraph,
   type DocumentEntityMapRow,
   type RelatedDocumentId,
+  type TtlPromiseCache,
 } from "./document-read-hydrate";
 import {
   buildCorpusAgencyFacetSql,
@@ -1586,96 +1593,127 @@ type ThinIndex<T> =
   | { kind: "ready"; byId: Map<string, T> }
   | { kind: "unavailable" };
 
-let documentEntityGraphPromise: Promise<DocumentEntityGraph> | null = null;
-let documentTopicMapPromise: Promise<ThinIndex<string[]>> | null = null;
-let documentOcrPageMetaIndexPromise: Promise<ThinIndex<OcrPageMetaRecord>> | null =
+let documentEntityGraphCache: TtlPromiseCache<DocumentEntityGraph> | null = null;
+let documentTopicMapCache: TtlPromiseCache<ThinIndex<string[]>> | null = null;
+let documentOcrPageMetaIndexCache: TtlPromiseCache<ThinIndex<OcrPageMetaRecord>> | null =
   null;
 
 async function loadDocumentEntityGraph(): Promise<DocumentEntityGraph> {
-  if (!documentEntityGraphPromise) {
-    documentEntityGraphPromise = query<DocumentEntityMapRow>(
-      buildDocumentEntityMapSql(WAREHOUSE_TABLES),
-    )
-      .then((rows) => buildDocumentEntityGraph(rows))
-      .catch((error) => {
-        documentEntityGraphPromise = null;
-        if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
-          console.warn(
-            "[warehouse] document entity map unavailable; related entities empty",
-          );
-          return buildDocumentEntityGraph([]);
-        }
-        throw error;
-      });
-  }
-  return documentEntityGraphPromise;
+  const cached = readTtlPromiseCache(documentEntityGraphCache);
+  if (cached) return cached;
+  const promise = query<DocumentEntityMapRow>(
+    buildDocumentEntityMapSql(WAREHOUSE_TABLES),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_ENTITY_MAP_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] document entity map has ${rows.length} rows; over cap ${DOCUMENT_ENTITY_MAP_MAX_ROWS}, not cached`,
+        );
+        return buildDocumentEntityGraph([]);
+      }
+      return buildDocumentEntityGraph(rows);
+    })
+    .catch((error) => {
+      documentEntityGraphCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] document entity map unavailable; related entities empty",
+        );
+        return buildDocumentEntityGraph([]);
+      }
+      throw error;
+    });
+  documentEntityGraphCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
 }
 
 async function loadDocumentTopicMap(): Promise<ThinIndex<string[]>> {
-  if (!documentTopicMapPromise) {
-    documentTopicMapPromise = query<{ document_id: string; topic_slug: string }>(
-      buildDocumentTopicMapAllSql(WAREHOUSE_TABLES),
-    )
-      .then((rows) => {
-        const byId = new Map<string, string[]>();
-        for (const row of rows) {
-          if (!row.document_id || !row.topic_slug) continue;
-          const slugs = byId.get(row.document_id) ?? [];
-          slugs.push(row.topic_slug);
-          byId.set(row.document_id, slugs);
-        }
-        return { kind: "ready" as const, byId };
-      })
-      .catch((error) => {
-        documentTopicMapPromise = null;
-        if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
-          console.warn(
-            "[warehouse] document_topic_map unavailable; falling back to per-document slugs",
-          );
-          return { kind: "unavailable" as const };
-        }
-        throw error;
-      });
-  }
-  return documentTopicMapPromise;
+  const cached = readTtlPromiseCache(documentTopicMapCache);
+  if (cached) return cached;
+  const promise = query<{ document_id: string; topic_slug: string }>(
+    buildDocumentTopicMapAllSql(WAREHOUSE_TABLES),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_TOPIC_MAP_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] document_topic_map has ${rows.length} rows; over cap ${DOCUMENT_TOPIC_MAP_MAX_ROWS}, not cached`,
+        );
+        return { kind: "unavailable" as const };
+      }
+      const byId = new Map<string, string[]>();
+      for (const row of rows) {
+        if (!row.document_id || !row.topic_slug) continue;
+        const slugs = byId.get(row.document_id) ?? [];
+        slugs.push(row.topic_slug);
+        byId.set(row.document_id, slugs);
+      }
+      return { kind: "ready" as const, byId };
+    })
+    .catch((error) => {
+      documentTopicMapCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] document_topic_map unavailable; falling back to per-document slugs",
+        );
+        return { kind: "unavailable" as const };
+      }
+      throw error;
+    });
+  documentTopicMapCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
 }
 
 async function loadOcrPageMetaIndex(): Promise<ThinIndex<OcrPageMetaRecord>> {
   if (isOcrPageMetaTableUnavailable()) return { kind: "unavailable" };
-  if (!documentOcrPageMetaIndexPromise) {
-    documentOcrPageMetaIndexPromise = query<Record<string, unknown>>(
-      buildDocumentOcrPageMetaIndexSql(WAREHOUSE_TABLES),
-    )
-      .then((rows) => {
-        const byId = new Map<string, OcrPageMetaRecord>();
-        for (const row of rows) {
-          const meta = normalizePageMeta(row);
-          if (!meta) continue;
-          byId.set(meta.document_id, meta);
-        }
-        return { kind: "ready" as const, byId };
-      })
-      .catch((error) => {
-        documentOcrPageMetaIndexPromise = null;
-        if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
-          console.warn(
-            "[warehouse] search_ocr_page_meta index unavailable; document OCR will not scan fat chunk tables",
-          );
-          markOcrPageMetaTableUnavailable();
-          return { kind: "unavailable" as const };
-        }
-        throw error;
-      });
-  }
-  return documentOcrPageMetaIndexPromise;
+  const cached = readTtlPromiseCache(documentOcrPageMetaIndexCache);
+  if (cached) return cached;
+  const promise = query<Record<string, unknown>>(
+    buildDocumentOcrPageMetaIndexSql(WAREHOUSE_TABLES),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_OCR_META_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] search_ocr_page_meta has ${rows.length} rows; over cap ${DOCUMENT_OCR_META_MAX_ROWS}, not cached`,
+        );
+        return { kind: "unavailable" as const };
+      }
+      const byId = new Map<string, OcrPageMetaRecord>();
+      for (const row of rows) {
+        const meta = normalizePageMeta(row);
+        if (!meta) continue;
+        byId.set(meta.document_id, meta);
+      }
+      return { kind: "ready" as const, byId };
+    })
+    .catch((error) => {
+      documentOcrPageMetaIndexCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] search_ocr_page_meta index unavailable; document OCR will not scan fat chunk tables",
+        );
+        markOcrPageMetaTableUnavailable();
+        return { kind: "unavailable" as const };
+      }
+      throw error;
+    });
+  documentOcrPageMetaIndexCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
 }
 
 /** Clears document-page thin-table caches. Used by tests. */
 export function resetDocumentReadBundleUnavailableForTests(): void {
-  documentEntityGraphPromise = null;
-  documentTopicMapPromise = null;
-  documentOcrPageMetaIndexPromise = null;
-  entityMembershipPromise = null;
+  documentEntityGraphCache = null;
+  documentTopicMapCache = null;
+  documentOcrPageMetaIndexCache = null;
 }
 
 async function topicCardsFromSlugs(slugs: string[]): Promise<TopicCard[]> {
@@ -2549,7 +2587,6 @@ function cooccurrencePairKey(source: string, target: string): string {
 }
 
 let corpusSearchFacetsPromise: Promise<SearchFacetData> | null = null;
-let entityMembershipPromise: Promise<Map<string, string[]>> | null = null;
 let topicMembershipPromise: Promise<Map<string, string[]>> | null = null;
 
 type MentionRow = {
@@ -2974,30 +3011,15 @@ export async function fetchDocumentOcrPage(
 }
 
 async function loadEntityMembership(): Promise<Map<string, string[]>> {
-  if (!entityMembershipPromise) {
-    entityMembershipPromise = loadDocumentEntityGraph()
-      .then((graph) => {
-        const membership = new Map<string, string[]>();
-        for (const [documentId, rows] of graph.byDocument) {
-          membership.set(
-            documentId,
-            rows.map((row) => row.entity_id),
-          );
-        }
-        return membership;
-      })
-      .catch((error) => {
-        // Reset so a later request retries instead of serving empty facets
-        // for the life of this Cloud Run instance.
-        entityMembershipPromise = null;
-        if (isBigQueryBytesBilledExceeded(error)) {
-          console.warn("[warehouse] entity membership scan skipped: bytes billed cap");
-          return new Map<string, string[]>();
-        }
-        throw error;
-      });
+  const graph = await loadDocumentEntityGraph();
+  const membership = new Map<string, string[]>();
+  for (const [documentId, rows] of graph.byDocument) {
+    membership.set(
+      documentId,
+      rows.map((row) => row.entity_id),
+    );
   }
-  return entityMembershipPromise;
+  return membership;
 }
 
 async function loadTopicMembership(): Promise<Map<string, string[]>> {

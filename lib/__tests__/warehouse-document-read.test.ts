@@ -19,6 +19,9 @@ describe("document read warehouse path", () => {
     expect(fetchDocument).toContain("loadDocumentEntityGraph");
     expect(fetchDocument).toContain("loadDocumentTopicMap");
     expect(fetchDocument).toContain("relatedDocumentIdsFor");
+    expect(fetchDocument).toContain("DOCUMENT_READ_INDEX_TTL_MS");
+    expect(fetchDocument).toContain("DOCUMENT_ENTITY_MAP_MAX_ROWS");
+    expect(fetchDocument).toContain("readTtlPromiseCache");
     expect(fetchDocument).not.toContain("isDocumentReadBundleUnavailable");
     expect(fetchDocument).not.toContain("markDocumentReadBundleUnavailable");
     expect(fetchDocument).not.toMatch(/SELECT \*\s+FROM `\$\{PROJECT\}.*jfk_records`/);

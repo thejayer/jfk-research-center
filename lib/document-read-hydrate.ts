@@ -31,6 +31,34 @@ export type DocumentEntityGraph = {
 
 export const RELATED_DOCUMENT_LIMIT = 6;
 
+/** How long one Cloud Run instance keeps a thin-table index. */
+export const DOCUMENT_READ_INDEX_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * Hard caps so a surprise table-growth cannot pin the 1 GiB instance.
+ * Current corpus sizes sit well under these (see PR notes).
+ */
+export const DOCUMENT_ENTITY_MAP_MAX_ROWS = 250_000;
+export const DOCUMENT_TOPIC_MAP_MAX_ROWS = 100_000;
+export const DOCUMENT_OCR_META_MAX_ROWS = 10_000;
+
+export type TtlPromiseCache<T> = {
+  expiresAt: number;
+  promise: Promise<T>;
+};
+
+export function readTtlPromiseCache<T>(
+  cache: TtlPromiseCache<T> | null,
+  now = Date.now(),
+): Promise<T> | null {
+  if (!cache || cache.expiresAt <= now) return null;
+  return cache.promise;
+}
+
+export function isOverIndexCap(rowCount: number, maxRows: number): boolean {
+  return rowCount > maxRows;
+}
+
 /**
  * Builds inverted indexes for one-document lookups after a single
  * entity-map scan.
