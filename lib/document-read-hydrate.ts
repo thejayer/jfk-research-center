@@ -59,6 +59,54 @@ export function isOverIndexCap(rowCount: number, maxRows: number): boolean {
   return rowCount > maxRows;
 }
 
+/** LIMIT max+1 so the client can detect overflow without an unbounded scan. */
+export function documentReadIndexScanLimit(maxRows: number): number {
+  return maxRows + 1;
+}
+
+export function parseDocumentEntityFallbackRow(row: {
+  map_rows?: readonly {
+    entity_id?: string | null;
+    confidence?: string | null;
+    match_source?: string | null;
+  }[] | null;
+  related_ids?: readonly {
+    document_id?: string | null;
+    shared?: unknown;
+  }[] | null;
+}): { mapRows: DocumentMapRow[]; relatedIds: RelatedDocumentId[] } {
+  const mapRows = (row.map_rows ?? []).flatMap((item) => {
+    const entityId = item.entity_id?.trim();
+    if (!entityId) return [];
+    return [
+      {
+        entity_id: entityId,
+        confidence: item.confidence ?? "",
+        match_source: item.match_source ?? "",
+      },
+    ];
+  });
+  const relatedIds = (row.related_ids ?? []).flatMap((item) => {
+    const documentId = item.document_id?.trim();
+    if (!documentId) return [];
+    return [{ document_id: documentId, shared: asSharedCount(item.shared) }];
+  });
+  return { mapRows, relatedIds };
+}
+
+function asSharedCount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "bigint") return Number(value);
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (value && typeof value === "object" && "value" in value) {
+    return asSharedCount((value as { value: unknown }).value);
+  }
+  return 0;
+}
+
 /**
  * Builds inverted indexes for one-document lookups after a single
  * entity-map scan.

@@ -12,6 +12,8 @@
  * Record jobs select only the card columns — never r.* / release_history.
  */
 
+import { RELATED_DOCUMENT_LIMIT } from "./document-read-hydrate";
+
 export type WarehouseTableRef = {
   project: string;
   curatedDataset: string;
@@ -427,23 +429,56 @@ export function buildDocumentRelatedCardsSql(
 }
 
 /** Full entity-map scan — one 10 MiB floor, then in-process lookups. */
-export function buildDocumentEntityMapSql(tables: WarehouseTableRef): string {
+export function buildDocumentEntityMapSql(
+  tables: WarehouseTableRef,
+  limit: number,
+): string {
   return `SELECT document_id, entity_id, confidence, match_source
-         FROM ${entityMapTable(tables)}`;
+         FROM ${entityMapTable(tables)}
+        LIMIT ${Number(limit)}`;
 }
 
 /** Full topic-map scan — one 10 MiB floor, then in-process lookups. */
-export function buildDocumentTopicMapAllSql(tables: WarehouseTableRef): string {
+export function buildDocumentTopicMapAllSql(
+  tables: WarehouseTableRef,
+  limit: number,
+): string {
   return `SELECT document_id, topic_slug
-         FROM ${documentTopicMapTable(tables)}`;
+         FROM ${documentTopicMapTable(tables)}
+        LIMIT ${Number(limit)}`;
 }
 
 /** Full page-meta scan — one 10 MiB floor, then in-process lookups. */
 export function buildDocumentOcrPageMetaIndexSql(
   tables: WarehouseTableRef,
+  limit: number,
 ): string {
   return `SELECT document_id, chunk_count, first_chunk_order, last_chunk_order, doc_shard
-         FROM ${ocrPageMetaTable(tables)}`;
+         FROM ${ocrPageMetaTable(tables)}
+        LIMIT ${Number(limit)}`;
+}
+
+/**
+ * One-document entity rows + related ids from the entity map only.
+ * Used when the full-table index is over its memory cap.
+ */
+export function buildDocumentEntityFallbackSql(
+  tables: WarehouseTableRef,
+): string {
+  return `WITH map_rows AS (
+         SELECT entity_id, confidence, match_source
+           FROM ${entityMapTable(tables)}
+          WHERE document_id = @id
+       )
+       SELECT ARRAY(SELECT AS STRUCT entity_id, confidence, match_source
+                      FROM map_rows) AS map_rows,
+              ARRAY(SELECT AS STRUCT m.document_id, COUNT(*) AS shared
+                      FROM ${entityMapTable(tables)} m
+                      JOIN map_rows USING (entity_id)
+                     WHERE m.document_id != @id
+                     GROUP BY m.document_id
+                     ORDER BY shared DESC, m.document_id
+                     LIMIT ${Number(RELATED_DOCUMENT_LIMIT)}) AS related_ids`;
 }
 
 export function buildIdentifierSearchSql(

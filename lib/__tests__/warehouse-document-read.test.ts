@@ -21,7 +21,12 @@ describe("document read warehouse path", () => {
     expect(fetchDocument).toContain("relatedDocumentIdsFor");
     expect(fetchDocument).toContain("DOCUMENT_READ_INDEX_TTL_MS");
     expect(fetchDocument).toContain("DOCUMENT_ENTITY_MAP_MAX_ROWS");
+    expect(fetchDocument).toContain("documentReadIndexScanLimit");
     expect(fetchDocument).toContain("readTtlPromiseCache");
+    expect(fetchDocument).toContain("buildDocumentEntityFallbackSql");
+    expect(fetchDocument).toContain("over_cap");
+    expect(fetchDocument).toContain("using per-document fallback");
+    expect(fetchDocument).not.toContain("buildDocumentEntityGraph([])");
     expect(fetchDocument).not.toContain("isDocumentReadBundleUnavailable");
     expect(fetchDocument).not.toContain("markDocumentReadBundleUnavailable");
     expect(fetchDocument).not.toMatch(/SELECT \*\s+FROM `\$\{PROJECT\}.*jfk_records`/);
@@ -37,7 +42,20 @@ describe("document read warehouse path", () => {
     const load = warehouseSource.slice(start, end);
     expect(load).toContain("loadDocumentReadBundle");
     expect(load).toContain("fetchDocumentOcrFirstPage");
+    expect(load).toContain("resolveDocumentEntityRows");
+    expect(load).toContain("loadDocumentEntityFallback");
+    expect(load).toContain("fetchDocumentTopics");
     expect(load).not.toMatch(/WITH this_entities AS/);
     expect(load).not.toMatch(/SELECT entity_id, confidence, match_source/);
+  });
+
+  it("does not cache an empty entity graph when the thin-table index is over cap", () => {
+    const start = warehouseSource.indexOf("async function loadDocumentEntityGraph");
+    const end = warehouseSource.indexOf("async function loadDocumentTopicMap");
+    const loadGraph = warehouseSource.slice(start, end);
+    expect(loadGraph).toContain('kind: "over_cap"');
+    expect(loadGraph).toContain("using per-document fallback");
+    expect(loadGraph).not.toContain("buildDocumentEntityGraph([])");
+    expect(loadGraph).toContain("documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS)");
   });
 });

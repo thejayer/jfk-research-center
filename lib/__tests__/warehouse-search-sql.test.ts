@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCorpusAgencyFacetSql,
   buildCorpusTopicFacetSql,
+  buildDocumentEntityFallbackSql,
   buildDocumentEntityMapSql,
   buildDocumentOcrPageMetaIndexSql,
   buildDocumentOnePageSql,
@@ -40,6 +41,13 @@ import {
   sqlHasOcrPagePartitionFilter,
   sqlReferencedTableNames,
 } from "../warehouse-search-sql";
+import {
+  DOCUMENT_ENTITY_MAP_MAX_ROWS,
+  DOCUMENT_OCR_META_MAX_ROWS,
+  DOCUMENT_TOPIC_MAP_MAX_ROWS,
+  RELATED_DOCUMENT_LIMIT,
+  documentReadIndexScanLimit,
+} from "../document-read-hydrate";
 
 const tables = {
   project: "jfk-vault",
@@ -220,18 +228,35 @@ describe("warehouse search SQL cost envelope", () => {
   });
 
   it("scans thin entity/topic/page-meta tables as full-index jobs, not per-page joins", () => {
-    expect(sqlReferencedTableNames(buildDocumentEntityMapSql(tables))).toEqual([
+    const entityLimit = documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS);
+    const topicLimit = documentReadIndexScanLimit(DOCUMENT_TOPIC_MAP_MAX_ROWS);
+    const ocrLimit = documentReadIndexScanLimit(DOCUMENT_OCR_META_MAX_ROWS);
+    expect(sqlReferencedTableNames(buildDocumentEntityMapSql(tables, entityLimit))).toEqual([
       "jfk_document_entity_map",
     ]);
-    expect(sqlReferencedTableNames(buildDocumentTopicMapAllSql(tables))).toEqual([
+    expect(sqlReferencedTableNames(buildDocumentTopicMapAllSql(tables, topicLimit))).toEqual([
       "document_topic_map",
     ]);
     expect(
-      sqlReferencedTableNames(buildDocumentOcrPageMetaIndexSql(tables)),
+      sqlReferencedTableNames(buildDocumentOcrPageMetaIndexSql(tables, ocrLimit)),
     ).toEqual(["search_ocr_page_meta"]);
-    expect(buildDocumentEntityMapSql(tables)).toContain("confidence");
-    expect(buildDocumentEntityMapSql(tables)).not.toContain("match_text");
-    expect(buildDocumentOcrPageMetaIndexSql(tables)).not.toMatch(/chunk_text/i);
+    expect(buildDocumentEntityMapSql(tables, entityLimit)).toContain("confidence");
+    expect(buildDocumentEntityMapSql(tables, entityLimit)).not.toContain("match_text");
+    expect(buildDocumentEntityMapSql(tables, entityLimit)).toContain(`LIMIT ${entityLimit}`);
+    expect(buildDocumentTopicMapAllSql(tables, topicLimit)).toContain(`LIMIT ${topicLimit}`);
+    expect(buildDocumentOcrPageMetaIndexSql(tables, ocrLimit)).toContain(`LIMIT ${ocrLimit}`);
+    expect(buildDocumentOcrPageMetaIndexSql(tables, ocrLimit)).not.toMatch(/chunk_text/i);
+  });
+
+  it("falls back to a one-document entity-map job when the full index is over cap", () => {
+    const sql = buildDocumentEntityFallbackSql(tables);
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_document_entity_map"]);
+    expect(sql).toContain("WHERE document_id = @id");
+    expect(sql).toContain("AS map_rows");
+    expect(sql).toContain("AS related_ids");
+    expect(sql).toContain(`LIMIT ${RELATED_DOCUMENT_LIMIT}`);
+    expect(sql).not.toContain("jfk_records");
+    expect(sql).not.toMatch(/search_ocr_chunks/i);
   });
 
   it("uses a records-only core alias when no related ids are known", () => {

@@ -6,8 +6,10 @@ import {
   DOCUMENT_TOPIC_MAP_MAX_ROWS,
   RELATED_DOCUMENT_LIMIT,
   buildDocumentEntityGraph,
+  documentReadIndexScanLimit,
   isOverIndexCap,
   mapRowsForDocument,
+  parseDocumentEntityFallbackRow,
   readTtlPromiseCache,
   relatedDocumentIdsFor,
   sortRelatedRows,
@@ -117,11 +119,47 @@ describe("document read hydrate", () => {
     expect(DOCUMENT_OCR_META_MAX_ROWS).toBe(10_000);
     expect(isOverIndexCap(47_000, DOCUMENT_TOPIC_MAP_MAX_ROWS)).toBe(false);
     expect(isOverIndexCap(100_001, DOCUMENT_TOPIC_MAP_MAX_ROWS)).toBe(true);
+    expect(documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS)).toBe(
+      DOCUMENT_ENTITY_MAP_MAX_ROWS + 1,
+    );
+    expect(
+      isOverIndexCap(
+        documentReadIndexScanLimit(DOCUMENT_ENTITY_MAP_MAX_ROWS),
+        DOCUMENT_ENTITY_MAP_MAX_ROWS,
+      ),
+    ).toBe(true);
     expect(
       readTtlPromiseCache({ expiresAt: 1_000, promise: Promise.resolve(1) }, 999),
     ).not.toBeNull();
     expect(
       readTtlPromiseCache({ expiresAt: 1_000, promise: Promise.resolve(1) }, 1_000),
     ).toBeNull();
+  });
+
+  it("parses a per-document entity fallback row without dropping mapped entities", () => {
+    expect(
+      parseDocumentEntityFallbackRow({
+        map_rows: [
+          { entity_id: "oswald", confidence: "high", match_source: "title" },
+          { entity_id: "  ", confidence: "low", match_source: "ocr" },
+        ],
+        related_ids: [
+          { document_id: "doc-c", shared: { value: "2" } },
+          { document_id: "doc-b", shared: "1" },
+        ],
+      }),
+    ).toEqual({
+      mapRows: [
+        { entity_id: "oswald", confidence: "high", match_source: "title" },
+      ],
+      relatedIds: [
+        { document_id: "doc-c", shared: 2 },
+        { document_id: "doc-b", shared: 1 },
+      ],
+    });
+    expect(parseDocumentEntityFallbackRow({})).toEqual({
+      mapRows: [],
+      relatedIds: [],
+    });
   });
 });
