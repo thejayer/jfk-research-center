@@ -9,6 +9,18 @@
   min-width: 0;
 }
 
+.sceneToolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:16px; border:1px solid var(--border); background:var(--surface); }
+.sceneToolbar h2 { margin:4px 16px 0 0; font-family:var(--font-serif); font-size:1.6rem; }
+.sceneToolbar label { display:flex; align-items:center; gap:5px; font-size:.78rem; }
+.sceneToolbar button, .sceneToolbar select { padding:8px 10px; border:1px solid var(--border); background:var(--surface); color:var(--text); font:inherit; cursor:pointer; }
+.sceneToolbar button:focus-visible, .sceneToolbar select:focus-visible, .canvas:focus-visible { outline:3px solid var(--accent); outline-offset:-3px; }
+.sceneCaption { position:absolute; top:14px; left:14px; z-index:1; padding:7px 10px; background:#f7f2e4e8; color:#34423b; font-size:.73rem; pointer-events:none; }
+.sceneFallback { position:absolute; inset:70px 25px auto; z-index:2; padding:24px; background:var(--surface); border:1px solid var(--border); line-height:1.6; }
+.reconstructionNotes { padding:16px; border:1px solid var(--border); background:var(--surface); font-size:.83rem; line-height:1.6; }
+.reconstructionNotes summary { cursor:pointer; font-weight:600; }
+.reconstructionNotice { margin:0; padding:12px 16px; background:var(--surface); border:1px solid var(--border); font-size:.8rem; line-height:1.5; }
+.reconstructionNotes a { color:var(--accent-strong); text-decoration:underline; }
+
 .scene {
   position: relative;
   min-height: 620px;
@@ -832,10 +844,10 @@
     height: 56vh;
   }
 
-  .hud,
   .side {
     grid-template-columns: 1fr;
   }
+  .hud { grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; left:10px; right:10px; bottom:10px; }
 
   .planHeader {
     display: grid;
