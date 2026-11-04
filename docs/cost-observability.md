@@ -53,9 +53,10 @@ layers:
   thin table is missing.   `/api/document` OCR no longer reads
   `search_ocr_chunks` / `jfk_text_chunks`. First page and later pages
   come from `search_ocr_page_meta` + partitioned `search_ocr_pages`
-  (sql/35). Metadata for a document open (record, entity map, related
-  cards, topic slugs, page-meta) is one bundled job; repeats of the
-  same id are served from the in-process document cache. Until sql/33 is applied, document search degrades to
+  (sql/35). Record metadata and related cards use a per-instance records
+  index; entity maps, topic slugs, and page-meta have separate thin indexes.
+  Repeats of the same id are served from the in-process document cache.
+  Until sql/33 is applied, document search degrades to
   title/description only (Oswald-class totals drop the OCR-only band)
   rather than scanning chunks again.
 - Privacy-safe request ids and hashed request fingerprints are propagated
@@ -84,21 +85,36 @@ Rate limit env overrides:
   `500`.
 - `JFK_SEARCH_CACHE_DISABLED=1`: emergency cache bypass.
 - `JFK_DOCUMENT_CACHE_TTL_SECONDS`: public `/api/document/:id` (and the SSR
-  page that fans out to it) in-process TTL; default `300`.
+  page that fans out to it) in-process TTL; default `86400` (24 hours).
 - `JFK_DOCUMENT_CACHE_MAX_ENTRIES`: positive per-instance LRU bound; default
-  `2000` (covers the OCR corpus on one Cloud Run instance).
+  `1000` (bounds document payload memory on one Cloud Run instance).
 - `JFK_DOCUMENT_CACHE_DISABLED=1`: emergency document-cache bypass.
 
 Cache hits and coalesced document opens do not create new BigQuery jobs.
-The first view still runs a bundled metadata job plus one partitioned
-OCR page job. Repeats of the same `document_id` + `?chunk=` reuse the
-in-process payload. 404s and warehouse failures are not cached.
+Record metadata comes from the per-instance records index described below;
+OCR reads still use a partitioned page job when needed. Repeats of the same
+`document_id` + `?chunk=` reuse the in-process payload. 404s and warehouse failures are not cached.
 
 The in-app limiter is intentionally cheap and per Cloud Run instance. Keep it
 enabled, but use Cloud Armor or an upstream edge limit as the durable perimeter
 if traffic spikes continue. The current project has no shared limiter backend
 provisioned, so this remains an infrastructure follow-up rather than an
 application configuration switch.
+
+## Document records index
+
+Each instance scans only `DOCUMENT_DETAIL_COLUMNS` from `jfk_records` into a
+records index keyed by document id and string NAID. The index has a 60-minute
+TTL and a 60,000-row cap; the query requests at most 60,001 rows to detect
+unexpected growth. Ready indexes serve record metadata and requested related
+rows in memory, including missing-target lookups without a per-document query.
+Over-cap or unavailable indexes, and index query errors, use the existing
+per-document records bundle query as a fallback. No bytes-billed cap is raised.
+
+Successful document payloads have a separate 24-hour per-document cache with a
+1000-entry LRU-style bound and the existing `JFK_DOCUMENT_CACHE_*` overrides.
+Failed loads and null results remain uncached. Successful API responses also
+advertise a 24-hour shared-cache lifetime and 24-hour stale-while-revalidate.
 
 ## Automated 24-Hour Monitor
 

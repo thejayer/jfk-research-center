@@ -1,7 +1,7 @@
 /**
  * In-process helpers for the document-page payload.
  *
- * The live document job reads jfk_records only. Entity rows, related
+ * The records index reads jfk_records only. Entity rows, related
  * document ids, and topic slugs come from thin tables that are loaded
  * once per Cloud Run instance — not joined into every page job.
  */
@@ -31,13 +31,14 @@ export type DocumentEntityGraph = {
 
 export const RELATED_DOCUMENT_LIMIT = 6;
 
-/** How long one Cloud Run instance keeps a thin-table index. */
-export const DOCUMENT_READ_INDEX_TTL_MS = 5 * 60 * 1000;
+/** Records are immutable between ingests; keep per-instance indexes for one hour. */
+export const DOCUMENT_READ_INDEX_TTL_MS = 60 * 60 * 1000;
 
 /**
  * Hard caps so a surprise table-growth cannot pin the 1 GiB instance.
  * Current corpus sizes sit well under these (see PR notes).
  */
+export const DOCUMENT_RECORD_INDEX_MAX_ROWS = 60_000;
 export const DOCUMENT_ENTITY_MAP_MAX_ROWS = 250_000;
 export const DOCUMENT_TOPIC_MAP_MAX_ROWS = 100_000;
 export const DOCUMENT_OCR_META_MAX_ROWS = 10_000;
@@ -188,4 +189,36 @@ export function sortRelatedRows<T extends { document_id: string }>(
     const rightRank = rank.get(right.document_id) ?? Number.MAX_SAFE_INTEGER;
     return leftRank - rightRank || left.document_id.localeCompare(right.document_id);
   });
+}
+
+/**
+ * Both identifiers point to the original row, without duplicating record
+ * payloads. A `document_id` always wins over another row's `naid`.
+ */
+export function buildDocumentRecordIndex<
+  T extends { document_id: string; naid?: string | number | null },
+>(rows: readonly T[]): Map<string, T> {
+  const byId = new Map<string, T>();
+  for (const row of rows) {
+    if (row.naid != null) byId.set(String(row.naid), row);
+  }
+  for (const row of rows) {
+    byId.set(row.document_id, row);
+  }
+  return byId;
+}
+
+export function documentBundleFromRecordIndex<T>(
+  byId: ReadonlyMap<string, T>,
+  id: string,
+  relatedIds: readonly string[] = [],
+): (T & { related_rows: T[] }) | null {
+  const target = byId.get(id);
+  if (!target) return null;
+  const relatedRows: T[] = [];
+  for (const relatedId of relatedIds) {
+    const row = byId.get(relatedId);
+    if (row && row !== target) relatedRows.push(row);
+  }
+  return { ...target, related_rows: relatedRows };
 }
