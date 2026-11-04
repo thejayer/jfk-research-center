@@ -108,13 +108,16 @@ records index keyed by document id and string NAID. The index has a 60-minute
 TTL and a 60,000-row cap; the query requests at most 60,001 rows to detect
 unexpected growth. Ready indexes serve record metadata and requested related
 rows in memory, including missing-target lookups without a per-document query.
-Over-cap or unavailable indexes, and index query errors, use the existing
+An empty scan (for example, read between a table `TRUNCATE` and `INSERT`) is
+treated as unavailable and not cached. Over-cap or unavailable indexes, and index query errors, use the existing
 per-document records bundle query as a fallback. No bytes-billed cap is raised.
 
 Successful document payloads have a separate 24-hour per-document cache with a
 1000-entry LRU-style bound and the existing `JFK_DOCUMENT_CACHE_*` overrides.
 Failed loads and null results remain uncached. Successful API responses also
-advertise a 24-hour shared-cache lifetime and 24-hour stale-while-revalidate.
+advertise a 1-hour shared-cache lifetime and 1-hour stale-while-revalidate, so a
+changed record is stale for at most about 26 hours end to end (24-hour
+in-process cache plus the shared-cache window).
 
 ## Automated 24-Hour Monitor
 

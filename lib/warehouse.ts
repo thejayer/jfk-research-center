@@ -1705,6 +1705,15 @@ async function loadDocumentRecordIndex(): Promise<ThinIndex<RecordRow>> {
         );
         return { kind: "over_cap" as const };
       }
+      if (rows.length === 0) {
+        // The curated table is published with TRUNCATE + INSERT; an empty scan
+        // may be a mid-ingest read, so never cache it as a ready index.
+        documentRecordIndexCache = null;
+        console.warn(
+          "[warehouse] document records index scan returned no rows; using per-document fallback",
+        );
+        return { kind: "unavailable" as const };
+      }
       return { kind: "ready" as const, byId: buildDocumentRecordIndex(rows) };
     })
     .catch((error) => {

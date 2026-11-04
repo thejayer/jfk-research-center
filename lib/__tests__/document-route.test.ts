@@ -69,7 +69,7 @@ describe("first-party document route", () => {
     const body = (await response.json()) as Record<string, unknown>;
 
     expect(response.headers.get("cache-control")).toBe(
-      "public, s-maxage=86400, stale-while-revalidate=86400",
+      "public, s-maxage=3600, stale-while-revalidate=3600",
     );
     expect(Object.keys(body).sort()).toEqual([
       "document",

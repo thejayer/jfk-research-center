@@ -22,9 +22,11 @@ export async function GET(
     if (!res) {
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
+    // The in-process cache can serve a payload up to 24h old, so keep the
+    // shared-cache window short: worst-case staleness is ~24h + 1h + 1h.
     return NextResponse.json(res, {
       headers: {
-        "cache-control": "public, s-maxage=86400, stale-while-revalidate=86400",
+        "cache-control": "public, s-maxage=3600, stale-while-revalidate=3600",
       },
     });
   } catch (err) {

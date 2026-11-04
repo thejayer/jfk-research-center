@@ -58,6 +58,7 @@ describe("document read warehouse path", () => {
     expect(index).toContain('kind: "over_cap"');
     expect(index).toContain('kind: "unavailable"');
     expect(index).toContain("documentRecordIndexCache = null");
+    expect(index).toMatch(/if \(rows\.length === 0\) \{[\s\S]*kind: "unavailable"/);
     expect(index).toContain("isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)");
   });
 
