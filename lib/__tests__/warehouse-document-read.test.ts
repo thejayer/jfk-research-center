@@ -7,7 +7,7 @@ const warehouseSource = readFileSync(
 );
 
 describe("document read warehouse path", () => {
-  it("caches public document reads and loads metadata in one bundle job", () => {
+  it("caches public document reads and uses a records index with a bundle fallback", () => {
     const start = warehouseSource.indexOf("export async function fetchDocument");
     const end = warehouseSource.indexOf("const DOCUMENT_SITEMAP_TTL_MS");
     const fetchDocument = warehouseSource.slice(start, end);
@@ -16,6 +16,10 @@ describe("document read warehouse path", () => {
     expect(fetchDocument).toContain("documentCacheKey");
     expect(fetchDocument).toContain("buildDocumentReadBundleSql");
     expect(fetchDocument).toContain("loadDocumentReadBundle");
+    expect(fetchDocument).toContain("loadDocumentRecordIndex");
+    expect(fetchDocument).toContain("buildDocumentRecordIndexSql");
+    expect(fetchDocument).toContain("documentBundleFromRecordIndex");
+    expect(fetchDocument).toContain("DOCUMENT_RECORD_INDEX_MAX_ROWS");
     expect(fetchDocument).toContain("loadDocumentEntityGraph");
     expect(fetchDocument).toContain("loadDocumentTopicMap");
     expect(fetchDocument).toContain("relatedDocumentIdsFor");
@@ -34,6 +38,28 @@ describe("document read warehouse path", () => {
     expect(fetchDocument).not.toMatch(/search_ocr_chunks/);
     expect(fetchDocument).not.toMatch(/chunk_embeddings/);
     expect(fetchDocument).not.toMatch(/jfk_text_chunks/);
+  });
+
+  it("returns indexed misses before the per-document fallback query", () => {
+    const start = warehouseSource.indexOf("async function loadDocumentReadBundle");
+    const end = warehouseSource.indexOf("async function loadRelatedDocumentRows");
+    const load = warehouseSource.slice(start, end);
+    expect(load).toMatch(/if \(index.kind === "ready"\) \{\s*return documentBundleFromRecordIndex\(index.byId, id, relatedIds\);\s*\}/);
+    expect(load.indexOf("return documentBundleFromRecordIndex")).toBeLessThan(
+      load.indexOf("buildDocumentReadBundleSql"),
+    );
+    expect(load).toContain("loadDocumentRecordIndex().catch");
+
+    const indexStart = warehouseSource.indexOf("async function loadDocumentRecordIndex");
+    const indexEnd = warehouseSource.indexOf("async function loadDocumentEntityGraph");
+    const index = warehouseSource.slice(indexStart, indexEnd);
+    expect(index).toContain("readTtlPromiseCache(documentRecordIndexCache)");
+    expect(index).toContain("documentReadIndexScanLimit(DOCUMENT_RECORD_INDEX_MAX_ROWS)");
+    expect(index).toContain('kind: "over_cap"');
+    expect(index).toContain('kind: "unavailable"');
+    expect(index).toContain("documentRecordIndexCache = null");
+    expect(index).toMatch(/if \(rows\.length === 0\) \{[\s\S]*kind: "unavailable"/);
+    expect(index).toContain("isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)");
   });
 
   it("does not fan the former six standalone document jobs back out", () => {

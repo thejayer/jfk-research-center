@@ -3,6 +3,9 @@ import {
   DOCUMENT_ENTITY_MAP_MAX_ROWS,
   DOCUMENT_OCR_META_MAX_ROWS,
   DOCUMENT_READ_INDEX_TTL_MS,
+  DOCUMENT_RECORD_INDEX_MAX_ROWS,
+  buildDocumentRecordIndex,
+  documentBundleFromRecordIndex,
   DOCUMENT_TOPIC_MAP_MAX_ROWS,
   RELATED_DOCUMENT_LIMIT,
   buildDocumentEntityGraph,
@@ -55,6 +58,36 @@ const rows = [
 ];
 
 describe("document read hydrate", () => {
+  it("indexes each original row by document id and string NAID", () => {
+    const record = { document_id: "doc-a", naid: 12345, title: "Test" };
+    const index = buildDocumentRecordIndex([record]);
+    expect(index.get("doc-a")).toBe(record);
+    expect(index.get("12345")).toBe(record);
+    expect(index.get("missing")).toBeUndefined();
+  });
+
+  it("lets a document id win over another row's NAID", () => {
+    const a = { document_id: "doc-a", naid: "doc-b" };
+    const b = { document_id: "doc-b", naid: "doc-b" };
+    expect(buildDocumentRecordIndex([a, b]).get("doc-b")).toBe(b);
+    expect(buildDocumentRecordIndex([b, a]).get("doc-b")).toBe(b);
+  });
+
+  it("selects a bundle by NAID with ordered related rows and skips missing ids", () => {
+    const records = [
+      { document_id: "doc-a", naid: "12345" },
+      { document_id: "doc-b", naid: "23456" },
+      { document_id: "doc-c", naid: "34567" },
+    ];
+    const index = buildDocumentRecordIndex(records);
+    const relatedIds = ["doc-c", "missing", "doc-b"];
+    expect(documentBundleFromRecordIndex(index, "12345", relatedIds)).toEqual({
+      ...records[0], related_rows: [records[2], records[1]],
+    });
+    expect(documentBundleFromRecordIndex(index, "doc-a")?.related_rows).toEqual([]);
+    expect(documentBundleFromRecordIndex(index, "missing", relatedIds)).toBeNull();
+  });
+
   it("returns map rows for one document", () => {
     const graph = buildDocumentEntityGraph(rows);
     expect(mapRowsForDocument(graph, "doc-a")).toEqual([
@@ -112,8 +145,9 @@ describe("document read hydrate", () => {
     ).toEqual(["doc-c", "doc-b"]);
   });
 
-  it("bounds thin-table indexes with a TTL and hard row caps", () => {
-    expect(DOCUMENT_READ_INDEX_TTL_MS).toBe(5 * 60 * 1000);
+  it("bounds document indexes with a TTL and hard row caps", () => {
+    expect(DOCUMENT_READ_INDEX_TTL_MS).toBe(60 * 60 * 1000);
+    expect(DOCUMENT_RECORD_INDEX_MAX_ROWS).toBe(60_000);
     expect(DOCUMENT_ENTITY_MAP_MAX_ROWS).toBe(250_000);
     expect(DOCUMENT_TOPIC_MAP_MAX_ROWS).toBe(100_000);
     expect(DOCUMENT_OCR_META_MAX_ROWS).toBe(10_000);

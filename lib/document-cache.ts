@@ -6,8 +6,9 @@ type CacheEntry = {
   promise: Promise<DocumentResponse | null>;
 };
 
-const DEFAULT_TTL_SECONDS = 300;
-const DEFAULT_MAX_ENTRIES = 2000;
+/** Immutable document payloads stay warm for 24 hours, bounded to 1000 keys. */
+const DEFAULT_TTL_SECONDS = 86400;
+const DEFAULT_MAX_ENTRIES = 1000;
 const cache = new Map<string, CacheEntry>();
 
 export type DocumentCacheOptions = {

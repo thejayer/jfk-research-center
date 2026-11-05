@@ -9,6 +9,8 @@ import {
   buildDocumentPageMetaSql,
   buildDocumentPagesSql,
   buildDocumentReadBundleSql,
+  buildDocumentRecordIndexSql,
+  DOCUMENT_DETAIL_COLUMNS,
   buildDocumentReadCoreSql,
   buildDocumentRelatedCardsSql,
   buildDocumentTopicMapAllSql,
@@ -61,6 +63,17 @@ const topics = [
 ];
 
 describe("warehouse search SQL cost envelope", () => {
+  it("loads only detail columns from the bounded records index", () => {
+    const sql = buildDocumentRecordIndexSql(tables, 60_001);
+    const selected = sql.slice(sql.indexOf("SELECT ") + 7, sql.indexOf("FROM"))
+      .split(",").map((column) => column.trim());
+    expect(selected).toEqual(DOCUMENT_DETAIL_COLUMNS.map((column) => `r.${column}`));
+    expect(sql).not.toContain("r.*");
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sql).toContain("FROM `jfk-vault.jfk_curated.jfk_records` AS r");
+    expect(sql).toMatch(/LIMIT 60001$/);
+  });
+
   it("keeps document search off OCR chunk tables and off SELECT r.*", () => {
     const sql = buildDocumentSearchSql(tables, "WHERE match_confidence IS NOT NULL", 50, 0);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
