@@ -11,6 +11,21 @@ const warehouse = vi.hoisted(() => ({
   fetchCaseTimeline: vi.fn(),
   fetchCorpusManifest: vi.fn(),
   fetchMediaIndex: vi.fn(),
+  fetchSearch: vi.fn(),
+  fetchHome: vi.fn(),
+  fetchTopic: vi.fn(),
+  fetchAllTopics: vi.fn(),
+  fetchEntity: vi.fn(),
+  fetchAllEntities: vi.fn(),
+  fetchPhysicalEvidenceIndex: vi.fn(),
+  fetchPhysicalEvidenceItem: vi.fn(),
+  fetchCompare: vi.fn(),
+  fetchOpenQuestionsIndex: vi.fn(),
+  fetchOpenQuestionsTopic: vi.fn(),
+  fetchEstablishedFactsIndex: vi.fn(),
+  fetchBibliographyIndex: vi.fn(),
+  fetchEntityCooccurrence: vi.fn(),
+  fetchDealeyPlazaWitnesses: vi.fn(),
 }));
 
 const mediaAssets = vi.hoisted(() => ({
@@ -30,9 +45,14 @@ import {
   fetchCaseTimeline,
   fetchCorpusManifest,
   fetchDocument,
+  fetchEntity,
+  fetchHome,
   fetchMediaAsset,
   fetchMediaIndex,
+  fetchPhysicalEvidenceIndex,
+  fetchPhysicalEvidenceItem,
   fetchSearch,
+  fetchTopic,
 } from "../api-client";
 import {
   JFK_INTERNAL_REQUEST_MARKER_HEADER,
@@ -159,10 +179,15 @@ describe("api-client in-process SSR reads", () => {
   });
 });
 
-describe("api-client search errors", () => {
+describe("api-client remaining SSR reads", () => {
   beforeEach(() => {
-    vi.stubEnv("JFK_API_BASE_URL", "");
-    nextHeaders.headers.mockResolvedValue(new Headers({ host: "example.test" }));
+    vi.stubEnv("JFK_API_BASE_URL", "https://researchjfk.ai");
+    nextHeaders.headers.mockResolvedValue(
+      new Headers({
+        host: "researchjfk.ai",
+        "x-jfk-traffic-class": "browser",
+      }),
+    );
   });
 
   afterEach(() => {
@@ -171,13 +196,55 @@ describe("api-client search errors", () => {
     vi.clearAllMocks();
   });
 
-  it("throws a typed error when warehouse search returns 503", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({ error: "warehouse search failed" }, { status: 503 }),
-      ),
-    );
+  it("loads search, home, topic, entity, and evidence without fetching the public origin", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    warehouse.fetchSearch.mockResolvedValue({ results: [], total: 0 });
+    warehouse.fetchHome.mockResolvedValue({ stats: { documentCount: 1 } });
+    warehouse.fetchTopic.mockResolvedValue({ topic: { slug: "cia" } });
+    warehouse.fetchEntity.mockResolvedValue({ entity: { slug: "oswald" } });
+    warehouse.fetchPhysicalEvidenceIndex.mockResolvedValue({ items: [] });
+    warehouse.fetchPhysicalEvidenceItem.mockResolvedValue({
+      id: "ce-399",
+    });
+
+    await expect(fetchSearch("oswald", "mention", { topic: ["cuba"] }, 50))
+      .resolves.toEqual({ results: [], total: 0 });
+    await expect(fetchHome()).resolves.toEqual({ stats: { documentCount: 1 } });
+    await expect(fetchTopic("cia")).resolves.toEqual({ topic: { slug: "cia" } });
+    await expect(fetchEntity("oswald")).resolves.toEqual({
+      entity: { slug: "oswald" },
+    });
+    await expect(fetchPhysicalEvidenceIndex()).resolves.toEqual({ items: [] });
+    await expect(fetchPhysicalEvidenceItem("ce-399")).resolves.toEqual({
+      id: "ce-399",
+    });
+
+    expect(warehouse.fetchSearch).toHaveBeenCalledWith({
+      query: "oswald",
+      mode: "mention",
+      filters: {
+        agencies: undefined,
+        yearFrom: undefined,
+        yearTo: undefined,
+        entities: undefined,
+        topics: ["cuba"],
+        confidence: undefined,
+      },
+      offset: 50,
+    });
+    expect(warehouse.fetchHome).toHaveBeenCalled();
+    expect(warehouse.fetchTopic).toHaveBeenCalledWith("cia");
+    expect(warehouse.fetchEntity).toHaveBeenCalledWith("oswald");
+    expect(warehouse.fetchPhysicalEvidenceIndex).toHaveBeenCalled();
+    expect(warehouse.fetchPhysicalEvidenceItem).toHaveBeenCalledWith("ce-399");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("wraps warehouse search failures as 503 so the search page can fall back", async () => {
+    const cause = new Error("warehouse search failed");
+    warehouse.fetchSearch.mockRejectedValue(cause);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(fetchSearch("oswald")).rejects.toMatchObject({
       name: "ApiRequestError",
@@ -185,20 +252,11 @@ describe("api-client search errors", () => {
       path: "/api/search?q=oswald",
     });
     await expect(fetchSearch("oswald")).rejects.toBeInstanceOf(ApiRequestError);
-  });
-
-  it("throws on a 500 warehouse failure so the search page can render a fallback", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        Response.json({ error: "warehouse search failed" }, { status: 500 }),
-      ),
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[api-client] in-process read failed for ssr_search",
+      cause,
     );
-
-    await expect(fetchSearch("")).rejects.toMatchObject({
-      status: 500,
-      path: "/api/search",
-    });
+    errorSpy.mockRestore();
   });
 });
 

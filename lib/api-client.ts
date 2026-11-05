@@ -1,10 +1,9 @@
 /**
  * API client used by server components.
  *
- * Document, timeline, media, and corpus-manifest reads go straight to
- * warehouse/data helpers so SSR never loops through JFK_API_BASE_URL
- * (the public load balancer). Other surfaces still call same-host or
- * configured API routes. Public /api/* handlers stay available for
+ * Every SSR read goes straight to warehouse/data helpers so the Node
+ * runtime never loops through JFK_API_BASE_URL or the public origin
+ * (the load balancer). Public /api/* handlers stay available for
  * browsers.
  */
 
@@ -23,11 +22,26 @@ import {
 } from "./warehouse-request-context";
 import { getMediaAsset } from "./media-assets";
 import {
+  fetchAllEntities as fetchWarehouseEntities,
+  fetchAllTopics as fetchWarehouseTopics,
+  fetchBibliographyIndex as fetchWarehouseBibliographyIndex,
   fetchCaseTimeline as fetchWarehouseCaseTimeline,
+  fetchCompare as fetchWarehouseCompare,
   fetchCorpusManifest as fetchWarehouseCorpusManifest,
+  fetchDealeyPlazaWitnesses as fetchWarehouseDealeyPlazaWitnesses,
   fetchDocument as fetchWarehouseDocument,
   fetchDocumentOcrPage as fetchWarehouseDocumentOcrPage,
+  fetchEntity as fetchWarehouseEntity,
+  fetchEntityCooccurrence as fetchWarehouseEntityCooccurrence,
+  fetchEstablishedFactsIndex as fetchWarehouseEstablishedFactsIndex,
+  fetchHome as fetchWarehouseHome,
   fetchMediaIndex as fetchWarehouseMediaIndex,
+  fetchOpenQuestionsIndex as fetchWarehouseOpenQuestionsIndex,
+  fetchOpenQuestionsTopic as fetchWarehouseOpenQuestionsTopic,
+  fetchPhysicalEvidenceIndex as fetchWarehousePhysicalEvidenceIndex,
+  fetchPhysicalEvidenceItem as fetchWarehousePhysicalEvidenceItem,
+  fetchSearch as fetchWarehouseSearch,
+  fetchTopic as fetchWarehouseTopic,
 } from "./warehouse";
 import type {
   BibliographyIndex,
@@ -52,18 +66,8 @@ import type {
   SearchResponse,
   TopicCard,
   TopicResponse,
+  ConfidenceLevel,
 } from "./api-types";
-
-async function getBaseUrl(): Promise<string> {
-  const envUrl = process.env.JFK_API_BASE_URL;
-  if (envUrl && envUrl.startsWith("http")) return envUrl.replace(/\/$/, "");
-
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto =
-    h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
-}
 
 type FetchOpts = {
   /** Cache hint forwarded to Next's fetch. */
@@ -73,27 +77,6 @@ type FetchOpts = {
   /** Optional abort signal for bounded server-side fetches. */
   signal?: AbortSignal;
 };
-
-async function get<T>(path: string, opts: FetchOpts = {}): Promise<T | null> {
-  const base = await getBaseUrl();
-  const incomingHeaders = await headers();
-  const forwardedHeaders = await buildInternalFetchHeaders(
-    incomingHeaders,
-    opts,
-  );
-  const res = await fetch(`${base}${path}`, {
-    signal: opts.signal,
-    headers: forwardedHeaders,
-    ...(opts.noStore
-      ? { cache: "no-store" as const }
-      : { next: { revalidate: opts.revalidate ?? 60 } }),
-  });
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new ApiRequestError(res.status, path);
-  }
-  return (await res.json()) as T;
-}
 
 export async function buildInternalFetchHeaders(
   incomingHeaders: Pick<Headers, "get">,
@@ -129,16 +112,11 @@ export async function buildInternalFetchHeaders(
   return forwardedHeaders;
 }
 
-export async function fetchHome(): Promise<HomeResponse> {
-  const data = await get<HomeResponse>("/api/home", { revalidate: 600 });
-  if (!data) throw new Error("Home payload missing");
-  return data;
-}
-
 async function loadWarehouseDirect<T>(
   path: string,
   route: string,
   loader: () => Promise<T>,
+  errorStatus = 500,
 ): Promise<T> {
   try {
     const incomingHeaders = await headers();
@@ -149,8 +127,18 @@ async function loadWarehouseDirect<T>(
   } catch (error) {
     if (error instanceof ApiRequestError) throw error;
     console.error(`[api-client] in-process read failed for ${route}`, error);
-    throw new ApiRequestError(500, path);
+    throw new ApiRequestError(errorStatus, path);
   }
+}
+
+export async function fetchHome(): Promise<HomeResponse> {
+  const data = await loadWarehouseDirect(
+    "/api/home",
+    "ssr_home",
+    () => fetchWarehouseHome(),
+  );
+  if (!data) throw new Error("Home payload missing");
+  return data;
 }
 
 export async function fetchCorpusManifest(): Promise<CorpusManifest> {
@@ -205,35 +193,58 @@ export async function fetchSearch(
   if (offset > 0) params.set("offset", String(offset));
   const qs = params.toString();
   const path = qs ? `/api/search?${qs}` : "/api/search";
-  const data = await get<SearchResponse>(path, { revalidate: 300 });
+
+  const data = await loadWarehouseDirect(
+    path,
+    "ssr_search",
+    () =>
+      fetchWarehouseSearch({
+        query,
+        mode,
+        filters: {
+          agencies: filters.agency,
+          yearFrom: filters.yearFrom,
+          yearTo: filters.yearTo,
+          entities: filters.entity,
+          topics: filters.topic,
+          confidence: filters.confidence as ConfidenceLevel[] | undefined,
+        },
+        offset,
+      }),
+    503,
+  );
   if (!data) throw new Error("Search payload missing");
   return data;
 }
 
 export async function fetchEntity(slug: string): Promise<EntityResponse | null> {
-  return get<EntityResponse>(`/api/entity/${encodeURIComponent(slug)}`, {
-    revalidate: 600,
-  });
+  return loadWarehouseDirect(
+    `/api/entity/${encodeURIComponent(slug)}`,
+    "ssr_entity",
+    () => fetchWarehouseEntity(slug),
+  );
 }
 
 export async function fetchTopic(slug: string): Promise<TopicResponse | null> {
-  return get<TopicResponse>(`/api/topic/${encodeURIComponent(slug)}`, {
-    revalidate: 600,
-  });
+  return loadWarehouseDirect(
+    `/api/topic/${encodeURIComponent(slug)}`,
+    "ssr_topic",
+    () => fetchWarehouseTopic(slug),
+  );
 }
 
 export async function fetchTopics(): Promise<TopicCard[]> {
-  const data = await get<{ topics: TopicCard[] }>("/api/topics", {
-    revalidate: 600,
+  return loadWarehouseDirect("/api/topics", "ssr_topics", async () => {
+    const topics = await fetchWarehouseTopics();
+    return topics ?? [];
   });
-  return data?.topics ?? [];
 }
 
 export async function fetchEntities(): Promise<EntityCard[]> {
-  const data = await get<{ entities: EntityCard[] }>("/api/entities", {
-    revalidate: 600,
+  return loadWarehouseDirect("/api/entities", "ssr_entities", async () => {
+    const entities = await fetchWarehouseEntities();
+    return entities ?? [];
   });
-  return data?.entities ?? [];
 }
 
 export async function fetchDocument(
@@ -272,16 +283,19 @@ export async function fetchCompare(recordId: string): Promise<CompareResponse | 
   const trimmedRecordId = recordId.trim();
   if (!trimmedRecordId) return null;
 
-  return get<CompareResponse>(
+  return loadWarehouseDirect(
     `/api/compare?record=${encodeURIComponent(trimmedRecordId)}`,
-    { revalidate: 600 },
+    "ssr_compare",
+    () => fetchWarehouseCompare(trimmedRecordId),
   );
 }
 
 export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexResponse> {
-  const data = await get<OpenQuestionsIndexResponse>("/api/open-questions", {
-    revalidate: 600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/open-questions",
+    "ssr_open_questions",
+    () => fetchWarehouseOpenQuestionsIndex(),
+  );
   if (!data) throw new Error("Open questions payload missing");
   return data;
 }
@@ -289,24 +303,29 @@ export async function fetchOpenQuestionsIndex(): Promise<OpenQuestionsIndexRespo
 export async function fetchOpenQuestionsTopic(
   slug: string,
 ): Promise<OpenQuestionsTopicResponse | null> {
-  return get<OpenQuestionsTopicResponse>(
+  return loadWarehouseDirect(
     `/api/open-questions/${encodeURIComponent(slug)}`,
-    { revalidate: 600 },
+    "ssr_open_questions",
+    () => fetchWarehouseOpenQuestionsTopic(slug),
   );
 }
 
 export async function fetchPhysicalEvidenceIndex(): Promise<PhysicalEvidenceIndex> {
-  const data = await get<PhysicalEvidenceIndex>("/api/evidence", {
-    revalidate: 600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/evidence",
+    "ssr_evidence",
+    () => fetchWarehousePhysicalEvidenceIndex(),
+  );
   if (!data) throw new Error("Physical evidence index missing");
   return data;
 }
 
 export async function fetchEstablishedFactsIndex(): Promise<EstablishedFactsIndex> {
-  const data = await get<EstablishedFactsIndex>("/api/established-facts", {
-    revalidate: 600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/established-facts",
+    "ssr_established_facts",
+    () => fetchWarehouseEstablishedFactsIndex(),
+  );
   if (!data) throw new Error("Established facts index missing");
   return data;
 }
@@ -322,9 +341,11 @@ export async function fetchCaseTimeline(): Promise<CaseTimelineIndex> {
 }
 
 export async function fetchBibliographyIndex(): Promise<BibliographyIndex> {
-  const data = await get<BibliographyIndex>("/api/bibliography", {
-    revalidate: 600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/bibliography",
+    "ssr_bibliography",
+    () => fetchWarehouseBibliographyIndex(),
+  );
   if (!data) throw new Error("Bibliography index missing");
   return data;
 }
@@ -337,7 +358,11 @@ export async function fetchEntityCooccurrence(
   if (params.yearTo != null) qs.set("yearTo", String(params.yearTo));
   if (params.minCount != null) qs.set("minCount", String(params.minCount));
   const path = qs.toString() ? `/api/graph?${qs}` : "/api/graph";
-  const data = await get<CooccurrenceGraph>(path, { revalidate: 600 });
+  const data = await loadWarehouseDirect(
+    path,
+    "ssr_graph",
+    () => fetchWarehouseEntityCooccurrence(params),
+  );
   if (!data) throw new Error("Graph payload missing");
   return data;
 }
@@ -345,16 +370,19 @@ export async function fetchEntityCooccurrence(
 export async function fetchPhysicalEvidenceItem(
   id: string,
 ): Promise<PhysicalEvidenceDetail | null> {
-  return get<PhysicalEvidenceDetail>(
+  return loadWarehouseDirect(
     `/api/evidence/${encodeURIComponent(id)}`,
-    { revalidate: 600 },
+    "ssr_evidence",
+    () => fetchWarehousePhysicalEvidenceItem(id),
   );
 }
 
 export async function fetchDealeyPlazaWitnesses(): Promise<DealeyPlazaResponse> {
-  const data = await get<DealeyPlazaResponse>("/api/dealey-plaza", {
-    revalidate: 3600,
-  });
+  const data = await loadWarehouseDirect(
+    "/api/dealey-plaza",
+    "ssr_dealey_plaza",
+    () => fetchWarehouseDealeyPlazaWitnesses(),
+  );
   if (!data) throw new Error("Dealey Plaza payload missing");
   return data;
 }
@@ -369,14 +397,23 @@ export type HistoricalWitnessPayload = {
 export async function fetchHistoricalDealeyPlazaWitnesses(
   timeoutMs = 4500,
 ): Promise<HistoricalWitnessPayload> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error("dealey plaza witnesses timed out")),
+      timeoutMs,
+    );
+  });
 
   try {
-    const data = await get<unknown>("/api/dealey-plaza", {
-      revalidate: 3600,
-      signal: controller.signal,
-    });
+    const data = await Promise.race([
+      loadWarehouseDirect(
+        "/api/dealey-plaza",
+        "ssr_dealey_plaza",
+        () => fetchWarehouseDealeyPlazaWitnesses(),
+      ),
+      timeout,
+    ]);
     if (!isDealeyPlazaResponse(data)) {
       return { witnesses: [], status: "error" };
     }
@@ -388,7 +425,7 @@ export async function fetchHistoricalDealeyPlazaWitnesses(
   } catch {
     return { witnesses: [], status: "error" };
   } finally {
-    clearTimeout(timeout);
+    if (timer) clearTimeout(timer);
   }
 }
 
