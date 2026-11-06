@@ -205,6 +205,10 @@ export function collectOtherRouteClientFiles(appBuildManifest: {
   return [...files];
 }
 
+export function findNamedThreeChunks(files: string[]): string[] {
+  return files.filter((file) => /three-vendor/.test(file));
+}
+
 export function checkProductionArtifacts(options: {
   buildLogText: string;
   budgets?: BundleBudgets;
@@ -214,6 +218,12 @@ export function checkProductionArtifacts(options: {
   const budgets = options.budgets ?? BUNDLE_BUDGETS;
   const parsed = parseNextBuildTable(options.buildLogText);
   const result = assertBundleBudgets(parsed, budgets);
+  const named = findNamedThreeChunks(options.listedFiles);
+  if (named.length > 0) {
+    throw new Error(
+      `three-vendor chunk listed on a non-trajectory first-load file list:\n- ${named.join("\n- ")}`,
+    );
+  }
   const contentsByPath: Record<string, string> = {};
   for (const relative of options.listedFiles) {
     contentsByPath[relative] = options.readFile(relative);

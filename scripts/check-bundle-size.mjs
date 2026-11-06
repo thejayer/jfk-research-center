@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 const vitestBin = fileURLToPath(
   new URL("../node_modules/vitest/vitest.mjs", import.meta.url),
 );
+const buildLogPath = process.argv[2] ?? process.env.BUNDLE_SIZE_LOG ?? "bundle-size-build.txt";
+const nextDir = process.argv[3] ?? process.env.BUNDLE_SIZE_NEXT_DIR ?? ".next";
 
 const child = spawn(
   process.execPath,
@@ -13,6 +15,8 @@ const child = spawn(
     env: {
       ...process.env,
       BUNDLE_SIZE_REQUIRED: "1",
+      BUNDLE_SIZE_LOG: buildLogPath,
+      BUNDLE_SIZE_NEXT_DIR: nextDir,
     },
     stdio: "inherit",
   },

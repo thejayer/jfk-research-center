@@ -234,6 +234,21 @@ describe("checkProductionArtifacts", () => {
     ).toThrow(/900 kB exceeds budget/);
   });
 
+  it("fails when three-vendor is listed on another route even without source imports", () => {
+    expect(() =>
+      checkProductionArtifacts({
+        buildLogText: ANSI_TABLE,
+        listedFiles: ["static/chunks/three-vendor.js"],
+        readFile: () => "export default 1",
+        budgets: {
+          trajectoryRoute: TRAJECTORY_ROUTE,
+          trajectoryFirstLoadJsMaxBytes: 137500,
+          sharedFirstLoadJsMaxBytes: 108000,
+        },
+      }),
+    ).toThrow(/three-vendor chunk listed/);
+  });
+
   it("fails when a non-trajectory first-load file contains WebGLRenderer", () => {
     expect(() =>
       checkProductionArtifacts({
@@ -247,5 +262,14 @@ describe("checkProductionArtifacts", () => {
         },
       }),
     ).toThrow(/WebGLRenderer/);
+  });
+
+  it("forwards the CI log argv into BUNDLE_SIZE_LOG", () => {
+    const source = readFileSync(
+      path.join(process.cwd(), "scripts/check-bundle-size.mjs"),
+      "utf8",
+    );
+    expect(source).toMatch(/process\.argv\[2\]/);
+    expect(source).toMatch(/BUNDLE_SIZE_LOG: buildLogPath/);
   });
 });
