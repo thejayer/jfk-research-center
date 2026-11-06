@@ -3,7 +3,12 @@ import fs from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import AxeBuilder from '@axe-core/playwright';
 const dir = 'docs/dealey-plaza-1963'; await fs.mkdir(dir,{recursive:true});
-const browser = await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const edgePath = process.env.EDGE_PATH || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+const browser = await chromium.launch({
+  ...(edgePath ? { executablePath: edgePath } : {}),
+  headless: true,
+  args: ['--enable-webgl', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
+});
 const context=await browser.newContext({viewport:{width:1500,height:1100},deviceScaleFactor:1});
 const page=await context.newPage();
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
