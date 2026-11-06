@@ -49,10 +49,36 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  bundle-size:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Production build (mock data)
+        run: |
+          set -o pipefail
+          JFK_DATA_SOURCE=mock npm run build 2>&1 | tee bundle-size-build.txt
+      - name: Check First Load JS budgets
+        run: node scripts/check-bundle-size.mjs bundle-size-build.txt
+      - name: Upload build size log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-size-build
+          path: bundle-size-build.txt
+          if-no-files-found: warn
+
   deploy:
     # Never run on pull_request (including forks). Secrets stay off PR CI.
     if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
-    needs: [typecheck, test, axe]
+    needs: [typecheck, test, axe, bundle-size]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

@@ -1,17 +1,10 @@
 import * as THREE from "three";
 
+export { PLAZA_VIEWS, type PlazaView } from "./plaza-1963-views";
+
 // Feet, Houston/Main = (0,0); +X east, +Z south, Y up.
 // CE877 supplies widths/heights/overall fall. Plan outlines and detailing are
 // visual estimates from CE876/882 and period photographs, not survey tracing.
-export const PLAZA_VIEWS = {
-  overview: { label: "Plaza overview", eye: [-665, 430, 590], at: [-180, 10, -25] },
-  overhead: { label: "Overhead / north up", eye: [-200, 850, 1], at: [-200, 0, 0] },
-  depository: { label: "Depository exterior", eye: [-230, 85, -120], at: [-65, 48, -318] },
-  elm: { label: "Elm Street approach", eye: [-20, 9, -245], at: [-330, -5, -75] },
-  knoll: { label: "North pergola vicinity", eye: [-245, 13, -188], at: [-165, 0, -150] },
-  window: { label: "Sixth-floor vicinity", eye: [-25, 66, -273], at: [-250, -5, -115] },
-} as const;
-export type PlazaView = keyof typeof PLAZA_VIEWS;
 export const grade = (x: number) => Math.min(0, Math.max(-24, x * 24 / 425));
 const lawnHeight=(x:number,z:number)=>{
   const streetCenter=250-Math.min(190,Math.max(0,-x*.5));
