@@ -17,6 +17,42 @@ const response = {
 describe("document cache", () => {
   beforeEach(() => clearDocumentCacheForTests());
 
+  it("keeps default entries for 24 hours and expires at the TTL boundary", async () => {
+    let now = 1_000;
+    const load = vi.fn(async () => response);
+    const options = { env: {}, now: () => now };
+    await withDocumentCache("daily", load, options);
+    now += 86_400_000 - 1;
+    await withDocumentCache("daily", load, options);
+    expect(load).toHaveBeenCalledTimes(1);
+    now += 1;
+    await withDocumentCache("daily", load, options);
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("bounds default entries to 1000 while preserving recently used entries", async () => {
+    const load = vi.fn(async () => response);
+    const options = { env: {}, now: () => 1_000 };
+    for (let i = 0; i < 1000; i++) {
+      await withDocumentCache(`doc-${i}`, load, options);
+    }
+    await withDocumentCache("doc-0", load, options);
+    await withDocumentCache("doc-1000", load, options);
+    await withDocumentCache("doc-0", load, options);
+    expect(load).toHaveBeenCalledTimes(1001);
+    await withDocumentCache("doc-1", load, options);
+    expect(load).toHaveBeenCalledTimes(1002);
+  });
+
+  it("honors the maximum entries env override", async () => {
+    const load = vi.fn(async () => response);
+    const options = { env: { JFK_DOCUMENT_CACHE_MAX_ENTRIES: "1" }, now: () => 1_000 };
+    await withDocumentCache("first", load, options);
+    await withDocumentCache("second", load, options);
+    await withDocumentCache("first", load, options);
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
   it("keys the loaded OCR page separately from the first-page read", () => {
     expect(documentCacheKey("124-10190-10075")).toBe("124-10190-10075::first");
     expect(documentCacheKey(" 124-10190-10075 ", 40)).toBe(

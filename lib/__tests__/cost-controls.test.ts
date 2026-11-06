@@ -121,6 +121,27 @@ describe("cost controls", () => {
     expect(
       readAutomatedTrafficBlockReason(duckduck, {}, "/api/document/104-10004-10143"),
     ).toBeNull();
+    expect(
+      readAutomatedTrafficBlockReason(googlebot, {}, "/document/104-10004-10143", {
+        searchBotVerified: true,
+      }),
+    ).toBeNull();
+    expect(
+      readAutomatedTrafficBlockReason(googlebot, {}, "/document/104-10004-10143", {
+        searchBotVerified: false,
+      }),
+    ).toBe("unknown-user-agent");
+    expect(
+      classifyCostTrafficUserAgent(googlebot, { searchBotVerified: false }),
+    ).toBe("unknown");
+    expect(
+      readAutomatedTrafficBlockReason(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0.0.0",
+        {},
+        "/document/104-10004-10143",
+        { searchBotVerified: false },
+      ),
+    ).toBeNull();
     expect(isBlockedCrawlerUserAgent("Google-Extended")).toBe(true);
     expect(
       readAutomatedTrafficBlockReason(

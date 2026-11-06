@@ -372,6 +372,16 @@ export function buildDocumentPagesSql(tables: WarehouseTableRef): string {
           AND chunk_order IN UNNEST(@chunkOrders)`;
 }
 
+/** Thin records index for document reads; excludes OCR and chunk tables. */
+export function buildDocumentRecordIndexSql(
+  tables: WarehouseTableRef,
+  limit: number,
+): string {
+  return `SELECT ${documentDetailSelectSql("r")}
+         FROM ${recordsTable(tables)} AS r
+        LIMIT ${Number(limit)}`;
+}
+
 /**
  * One warehouse job for the public document payload except OCR body.
  *

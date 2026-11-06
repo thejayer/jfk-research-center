@@ -148,8 +148,11 @@ import {
   DOCUMENT_ENTITY_MAP_MAX_ROWS,
   DOCUMENT_OCR_META_MAX_ROWS,
   DOCUMENT_READ_INDEX_TTL_MS,
+  DOCUMENT_RECORD_INDEX_MAX_ROWS,
   DOCUMENT_TOPIC_MAP_MAX_ROWS,
   buildDocumentEntityGraph,
+  buildDocumentRecordIndex,
+  documentBundleFromRecordIndex,
   documentReadIndexScanLimit,
   isOverIndexCap,
   mapRowsForDocument,
@@ -175,6 +178,7 @@ import {
   buildDocumentPageMetaSql,
   buildDocumentPagesSql,
   buildDocumentReadBundleSql,
+  buildDocumentRecordIndexSql,
   buildDocumentRelatedCardsSql,
   buildDocumentTopicCountSql,
   buildDocumentTopicMapAllSql,
@@ -795,9 +799,25 @@ function queryableTopicTables(): TopicTableRef[] {
 // HOME
 // ---------------------------------------------------------------------------
 
+const HOME_TTL_MS = 10 * 60_000;
+let homeCache: TtlPromiseCache<HomeResponse> | null = null;
+
 export async function fetchHome(): Promise<HomeResponse> {
   if (useMockData()) return buildHomeResponse();
+  const cached = readTtlPromiseCache(homeCache);
+  if (cached) return cached;
+  const promise = fetchHomeUncached();
+  homeCache = {
+    expiresAt: Date.now() + HOME_TTL_MS,
+    promise,
+  };
+  promise.catch(() => {
+    homeCache = null;
+  });
+  return promise;
+}
 
+async function fetchHomeUncached(): Promise<HomeResponse> {
   const [stats, entities, topicCounts, recent, manifest] = await Promise.all([
     query<{ records: number; entities: number; mapped: number }>(
       `SELECT
@@ -1572,6 +1592,16 @@ async function loadDocumentReadBundle(
   id: string,
   relatedIds: readonly string[] = [],
 ): Promise<LoadedDocumentBundle | null> {
+  const index = await loadDocumentRecordIndex().catch((error) => {
+    console.warn(
+      "[warehouse] document records index failed; using per-document fallback",
+      error,
+    );
+    return { kind: "unavailable" as const };
+  });
+  if (index.kind === "ready") {
+    return documentBundleFromRecordIndex(index.byId, id, relatedIds);
+  }
   const rows = await query<DocumentBundleRow>(
     buildDocumentReadBundleSql(WAREHOUSE_TABLES, relatedIds),
     { id },
@@ -1630,6 +1660,7 @@ type EntityGraphIndex =
   | { kind: "over_cap" }
   | { kind: "unavailable" };
 
+let documentRecordIndexCache: TtlPromiseCache<ThinIndex<RecordRow>> | null = null;
 let documentEntityGraphCache: TtlPromiseCache<EntityGraphIndex> | null = null;
 let documentTopicMapCache: TtlPromiseCache<ThinIndex<string[]>> | null = null;
 let documentOcrPageMetaIndexCache: TtlPromiseCache<ThinIndex<OcrPageMetaRecord>> | null =
@@ -1672,6 +1703,50 @@ async function loadDocumentEntityFallback(
     }
     throw error;
   }
+}
+
+async function loadDocumentRecordIndex(): Promise<ThinIndex<RecordRow>> {
+  const cached = readTtlPromiseCache(documentRecordIndexCache);
+  if (cached) return cached;
+  const promise = query<RecordRow>(
+    buildDocumentRecordIndexSql(
+      WAREHOUSE_TABLES,
+      documentReadIndexScanLimit(DOCUMENT_RECORD_INDEX_MAX_ROWS),
+    ),
+  )
+    .then((rows) => {
+      if (isOverIndexCap(rows.length, DOCUMENT_RECORD_INDEX_MAX_ROWS)) {
+        console.warn(
+          `[warehouse] document records index has ${rows.length} rows; over cap ${DOCUMENT_RECORD_INDEX_MAX_ROWS}, using per-document fallback`,
+        );
+        return { kind: "over_cap" as const };
+      }
+      if (rows.length === 0) {
+        // The curated table is published with TRUNCATE + INSERT; an empty scan
+        // may be a mid-ingest read, so never cache it as a ready index.
+        documentRecordIndexCache = null;
+        console.warn(
+          "[warehouse] document records index scan returned no rows; using per-document fallback",
+        );
+        return { kind: "unavailable" as const };
+      }
+      return { kind: "ready" as const, byId: buildDocumentRecordIndex(rows) };
+    })
+    .catch((error) => {
+      documentRecordIndexCache = null;
+      if (isBigQueryNotFound(error) || isBigQueryBytesBilledExceeded(error)) {
+        console.warn(
+          "[warehouse] document records index unavailable; using per-document fallback",
+        );
+        return { kind: "unavailable" as const };
+      }
+      throw error;
+    });
+  documentRecordIndexCache = {
+    expiresAt: Date.now() + DOCUMENT_READ_INDEX_TTL_MS,
+    promise,
+  };
+  return promise;
 }
 
 async function loadDocumentEntityGraph(): Promise<EntityGraphIndex> {
@@ -1794,8 +1869,9 @@ async function loadOcrPageMetaIndex(): Promise<ThinIndex<OcrPageMetaRecord>> {
   return promise;
 }
 
-/** Clears document-page thin-table caches. Used by tests. */
+/** Clears document-page indexes. Used by tests. */
 export function resetDocumentReadBundleUnavailableForTests(): void {
+  documentRecordIndexCache = null;
   documentEntityGraphCache = null;
   documentTopicMapCache = null;
   documentOcrPageMetaIndexCache = null;

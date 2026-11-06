@@ -18,9 +18,12 @@ describe("middleware cost gates", () => {
     expect(middlewareSource).toContain("JFK_TRAFFIC_CLASS_HEADER");
   });
 
-  it("passes the request path into the automated-traffic block", () => {
+  it("passes the request path and search-bot verification into the block", () => {
+    expect(middlewareSource).toContain("verifyDeclaredSearchBot");
+    expect(middlewareSource).toContain("readTrustedClientIp");
+    expect(middlewareSource).toContain("searchBotVerified");
     expect(middlewareSource).toMatch(
-      /readAutomatedTrafficBlockReason\(\s*req\.headers\.get\("user-agent"\),\s*undefined,\s*pathname,\s*\)/,
+      /readAutomatedTrafficBlockReason\(\s*userAgent,\s*undefined,\s*pathname,\s*\{\s*searchBotVerified,/,
     );
   });
 });
