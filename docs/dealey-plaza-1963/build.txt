@@ -10,51 +10,51 @@
    Collecting page data ...
    Generating static pages (0/7) ...
 [api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /admin/login couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
-    at s (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\4887.js:1:30928)
-    at m (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\6818.js:3:33026)
-    at n (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17370)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17562)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:1:10064)
+    at s (.\.next\server\chunks\4887.js:1:30928)
+    at m (.\.next\server\chunks\6818.js:3:33026)
+    at n (.\.next\server\chunks\403.js:28:17370)
+    at o (.\.next\server\chunks\403.js:28:17562)
+    at o (.\.next\server\chunks\403.js:1:10064)
     at stringify (<anonymous>) {
   description: "Route /admin/login couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
   digest: 'DYNAMIC_SERVER_USAGE'
 }
 [api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /research/brief couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
-    at s (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\4887.js:1:30928)
-    at m (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\6818.js:3:33026)
-    at n (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17370)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17562)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:1:10064)
+    at s (.\.next\server\chunks\4887.js:1:30928)
+    at m (.\.next\server\chunks\6818.js:3:33026)
+    at n (.\.next\server\chunks\403.js:28:17370)
+    at o (.\.next\server\chunks\403.js:28:17562)
+    at o (.\.next\server\chunks\403.js:1:10064)
     at stringify (<anonymous>) {
   description: "Route /research/brief couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
   digest: 'DYNAMIC_SERVER_USAGE'
 }
 [api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /_not-found couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
-    at s (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\4887.js:1:30928)
-    at m (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\6818.js:3:33026)
-    at n (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17370)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17562)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:1:10064)
+    at s (.\.next\server\chunks\4887.js:1:30928)
+    at m (.\.next\server\chunks\6818.js:3:33026)
+    at n (.\.next\server\chunks\403.js:28:17370)
+    at o (.\.next\server\chunks\403.js:28:17562)
+    at o (.\.next\server\chunks\403.js:1:10064)
     at stringify (<anonymous>) {
   description: "Route /_not-found couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
   digest: 'DYNAMIC_SERVER_USAGE'
 }
 [api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /research-paths couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
-    at s (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\4887.js:1:30928)
-    at m (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\6818.js:3:33026)
-    at n (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17370)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17562)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:1:10064)
+    at s (.\.next\server\chunks\4887.js:1:30928)
+    at m (.\.next\server\chunks\6818.js:3:33026)
+    at n (.\.next\server\chunks\403.js:28:17370)
+    at o (.\.next\server\chunks\403.js:28:17562)
+    at o (.\.next\server\chunks\403.js:1:10064)
     at stringify (<anonymous>) {
   description: "Route /research-paths couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
   digest: 'DYNAMIC_SERVER_USAGE'
 }
 [api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /dealey-plaza/trajectory couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
-    at s (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\4887.js:1:30928)
-    at m (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\6818.js:3:33026)
-    at n (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17370)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:28:17562)
-    at o (C:\Users\theja\Documents\Codex\2026-11-03\task-5\.next\server\chunks\403.js:1:10064)
+    at s (.\.next\server\chunks\4887.js:1:30928)
+    at m (.\.next\server\chunks\6818.js:3:33026)
+    at n (.\.next\server\chunks\403.js:28:17370)
+    at o (.\.next\server\chunks\403.js:28:17562)
+    at o (.\.next\server\chunks\403.js:1:10064)
     at stringify (<anonymous>) {
   description: "Route /dealey-plaza/trajectory couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
   digest: 'DYNAMIC_SERVER_USAGE'

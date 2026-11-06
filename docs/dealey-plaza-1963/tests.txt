@@ -6,7 +6,7 @@
   - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
 Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
 
- RUN  v4.1.12 C:/Users/theja/Documents/Codex/2026-11-03/task-5
+ RUN  v4.1.12 .
 
 
  Test Files  55 passed (55)
