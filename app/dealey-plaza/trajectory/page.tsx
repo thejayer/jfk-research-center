@@ -4,9 +4,9 @@ import { TrajectorySandbox } from "@/components/dealey-plaza/trajectory-sandbox"
 import { fetchHistoricalDealeyPlazaWitnesses } from "@/lib/api-client";
 
 export const metadata: Metadata = {
-  title: "Dealey Plaza trajectory sandbox",
+  title: "Dealey Plaza, 1963 — reconstruction and trajectory sandbox",
   description:
-    "A deterministic 3D geometry sandbox for Dealey Plaza trajectory assumptions and ray math.",
+    "Explore a source-informed 1963 Dealey Plaza reconstruction and compare provisional straight-line trajectory assumptions.",
 };
 
 export default async function DealeyPlazaTrajectoryPage() {
@@ -29,16 +29,17 @@ export default async function DealeyPlazaTrajectoryPage() {
               lineHeight: 1.08,
             }}
           >
-            Geometry first, conclusions last.
+            Explore Dealey Plaza in 1963.
           </h1>
           <p
             className="muted"
             style={{ fontSize: "1.02rem", lineHeight: 1.65 }}
           >
-            This sandbox models a straight-line ray through a plaza-relative
-            coordinate frame. The scene is not survey-grade and does not assert
-            a shot origin; it gives researchers a controlled place to vary
-            assumptions and inspect the resulting math.
+            Explore the streets, architecture and landscape through a
+            source-informed reconstruction, then vary assumptions in the
+            trajectory sandbox. Documented dimensions guide the scene; details
+            and placements remain approximate. This is not a survey-grade or
+            forensic model and does not establish a shot origin.
           </p>
           <div
             style={{

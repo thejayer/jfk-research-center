@@ -1,0 +1,10 @@
+{
+  "errors": [],
+  "canvasCount": 1,
+  "horizontalOverflow": false,
+  "orbitDrag": true,
+  "frameSelection": true,
+  "labelsPreserveCamera": true,
+  "webglFallback": true,
+  "a11yViolations": []
+}

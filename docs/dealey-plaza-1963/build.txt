@@ -1,0 +1,167 @@
+
+> jfk-research-center@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.28
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 9.8s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/7) ...
+[api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /admin/login couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at s (.next/server/chunks/4887.js:1:30928)
+    at m (.next/server/chunks/6818.js:3:33026)
+    at i (.next/server/chunks/5485.js:28:16418)
+    at k (.next/server/chunks/5485.js:28:16731)
+    at o (.next/server/chunks/5485.js:1:10080)
+    at stringify (<anonymous>) {
+  description: "Route /admin/login couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+[api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /_not-found couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at s (.next/server/chunks/4887.js:1:30928)
+    at m (.next/server/chunks/6818.js:3:33026)
+    at i (.next/server/chunks/5485.js:28:16418)
+    at k (.next/server/chunks/5485.js:28:16731)
+    at o (.next/server/chunks/5485.js:1:10080)
+    at stringify (<anonymous>) {
+  description: "Route /_not-found couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+[api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /research-paths couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at s (.next/server/chunks/4887.js:1:30928)
+    at m (.next/server/chunks/6818.js:3:33026)
+    at i (.next/server/chunks/5485.js:28:16418)
+    at k (.next/server/chunks/5485.js:28:16731)
+    at o (.next/server/chunks/5485.js:1:10080)
+    at stringify (<anonymous>) {
+  description: "Route /research-paths couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+[api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /dealey-plaza/trajectory couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at s (.next/server/chunks/4887.js:1:30928)
+    at m (.next/server/chunks/6818.js:3:33026)
+    at i (.next/server/chunks/5485.js:28:16418)
+    at k (.next/server/chunks/5485.js:28:16731)
+    at o (.next/server/chunks/5485.js:1:10080)
+    at stringify (<anonymous>) {
+  description: "Route /dealey-plaza/trajectory couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+[api-client] in-process read failed for ssr_dealey_plaza Error: Dynamic server usage: Route /dealey-plaza/trajectory couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at s (.next/server/chunks/4887.js:1:30928)
+    at m (.next/server/chunks/6818.js:3:33026)
+    at i (.next/server/chunks/5485.js:28:16418)
+    at D (.next/server/chunks/5485.js:28:20048)
+    at j (.next/server/app/dealey-plaza/trajectory/page.js:2:50818)
+    at stringify (<anonymous>) {
+  description: "Route /dealey-plaza/trajectory couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+[api-client] in-process read failed for ssr_corpus_manifest Error: Dynamic server usage: Route /research/brief couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error
+    at s (.next/server/chunks/4887.js:1:30928)
+    at m (.next/server/chunks/6818.js:3:33026)
+    at i (.next/server/chunks/5485.js:28:16418)
+    at k (.next/server/chunks/5485.js:28:16731)
+    at o (.next/server/chunks/5485.js:1:10080)
+    at stringify (<anonymous>) {
+  description: "Route /research/brief couldn't be rendered statically because it used `headers`. See more info here: https://nextjs.org/docs/messages/dynamic-server-error",
+  digest: 'DYNAMIC_SERVER_USAGE'
+}
+   Generating static pages (1/7)
+   Generating static pages (3/7)
+   Generating static pages (5/7)
+ ✓ Generating static pages (7/7)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                              Size  First Load JS
+┌ ƒ /                                                  4.3 kB         112 kB
+├ ƒ /_not-found                                         254 B         103 kB
+├ ƒ /about                                              191 B         106 kB
+├ ƒ /about/editorial-policy                             191 B         106 kB
+├ ƒ /about/methodology                                  191 B         106 kB
+├ ƒ /about/roadmap                                      191 B         106 kB
+├ ƒ /admin                                              175 B         106 kB
+├ ƒ /admin/corrections                                1.09 kB         107 kB
+├ ƒ /admin/cost-console                                 175 B         106 kB
+├ ƒ /admin/login                                      1.11 kB         104 kB
+├ ƒ /admin/media                                      1.88 kB         110 kB
+├ ƒ /admin/ocr-progress                                 254 B         103 kB
+├ ƒ /admin/redactions                                   175 B         106 kB
+├ ƒ /admin/redactions/[document_id]                   1.86 kB         108 kB
+├ ƒ /api/admin/corrections                              254 B         103 kB
+├ ƒ /api/admin/corrections/[id]                         254 B         103 kB
+├ ƒ /api/admin/login                                    254 B         103 kB
+├ ƒ /api/admin/ocr-progress                             254 B         103 kB
+├ ƒ /api/admin/redactions                               254 B         103 kB
+├ ƒ /api/admin/redactions/[document_id]                 254 B         103 kB
+├ ƒ /api/admin/redactions/[document_id]/image/[page]    254 B         103 kB
+├ ƒ /api/bibliography                                   254 B         103 kB
+├ ƒ /api/compare                                        254 B         103 kB
+├ ƒ /api/corpus-manifest                                254 B         103 kB
+├ ƒ /api/corrections                                    254 B         103 kB
+├ ƒ /api/dealey-plaza                                   254 B         103 kB
+├ ƒ /api/docs                                           254 B         103 kB
+├ ƒ /api/document/[id]                                  254 B         103 kB
+├ ƒ /api/document/[id]/ocr                              254 B         103 kB
+├ ƒ /api/entities                                       254 B         103 kB
+├ ƒ /api/entity/[slug]                                  254 B         103 kB
+├ ƒ /api/established-facts                              254 B         103 kB
+├ ƒ /api/evidence                                       254 B         103 kB
+├ ƒ /api/evidence/[id]                                  254 B         103 kB
+├ ƒ /api/graph                                          254 B         103 kB
+├ ƒ /api/home                                           254 B         103 kB
+├ ƒ /api/media                                          254 B         103 kB
+├ ƒ /api/media/[id]                                     254 B         103 kB
+├ ƒ /api/open-questions                                 254 B         103 kB
+├ ƒ /api/open-questions/[slug]                          254 B         103 kB
+├ ƒ /api/search                                         254 B         103 kB
+├ ƒ /api/timeline                                       254 B         103 kB
+├ ƒ /api/topic/[slug]                                   254 B         103 kB
+├ ƒ /api/topics                                         254 B         103 kB
+├ ƒ /api/v1/documents                                   254 B         103 kB
+├ ƒ /api/v1/documents/[naid]                            254 B         103 kB
+├ ƒ /api/v1/entities                                    254 B         103 kB
+├ ƒ /api/v1/entities/[id]                               254 B         103 kB
+├ ƒ /api/v1/openapi.json                                254 B         103 kB
+├ ƒ /api/v1/search/semantic                             254 B         103 kB
+├ ƒ /api/v1/timeline                                    254 B         103 kB
+├ ƒ /api/v1/topics                                      254 B         103 kB
+├ ƒ /api/v1/topics/[slug]                               254 B         103 kB
+├ ƒ /bibliography                                       191 B         106 kB
+├ ƒ /compare                                            191 B         106 kB
+├ ƒ /corrections                                      2.03 kB         108 kB
+├ ƒ /dealey-plaza                                     4.45 kB         111 kB
+├ ƒ /dealey-plaza/trajectory                          12.7 kB         121 kB
+├ ƒ /document/[id]                                    11.5 kB         120 kB
+├ ƒ /entities                                         2.71 kB         109 kB
+├ ƒ /entity/[slug]                                    3.63 kB         112 kB
+├ ƒ /established-facts                                  191 B         106 kB
+├ ƒ /evidence                                         1.45 kB         108 kB
+├ ƒ /evidence/[id]                                    3.64 kB         112 kB
+├ ƒ /graph                                            14.5 kB         123 kB
+├ ƒ /media                                            1.88 kB         110 kB
+├ ƒ /media/[id]                                       2.29 kB         110 kB
+├ ƒ /open-questions                                   1.66 kB         108 kB
+├ ƒ /open-questions/[slug]                            4.47 kB         112 kB
+├ ƒ /releases                                         1.24 kB         109 kB
+├ ƒ /research-paths                                   1.24 kB         109 kB
+├ ƒ /research/brief                                   4.69 kB         113 kB
+├ ƒ /search                                           8.99 kB         117 kB
+├ ƒ /sitemap.xml                                        254 B         103 kB
+├ ƒ /tensions                                         1.24 kB         109 kB
+├ ƒ /timeline                                         32.9 kB         141 kB
+├ ƒ /timeline/event/[id]                              2.29 kB         110 kB
+├ ƒ /topic/[slug]                                     5.64 kB         114 kB
+└ ƒ /topics                                             191 B         106 kB
++ First Load JS shared by all                          103 kB
+  ├ chunks/3636-3c93e95088b9f38a.js                   46.6 kB
+  ├ chunks/4bd1b696-f785427dddbba9fb.js               54.2 kB
+  └ other shared chunks (total)                       2.07 kB
+
+
+ƒ Middleware                                          43.3 kB
+
+ƒ  (Dynamic)  server-rendered on demand

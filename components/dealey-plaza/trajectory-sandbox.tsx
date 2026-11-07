@@ -1,8 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import * as THREE from "three";
+import { useId, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import {
+  PLAZA_VIEWS,
+  type PlazaCameraActions,
+  type PlazaView,
+} from "./plaza-1963-views";
 import type { DealeyPlazaWitness } from "@/lib/api-types";
 import { DEFAULT_MUZZLE_VELOCITY_FPS } from "@/lib/constants";
 import type { HistoricalWitnessStatus } from "@/lib/api-client";
@@ -36,6 +41,21 @@ import {
   type TrajectoryPoint,
 } from "@/lib/trajectory";
 import styles from "./trajectory-sandbox.module.css";
+
+function PlazaSceneSkeleton() {
+  return (
+    <div className={styles.sceneSkeleton}>
+      <span className={styles.sceneLoadingStatus} role="status">
+        Loading 1963 Dealey Plaza reconstruction
+      </span>
+    </div>
+  );
+}
+
+const PlazaScene = dynamic(() => import("./plaza-scene"), {
+  ssr: false,
+  loading: PlazaSceneSkeleton,
+});
 
 type ControlSpec = {
   key: keyof TrajectoryPoint;
@@ -88,13 +108,12 @@ export function TrajectorySandbox({
   historicalWitnessStatus,
 }: TrajectorySandboxProps) {
   const frameSelectorLabelId = useId();
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const objectsRef = useRef<{
-    origin: THREE.Mesh;
-    target: THREE.Mesh;
-    ray: THREE.Line;
-    cone: THREE.Mesh;
-  } | null>(null);
+  const cameraActions = useRef<PlazaCameraActions | null>(null);
+  const [view, setView] = useState<PlazaView>("overview");
+  const [lowPower, setLowPower] = useState(false);
+  const [sceneError, setSceneError] = useState(false);
+  const [showRay, setShowRay] = useState(false);
+  const [showLabels, setShowLabels] = useState(true);
   const initialPreset = TRAJECTORY_PRESETS[0] ?? null;
   const initialFrame = TRAJECTORY_FRAME_MARKS[1] ?? TRAJECTORY_FRAME_MARKS[0] ?? null;
   const initialFrameSample = initialFrame
@@ -184,137 +203,6 @@ export function TrajectorySandbox({
   const uncertaintyRadiusFeet =
     Math.tan((uncertaintyDegrees * Math.PI) / 180) * solution.lineDistanceFeet;
 
-  /**
-   * Scene lifecycle: mount creates the Y-up Three.js scene, camera, renderer,
-   * lights, landmarks, ray, and cone; animate renders the orbiting camera while
-   * resize keeps the canvas fit to its panel. Cleanup removes the renderer DOM
-   * node and disposes geometries/materials found by scene.traverse. The camera
-   * tracks lookAt [4, 8, -18]. The cone is built pointing +Y, so orientation is
-   * later set from +Y into the current ray direction.
-   */
-  useEffect(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf4f1ea);
-
-    const camera = new THREE.PerspectiveCamera(48, 1, 0.1, 1000);
-    camera.position.set(88, 104, 126);
-    camera.lookAt(4, 8, -18);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    renderer.domElement.className = styles.canvas;
-    mount.appendChild(renderer.domElement);
-
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x7f786b, 2.1));
-    const sun = new THREE.DirectionalLight(0xffffff, 2.3);
-    sun.position.set(-58, 96, 42);
-    sun.castShadow = true;
-    scene.add(sun);
-
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(220, 170),
-      new THREE.MeshStandardMaterial({ color: 0xded6c8, roughness: 0.92 }),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    scene.add(ground);
-
-    addGrid(scene);
-    addLandmarks(scene);
-    addElmStreet(scene);
-
-    const originMesh = markerMesh(0xb3422f, 2.7);
-    const targetMesh = markerMesh(0x1f6f8b, 3.1);
-    scene.add(originMesh, targetMesh);
-
-    const ray = new THREE.Line(
-      new THREE.BufferGeometry(),
-      new THREE.LineBasicMaterial({ color: 0x111111, linewidth: 2 }),
-    );
-    scene.add(ray);
-
-    const cone = new THREE.Mesh(
-      new THREE.ConeGeometry(4.8, 34, 36, 1, true),
-      new THREE.MeshBasicMaterial({
-        color: 0xb3422f,
-        transparent: true,
-        opacity: 0.18,
-        side: THREE.DoubleSide,
-        depthWrite: false,
-      }),
-    );
-    scene.add(cone);
-
-    objectsRef.current = { origin: originMesh, target: targetMesh, ray, cone };
-
-    let frame = 0;
-    const resize = () => {
-      const rect = mount.getBoundingClientRect();
-      camera.aspect = rect.width / Math.max(rect.height, 1);
-      camera.updateProjectionMatrix();
-      renderer.setSize(rect.width, rect.height, false);
-    };
-
-    const animate = () => {
-      frame = requestAnimationFrame(animate);
-      const t = performance.now() * 0.00008;
-      camera.position.x = 88 + Math.sin(t) * 8;
-      camera.position.z = 126 + Math.cos(t) * 8;
-      camera.lookAt(4, 8, -18);
-      renderer.render(scene, camera);
-    };
-
-    resize();
-    animate();
-    window.addEventListener("resize", resize);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
-      renderer.dispose();
-      mount.removeChild(renderer.domElement);
-      scene.traverse((object) => {
-        disposeSceneObject(object);
-      });
-      objectsRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const objects = objectsRef.current;
-    if (!objects) return;
-
-    const o = toVector(origin);
-    const t = toVector(target);
-    objects.origin.position.copy(o);
-    objects.target.position.copy(t);
-    objects.ray.geometry.dispose();
-    objects.ray.geometry = new THREE.BufferGeometry().setFromPoints([o, t]);
-
-    const midpoint = o.clone().lerp(t, 0.5);
-    const direction = t.clone().sub(o);
-    const lineDistance = direction.length();
-    const coneRadius = Math.max(
-      0.6,
-      Math.tan((uncertaintyDegrees * Math.PI) / 180) * lineDistance,
-    );
-    objects.cone.position.copy(midpoint);
-    objects.cone.scale.set(
-      coneRadius / 4.8,
-      Math.max(lineDistance / 34, 0.01),
-      coneRadius / 4.8,
-    );
-    // Y-up convention: ConeGeometry points along +Y before this rotation.
-    objects.cone.quaternion.setFromUnitVectors(
-      new THREE.Vector3(0, 1, 0),
-      direction.normalize(),
-    );
-  }, [origin, target, uncertaintyDegrees]);
-
   const applyPreset = (presetId: string) => {
     const preset =
       TRAJECTORY_PRESETS.find((candidate) => candidate.id === presetId) ??
@@ -344,14 +232,55 @@ export function TrajectorySandbox({
   return (
     <div className={styles.shell}>
       <section className={styles.scenePanel} aria-label="Dealey Plaza 3D trajectory scene">
-        <div className={styles.scene} ref={mountRef}>
+        <div className={styles.sceneToolbar}>
+          <div><span className="eyebrow">Dallas · November 1963</span><h2>Dealey Plaza</h2></div>
+          <label>Viewpoint <select aria-label="Reconstruction viewpoint" value={view} onChange={e=>setView(e.target.value as PlazaView)}>
+            {Object.entries(PLAZA_VIEWS).map(([id,v])=><option key={id} value={id}>{v.label}</option>)}
+          </select></label>
+          <button type="button" onClick={()=>cameraActions.current?.zoom(.8)} aria-label="Zoom in">+</button>
+          <button type="button" onClick={()=>cameraActions.current?.zoom(1.25)} aria-label="Zoom out">−</button>
+          <button type="button" onClick={()=>{setView("overview");cameraActions.current?.view("overview");}}>Reset view</button>
+          <label><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/> Labels</label>
+          <label><input type="checkbox" checked={lowPower} onChange={e=>setLowPower(e.target.checked)}/> Low power</label>
+          <label><input type="checkbox" checked={showRay} onChange={e=>setShowRay(e.target.checked)}/> Legacy ray</label>
+        </div>
+        {showRay && <p className={styles.reconstructionNotice} role="status">Legacy ray: provisional anchors, uncalibrated to the reconstructed architecture. The readouts and plan use the original sandbox coordinates.</p>}
+        <div className={styles.scene}>
+          {sceneError && <div className={styles.sceneFallback} role="status">3D rendering is unavailable. The interactive plan, historical overlay and trajectory controls below remain available. Try low power mode to restart the renderer.</div>}
+          <div className={styles.sceneCaption}>Drag to orbit · wheel / pinch to zoom · right drag to pan</div>
           <div className={styles.hud} aria-label="Trajectory readout">
             <HudItem label="Line distance" value={formatFeet(solution.lineDistanceFeet)} />
             <HudItem label="Horizontal" value={formatFeet(solution.horizontalDistanceFeet)} />
             <HudItem label="Elevation" value={formatDegrees(solution.elevationAngleDegrees)} />
             <HudItem label="Azimuth" value={formatDegrees(solution.azimuthDegrees)} />
           </div>
+          <PlazaScene
+            view={view}
+            lowPower={lowPower}
+            showLabels={showLabels}
+            showRay={showRay}
+            origin={origin}
+            target={target}
+            uncertaintyDegrees={uncertaintyDegrees}
+            onError={setSceneError}
+            cameraActionsRef={cameraActions}
+          />
         </div>
+        <details className={styles.reconstructionNotes}>
+          <summary>Reconstruction sources, accuracy and usage</summary>
+          <p>Source-informed architectural reconstruction. Documented anchors: 40 ft roadways, 10 ft outer sidewalks, approximately 24 ft fall from Houston to the underpass, and a 94 ft depository height (CE877). The depository footprint is 100 × 100 ft (TSHA). Curves, slopes between anchors, facade details, vegetation and street furniture are visual approximations.</p>
+          <p>The legacy ray keeps its original feet and straight-line math, with a rigid rotation and translation for orientation. Its provisional anchors have not been registered to this scene. It is hidden initially; enabling it does not establish a window, vehicle position, sightline or shot source. The plan and historical overlay retain their existing schematic coordinate frame.</p>
+          <ul>
+            <li><a href="https://www.archives.gov/research/jfk/warren-commission-report/chapter-2.html">NARA: CE876 plaza diagram and CE2114–2116 photographs / plans</a></li>
+            <li><a href="https://www.history-matters.com/archive/jfk/wc/wcvols/wh17/pdf/WH17_CE_877.pdf">CE877: contemporary physical description</a></li>
+            <li><a href="https://aarclibrary.org/publib/jfk/wc/wcvols/wh17/pdf/WH17_CE_882.pdf">CE882: survey tracing reference (not calibrated here)</a></li>
+            <li><a href="https://texashistory.unt.edu/ark:/67531/metapth184960/">Dallas Times Herald photograph, November 23, 1963; Sixth Floor Museum / UNT</a></li>
+            <li><a href="https://www.tshaonline.org/handbook/entries/texas-school-book-depository">TSHA: depository dimensions and history</a></li>
+            <li><a href="https://npgallery.nps.gov/AssetDetail/NRIS/93001607">NPS: Dealey Plaza Historic District nomination</a></li>
+            <li><a href="https://www3.dallascityhall.com/committee_briefings/briefings0511/QOL_Combined_052311.pdf">City of Dallas: historic drawings and renovation briefing (2011)</a></li>
+          </ul>
+          <p>All reconstruction meshes and lettering are original procedural geometry. Archival photographs are reference links, not imported textures. Lighting is illustrative; this scene is not survey-grade or a forensic reconstruction. Historical camera choices indicate a vicinity, not a calibrated lens or authenticated observer position.</p>
+        </details>
         <PlanView
           origin={origin}
           target={target}
@@ -1111,99 +1040,6 @@ function ControlGroup({
       ))}
     </div>
   );
-}
-
-function markerMesh(color: number, radius: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 32, 16),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.4 }),
-  );
-  mesh.castShadow = true;
-  return mesh;
-}
-
-function toVector(point: TrajectoryPoint): THREE.Vector3 {
-  return new THREE.Vector3(point.x, point.y, point.z);
-}
-
-function addGrid(scene: THREE.Scene) {
-  const grid = new THREE.GridHelper(220, 22, 0x9c9488, 0xc7bdae);
-  grid.position.y = 0.03;
-  scene.add(grid);
-}
-
-function addLandmarks(scene: THREE.Scene) {
-  const tsbd = new THREE.Mesh(
-    new THREE.BoxGeometry(42, 72, 34),
-    new THREE.MeshStandardMaterial({ color: 0x8e715a, roughness: 0.82 }),
-  );
-  tsbd.position.set(-58, 36, 42);
-  tsbd.castShadow = true;
-  tsbd.receiveShadow = true;
-  scene.add(tsbd);
-
-  const windowMarker = new THREE.Mesh(
-    new THREE.BoxGeometry(8, 5, 1.1),
-    new THREE.MeshStandardMaterial({ color: 0x2d2520, roughness: 0.6 }),
-  );
-  windowMarker.position.set(-48, 62, 24.7);
-  scene.add(windowMarker);
-
-  const knoll = new THREE.Mesh(
-    new THREE.CylinderGeometry(24, 32, 7, 40),
-    new THREE.MeshStandardMaterial({ color: 0x98a86a, roughness: 0.92 }),
-  );
-  knoll.position.set(46, 3.5, 20);
-  knoll.scale.z = 0.58;
-  scene.add(knoll);
-
-  const underpass = new THREE.Mesh(
-    new THREE.BoxGeometry(96, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0x7f766c, roughness: 0.9 }),
-  );
-  underpass.position.set(22, 8, -88);
-  underpass.castShadow = true;
-  scene.add(underpass);
-}
-
-function addElmStreet(scene: THREE.Scene) {
-  const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-86, 0.15, 10),
-    new THREE.Vector3(-26, 0.15, -16),
-    new THREE.Vector3(28, 0.15, -48),
-    new THREE.Vector3(78, 0.15, -84),
-  ]);
-  const geometry = new THREE.TubeGeometry(curve, 80, 6, 10, false);
-  const material = new THREE.MeshStandardMaterial({ color: 0x4b4f50, roughness: 0.86 });
-  const road = new THREE.Mesh(geometry, material);
-  road.receiveShadow = true;
-  scene.add(road);
-
-  const stripe = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(curve.getPoints(80)),
-    new THREE.LineBasicMaterial({ color: 0xe8dcc5 }),
-  );
-  stripe.position.y = 0.28;
-  scene.add(stripe);
-}
-
-function disposeMaterial(material: THREE.Material | THREE.Material[]) {
-  if (Array.isArray(material)) {
-    material.forEach((m) => m.dispose());
-  } else {
-    material.dispose();
-  }
-}
-
-function disposeSceneObject(object: THREE.Object3D) {
-  if (
-    object instanceof THREE.Mesh ||
-    object instanceof THREE.Line ||
-    object instanceof THREE.GridHelper
-  ) {
-    object.geometry.dispose();
-    disposeMaterial(object.material);
-  }
 }
 
 function formatFrameSampleLabel(sample: TrajectoryFrameSample | null): string {
