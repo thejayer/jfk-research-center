@@ -93,6 +93,20 @@ export function buildPlaza1963(scene: THREE.Scene) {
     for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
       const yy=9+row*(h-16)/rows, xx=x-w/2+(col+.5)*w/cols;
       for(const zz of [z-d/2-.12,z+d/2+.12]){
+        if (color === 0x976747 && row === 5 && col === cols - 1 && zz > z) {
+          // Single SE sixth-floor bay: raised lower sash over a dark opening.
+          // Position and sash detailing are documented visual estimates.
+          const bay = new THREE.Group();
+          bay.name = "tsbd-sniper-window";
+          scene.add(bay);
+          bay.add(
+            box(xx,yy,zz,6.1,8.5,.3,0xd8c6a5),
+            box(xx,yy+.3,zz+.2,4.8,7,.2,0x25302d),
+            box(xx,yy+1.7,zz+.35,4.9,.45,.25,0xe1cfaa),
+            box(xx,yy-4.3,zz,7,.55,1,0xc3b394),
+          );
+          continue;
+        }
         box(xx,yy,zz,6.1,8.5,.3,0xd0bb99);box(xx,yy+.3,zz+(zz<z?-.2:.2),4.8,7,.2,0x354341);
         box(xx,yy,zz+(zz<z?-.35:.35),4.9,.35,.2,0xbaaa8d);box(xx,yy-4.3,zz,7,.55,1,0xc3b394);
       }
@@ -103,8 +117,9 @@ export function buildPlaza1963(scene: THREE.Scene) {
         box(x+side*(w/2+.45),yy,zz,.2,.35,4.9,0xbaaa8d);
       }
     }
+    return walls;
   };
-  building(-70,-325,100,100,94,0x976747,8,7);
+  building(-70,-325,100,100,94,0x976747,8,7).name = "tsbd";
   // Romanesque top-storey transoms; radii and trim are interpretive.
   for(let col=0;col<8;col++)for(const facing of ["south","east"]){
     for(const [radius,color,offset] of [[3.2,0xc2ad8d,0],[2.4,0x354341,.12]]){
@@ -145,6 +160,7 @@ export function buildPlaza1963(scene: THREE.Scene) {
   for(let y=8;y<179;y+=16){box(195,y,230,68,1.2,68,0x74716a);for(const x of [163,195,227])for(const z of [198,230,262])box(x,y+8,z,1.2,16,1.2,0x666b68);}
   // Pergolas: curved concrete colonnades, open roof beams and end shelters.
   for(const side of [-1,1]){
+    const pergolaStart = scene.children.length;
     const pts:number[][]=[];
     for(let i=0;i<=18;i++){
       const a=-.85+i/18*1.7,x=-242+Math.cos(a)*22,z=side*(190+Math.sin(a)*44);
@@ -156,6 +172,13 @@ export function buildPlaza1963(scene: THREE.Scene) {
     for(const end of [0,18]){const [x,z]=pts[end];box(x,grade(x)+20,z,19,2,19,0xdad3bd);for(const a of [-7,7])for(const b of [-7,7])box(x+a,grade(x)+13,z+b,2.5,13,2.5,0xd2cbb6);}
     // Broad steps down toward the street.
     for(let i=0;i<7;i++)box(-205+i*2,grade(-205)+5-i*.75,side*180,3,1,23,0xcac5b3);
+    if (side === -1) {
+      const parts = scene.children.slice(pergolaStart);
+      const pergola = new THREE.Group();
+      pergola.name = "north-pergola";
+      scene.add(pergola);
+      pergola.add(...parts);
+    }
     // Eastern peristyles and reflecting pools.
     ribbon([[-48,side*50],[-48,side*210]],15,0xc9c3ac,.4);
     box(-72,grade(-72)+.5,side*125,20,1,100,0xc9c3ad);
@@ -164,10 +187,16 @@ export function buildPlaza1963(scene: THREE.Scene) {
     box(-44,grade(-44)+14.5,side*125,5,2,140,0xded6bd);
     box(-110,grade(-110)+9,side*175,6,18,6,0xd8ceb4);
   }
+  // Concrete pedestal at the Elm-side end of the north pergola. Its base
+  // follows local terrain; dimensions/placement are visual estimates in feet.
+  box(-242,lawnHeight(-242,-155)+2,-155,4,4,4,0xcfc9b7).name = "zapruder-pedestal";
   // Stockade, behind the north pergola; pickets, not chain link.
+  const stockade = new THREE.Group();
+  stockade.name = "stockade-fence";
+  scene.add(stockade);
   for(let i=0;i<98;i++){
     const x=-360+i*1.65,z=-245-i*.12;
-    box(x,lawnHeight(x,z)+4,z,1.5,8,.5,0x877359);
+    stockade.add(box(x,lawnHeight(x,z)+4,z,1.5,8,.5,0x877359));
   }
   // Triple underpass: three independent open spans and concrete abutments.
   box(-440,3,-1,32,7,237,0xaaa696);
