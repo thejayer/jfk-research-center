@@ -12,6 +12,20 @@ import {
 import type { TrajectoryPoint } from "@/lib/trajectory";
 import styles from "./trajectory-sandbox.module.css";
 
+type CriticState = {
+  view: PlazaView;
+  eye: number[];
+  target: number[];
+  renders: number;
+  objects: Record<string, { center: number[]; min: number[]; max: number[] }>;
+};
+
+declare global {
+  interface Window {
+    __plazaCritic?: CriticState;
+  }
+}
+
 export type PlazaSceneProps = {
   view: PlazaView;
   lowPower: boolean;
@@ -104,6 +118,23 @@ export default function PlazaScene({
     controls.maxDistance = 1300;
     controls.maxPolarAngle = Math.PI * 0.49;
     controls.enableDamping = false;
+    // Static landmark bounds are computed only for an explicitly requested critic.
+    const critic: CriticState | null =
+      new URLSearchParams(window.location.search).get("critic") === "1"
+        ? { view: "overview", eye: [], target: [], renders: 0, objects: {} }
+        : null;
+    if (critic) {
+      for (const name of ["tsbd", "tsbd-sniper-window", "zapruder-pedestal", "stockade-fence", "north-pergola"]) {
+        const object = scene.getObjectByName(name);
+        if (!object) continue;
+        const bounds = new THREE.Box3().setFromObject(object);
+        critic.objects[name] = {
+          center: bounds.getCenter(new THREE.Vector3()).toArray(),
+          min: bounds.min.toArray(),
+          max: bounds.max.toArray(),
+        };
+      }
+    }
     const render = () => {
       // Keep annotations legible without letting them fill street-level views.
       const h = Math.max(mount.clientHeight, 1);
@@ -119,9 +150,16 @@ export default function PlazaScene({
         }
       });
       renderer.render(scene, camera);
+      if (critic) {
+        critic.eye = camera.position.toArray();
+        critic.target = controls.target.toArray();
+        critic.renders++;
+        window.__plazaCritic = critic;
+      }
     };
     const setView = (v: PlazaView) => {
       const preset = PLAZA_VIEWS[v];
+      if (critic) critic.view = v;
       camera.position.set(preset.eye[0], preset.eye[1], preset.eye[2]);
       controls.target.set(preset.at[0], preset.at[1], preset.at[2]);
       controls.update();
@@ -187,6 +225,7 @@ export default function PlazaScene({
     observer.observe(mount);
 
     return () => {
+      if (critic && window.__plazaCritic === critic) delete window.__plazaCritic;
       observer.disconnect();
       controls.dispose();
       cameraActionsRef.current = null;

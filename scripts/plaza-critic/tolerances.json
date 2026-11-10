@@ -1,0 +1,159 @@
+{
+  "_comment": "Critic-owned. The builder must not edit this file or critic.mjs. Positions are feet in the plaza frame (Houston/Main origin, +X east, +Z south, Y up). Expected positions are documented visual estimates, not survey-calibrated values.",
+  "hookContract": {
+    "_comment": "When the trajectory page URL contains critic=1, the 3D scene must expose window.__plazaCritic = { view, eye:[x,y,z], target:[x,y,z], renders, objects: { <name>: { center:[x,y,z], min:[x,y,z], max:[x,y,z] } } } updated after every view change and render. Object names come from THREE.Object3D.name.",
+    "global": "__plazaCritic",
+    "queryParam": "critic=1"
+  },
+  "viewport": {
+    "width": 1280,
+    "height": 860
+  },
+  "pixel": {
+    "minLumaStdDev": 12,
+    "minDistinctColorBuckets": 40,
+    "maxSingleBucketFraction": 0.6
+  },
+  "requiredObjects": [
+    "tsbd",
+    "tsbd-sniper-window",
+    "zapruder-pedestal",
+    "stockade-fence",
+    "north-pergola"
+  ],
+  "objects": {
+    "tsbd-sniper-window": {
+      "_comment": "SE-corner sixth-floor bay on the south facade: easternmost of 8 bays (x = -120 + 7.5 * 12.5), sixth-floor row of the 7-row grid (y = 9 + 5 * 78/7), south face z = -275.",
+      "center": [
+        -26.25,
+        64.71,
+        -275
+      ],
+      "maxCenterError": 2.5,
+      "facadeZ": -275,
+      "maxFacadeOffset": 1.5,
+      "minSize": [
+        3,
+        4,
+        0.1
+      ],
+      "maxSize": [
+        8,
+        11,
+        3
+      ]
+    },
+    "zapruder-pedestal": {
+      "_comment": "Concrete pedestal at the west end of the north pergola, on the Elm Street side, estimated from period photographs. Horizontal check only for center; height is checked against local ground.",
+      "centerXZ": [
+        -242,
+        -155
+      ],
+      "maxCenterErrorXZ": 12,
+      "minHeight": 3,
+      "maxHeight": 6,
+      "minFootprint": 2,
+      "maxFootprint": 8
+    },
+    "stockade-fence": {
+      "_comment": "Existing picket stockade behind the north pergola (x -360..-200, z about -245..-257).",
+      "minLengthX": 120
+    }
+  },
+  "views": {
+    "window": {
+      "screenshot": "window.png",
+      "eyeNearObject": {
+        "object": "tsbd-sniper-window",
+        "maxDistance": 4
+      },
+      "eyeOutsideFacadeZ": {
+        "minZ": -275,
+        "maxZ": -268,
+        "_comment": "eye must sit on or just outside the south face (z from -275 to -268) so the solid wall does not block the view"
+      },
+      "target": [
+        -250,
+        -14,
+        -113
+      ],
+      "targetTolerance": 35,
+      "maxPitchDegrees": -5
+    },
+    "zapruder": {
+      "screenshot": "zapruder.png",
+      "eyeAboveObject": {
+        "object": "zapruder-pedestal",
+        "maxHorizontal": 3,
+        "minAboveTop": 4.5,
+        "maxAboveTop": 6.5
+      },
+      "target": [
+        -260,
+        -15,
+        -106
+      ],
+      "targetTolerance": 35,
+      "maxPitchDegrees": -2
+    },
+    "knoll": {
+      "screenshot": "knoll.png",
+      "_comment": "Existing north pergola vicinity view must stay where #151 put it.",
+      "eye": [
+        -245,
+        13,
+        -188
+      ],
+      "eyeTolerance": 1,
+      "target": [
+        -165,
+        0,
+        -150
+      ],
+      "targetTolerance": 1
+    },
+    "stockade": {
+      "screenshot": "stockade.png",
+      "eye": [
+        -290,
+        0,
+        -253
+      ],
+      "eyeToleranceXZ": 15,
+      "eyeToleranceY": 5,
+      "eyeNearObject": {
+        "object": "stockade-fence",
+        "maxDistance": 12
+      },
+      "target": [
+        -250,
+        -14,
+        -113
+      ],
+      "targetTolerance": 35,
+      "minDistanceFromView": {
+        "view": "knoll",
+        "eye": 30
+      }
+    },
+    "depository": {
+      "screenshot": "depository.png",
+      "eye": [
+        -230,
+        85,
+        -120
+      ],
+      "eyeTolerance": 1,
+      "target": [
+        -65,
+        48,
+        -318
+      ],
+      "targetTolerance": 1
+    }
+  },
+  "deepLinks": {
+    "unknownValue": "not-a-view",
+    "fallbackView": "overview"
+  }
+}

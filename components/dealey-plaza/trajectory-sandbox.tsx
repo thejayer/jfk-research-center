@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import {
   PLAZA_VIEWS,
@@ -110,6 +110,23 @@ export function TrajectorySandbox({
   const frameSelectorLabelId = useId();
   const cameraActions = useRef<PlazaCameraActions | null>(null);
   const [view, setView] = useState<PlazaView>("overview");
+  useEffect(() => {
+    const requested = new URL(window.location.href).searchParams.get("view");
+    if (requested && Object.prototype.hasOwnProperty.call(PLAZA_VIEWS, requested)) {
+      setView(requested as PlazaView);
+    }
+  }, []);
+
+  const changeView = (next: PlazaView) => {
+    setView(next);
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("view") !== next) {
+      url.searchParams.set("view", next);
+      window.history.replaceState(window.history.state, "", url);
+    }
+    cameraActions.current?.view(next);
+  };
+
   const [lowPower, setLowPower] = useState(false);
   const [sceneError, setSceneError] = useState(false);
   const [showRay, setShowRay] = useState(false);
@@ -234,12 +251,12 @@ export function TrajectorySandbox({
       <section className={styles.scenePanel} aria-label="Dealey Plaza 3D trajectory scene">
         <div className={styles.sceneToolbar}>
           <div><span className="eyebrow">Dallas · November 1963</span><h2>Dealey Plaza</h2></div>
-          <label>Viewpoint <select aria-label="Reconstruction viewpoint" value={view} onChange={e=>setView(e.target.value as PlazaView)}>
+          <label>Viewpoint <select aria-label="Reconstruction viewpoint" value={view} onChange={e=>changeView(e.target.value as PlazaView)}>
             {Object.entries(PLAZA_VIEWS).map(([id,v])=><option key={id} value={id}>{v.label}</option>)}
           </select></label>
           <button type="button" onClick={()=>cameraActions.current?.zoom(.8)} aria-label="Zoom in">+</button>
           <button type="button" onClick={()=>cameraActions.current?.zoom(1.25)} aria-label="Zoom out">−</button>
-          <button type="button" onClick={()=>{setView("overview");cameraActions.current?.view("overview");}}>Reset view</button>
+          <button type="button" onClick={()=>changeView("overview")}>Reset view</button>
           <label><input type="checkbox" checked={showLabels} onChange={e=>setShowLabels(e.target.checked)}/> Labels</label>
           <label><input type="checkbox" checked={lowPower} onChange={e=>setLowPower(e.target.checked)}/> Low power</label>
           <label><input type="checkbox" checked={showRay} onChange={e=>setShowRay(e.target.checked)}/> Legacy ray</label>
@@ -269,7 +286,8 @@ export function TrajectorySandbox({
         <details className={styles.reconstructionNotes}>
           <summary>Reconstruction sources, accuracy and usage</summary>
           <p>Source-informed architectural reconstruction. Documented anchors: 40 ft roadways, 10 ft outer sidewalks, approximately 24 ft fall from Houston to the underpass, and a 94 ft depository height (CE877). The depository footprint is 100 × 100 ft (TSHA). Curves, slopes between anchors, facade details, vegetation and street furniture are visual approximations.</p>
-          <p>The legacy ray keeps its original feet and straight-line math, with a rigid rotation and translation for orientation. Its provisional anchors have not been registered to this scene. It is hidden initially; enabling it does not establish a window, vehicle position, sightline or shot source. The plan and historical overlay retain their existing schematic coordinate frame.</p>
+          <p>The Zapruder pedestal, distinct southeast sixth-floor window bay and viewpoint positions are documented visual estimates, not survey-calibrated. The pedestal and stockade views look toward Elm Street; the north pergola vicinity remains a separate view. Share a viewpoint using the URL’s view parameter.</p>
+          <p>The legacy ray remains uncalibrated. It keeps its original feet and straight-line math, with a rigid rotation and translation for orientation. Its provisional anchors have not been registered to this scene. It is hidden initially; enabling it does not establish a window, vehicle position, sightline or shot source. The plan and historical overlay retain their existing schematic coordinate frame.</p>
           <ul>
             <li><a href="https://www.archives.gov/research/jfk/warren-commission-report/chapter-2.html">NARA: CE876 plaza diagram and CE2114–2116 photographs / plans</a></li>
             <li><a href="https://www.history-matters.com/archive/jfk/wc/wcvols/wh17/pdf/WH17_CE_877.pdf">CE877: contemporary physical description</a></li>

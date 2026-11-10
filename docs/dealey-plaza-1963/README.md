@@ -24,15 +24,30 @@ Curved road control points, local knoll topography, pergola radius and column sp
 
 The legacy trajectory coordinates remain unchanged for calculations, plan view and historical overlay. For optional 3D display only they undergo a rigid rotation/translation (no scale), preserving distances. Their relationship to the new architecture is **uncalibrated**. Ray endpoints, window vicinity and frame targets must not be used as forensic evidence or as verified vehicle/body/observer positions. The ray is hidden initially, and the UI explains the distinction. A window or knoll viewpoint is a navigation aid, not a calibrated camera or endorsement of any hypothesis.
 
+The procedural `zapruder-pedestal` is a 4 × 4 × 4 ft concrete block resting on local ground near (-242, -155) in plan, at the north pergola’s Elm-side end. The distinct `tsbd-sniper-window` is the easternmost south-facade bay in the sixth-floor row of the existing eight-column, seven-row grid, with a raised lower sash. Its bounds cover one bay. The pedestal, window bay and viewpoint positions are **documented visual estimates, not survey-calibrated**; neither these details nor the legacy ray establish forensic accuracy.
+
 ## Navigation, accessibility and performance
 
 The trajectory route (`/dealey-plaza/trajectory`) renders its 2D shell first: viewpoint controls, HUD readouts, reconstruction notes, plan view, historical overlay and accessibility text. Three.js, OrbitControls and the plaza model load afterward as separate async chunks via `next/dynamic` with `ssr: false`. The scene panel keeps the same reserved height during that load (a same-dimension skeleton, no layout shift). Other routes do not include those chunks in First Load JS.
+
+Viewpoints include overview, overhead, depository exterior, Elm approach, north pergola vicinity (`knoll`), southeast sixth-floor window bay (`window`), Zapruder pedestal (`zapruder`), and stockade fence / grassy knoll (`stockade`). The pedestal camera uses standing eye height above the block; the stockade camera uses a standing eye just above the fence top and looks down toward Elm. The existing north pergola vicinity is unchanged. Open `/dealey-plaza/trajectory?view=zapruder` (or any view key) to select it on load. Unknown keys safely retain overview. Initial load leaves the URL unchanged. Selecting a different view or Reset view replaces the URL’s `view` parameter while preserving other parameters and the fragment.
 
 Orbit/pan/zoom use Three.js OrbitControls once the scene chunk has loaded. Viewpoint select and zoom/reset buttons are keyboard accessible. No automatic camera movement. Rendering occurs only on interaction, resize or state change. Low power mode disables antialiasing/shadows and caps pixel ratio at 1. Renderer creation failure or context loss exposes an explanatory status while the existing plan, controls and overlay remain usable. Canvas resources, including generated label textures, are disposed on cleanup.
 
 ## Validation
 
 See `browser-results.json` and screenshots in this directory. `scripts/inspect-plaza.mjs` exercises six viewpoints, a real pointer orbit drag, zoom/reset, ray visibility, frame selection, manual origin adjustment, labels, low power and mobile layout against a local mock-data server. It also forces WebGL creation failure and confirms controls remain enabled. Axe is scoped to the scene panel. Screenshots are synthetic local renders of the loaded reconstruction, not historical photographs and not the brief loading skeleton.
+
+The separate critic lives in `scripts/plaza-critic/`; `tolerances.json` documents visual-estimate bounds and the opt-in `critic=1` hook contract. With no critic query parameter, no critic global or bounds collection is created. To check a production server using mock data, run:
+
+```sh
+JFK_DATA_SOURCE=mock npm run build
+JFK_DATA_SOURCE=mock npm run start
+# In a second terminal, against that next start server:
+npm run critic:plaza
+```
+
+The critic checks named world-space object bounds, camera presets, URL deep links and nonblank renders, and writes its report/screenshots to `artifacts/plaza-critic` by default. These checks verify the procedural contract, not historical or forensic accuracy.
 
 The reconstruction review is recorded in [DEEP_REVIEW.md](DEEP_REVIEW.md). One demonstrated camera/labels regression was accepted, fixed, and independently reverified before this lazy-load follow-up.
 
