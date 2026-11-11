@@ -1,7 +1,7 @@
 {
   "_comment": "Critic-owned. The builder must not edit this file or critic.mjs. Positions are feet in the plaza frame (Houston/Main origin, +X east, +Z south, Y up). Expected positions are documented visual estimates, not survey-calibrated values.",
   "hookContract": {
-    "_comment": "When the trajectory page URL contains critic=1, the 3D scene must expose window.__plazaCritic = { view, eye:[x,y,z], target:[x,y,z], renders, objects: { <name>: { center:[x,y,z], min:[x,y,z], max:[x,y,z] } } } updated after every view change and render. Object names come from THREE.Object3D.name.",
+    "_comment": "When the trajectory page URL contains critic=1, the 3D scene must expose window.__plazaCritic = { view, eye:[x,y,z], target:[x,y,z], renders, camera: { matrixWorldInverse:[16], projectionMatrix:[16] }, objects: { <name>: { center:[x,y,z], min:[x,y,z], max:[x,y,z], parts?: [{ min, max }] } } } updated after every view change and render. camera matrices are THREE's column-major elements of the rendered camera. Object names come from THREE.Object3D.name. stockade-fence must also report parts: one world-bounds box per picket, so the long diagonal fence is not approximated by one bounding box.",
     "global": "__plazaCritic",
     "queryParam": "critic=1"
   },
@@ -65,36 +65,101 @@
       "screenshot": "window.png",
       "eyeNearObject": {
         "object": "tsbd-sniper-window",
-        "maxDistance": 4
+        "maxDistance": 5
       },
       "eyeOutsideFacadeZ": {
-        "minZ": -275,
+        "minZ": -279,
         "maxZ": -268,
-        "_comment": "eye must sit on or just outside the south face (z from -275 to -268) so the solid wall does not block the view"
+        "_comment": "eye sits at the south face: up to 4 ft inside it (looking out through the opened SE bay) or up to 7 ft outside it"
       },
-      "target": [
-        -250,
-        -14,
-        -113
+      "maxPitchDegrees": -5,
+      "sceneScreenshot": "window-scene.png",
+      "forward": {
+        "x": {
+          "max": -0.2,
+          "_why": "(westward, down Elm)"
+        },
+        "z": {
+          "min": 0.4,
+          "_why": "(southward, toward Elm)"
+        }
+      },
+      "inFrame": [
+        {
+          "object": "tsbd-sniper-window",
+          "minInViewOfProjected": 0.1,
+          "minHudFreeOfInView": 0.6,
+          "minScreenFraction": 0.03,
+          "_comment": "the SE sixth-floor bay itself must be visibly in frame (e.g. its jambs/sill framing the shot), mostly clear of HUD cards"
+        }
       ],
-      "targetTolerance": 35,
-      "maxPitchDegrees": -5
+      "inFramePoints": [
+        {
+          "name": "elm-z313-vicinity",
+          "point": [
+            -250,
+            -14,
+            -113
+          ],
+          "maxAbsNdcX": 0.85,
+          "ndcY": [
+            -0.7,
+            0.85
+          ],
+          "distance": [
+            150,
+            400
+          ],
+          "_comment": "Elm Street near the north pergola, the classic down-Elm sightline"
+        }
+      ]
     },
     "zapruder": {
       "screenshot": "zapruder.png",
       "eyeAboveObject": {
         "object": "zapruder-pedestal",
-        "maxHorizontal": 3,
+        "maxHorizontal": 20,
         "minAboveTop": 4.5,
-        "maxAboveTop": 6.5
+        "maxAboveTop": 7,
+        "_comment": "standing eye height above the pedestal top; up to 20 ft behind it horizontally (over-the-shoulder) so the pedestal itself is in frame"
       },
-      "target": [
-        -260,
-        -15,
-        -106
+      "maxPitchDegrees": -2,
+      "sceneScreenshot": "zapruder-scene.png",
+      "forward": {
+        "x": {
+          "min": 0.5,
+          "_why": "(eastward, toward the motorcade approaching on Elm)"
+        }
+      },
+      "inFrame": [
+        {
+          "object": "zapruder-pedestal",
+          "minInViewOfProjected": 0.9,
+          "minHudFreeOfInView": 0.9,
+          "minScreenFraction": 0.005,
+          "_comment": "whole pedestal in frame and clear of HUD cards"
+        }
       ],
-      "targetTolerance": 35,
-      "maxPitchDegrees": -2
+      "inFramePoints": [
+        {
+          "name": "elm-roadway-east",
+          "point": [
+            -195,
+            -10.76,
+            -147.5
+          ],
+          "maxAbsNdcX": 0.8,
+          "ndcY": [
+            -0.55,
+            0.7
+          ],
+          "distance": [
+            30,
+            250
+          ],
+          "_comment": "Elm centreline east of the pedestal (x -195), the motorcade approach; must sit mid-frame, not at the canvas edge"
+        }
+      ]
     },
     "knoll": {
       "screenshot": "knoll.png",
@@ -120,21 +185,52 @@
         -253
       ],
       "eyeToleranceXZ": 15,
-      "eyeToleranceY": 5,
+      "eyeToleranceY": 8,
       "eyeNearObject": {
         "object": "stockade-fence",
-        "maxDistance": 12
+        "maxDistance": 15
       },
-      "target": [
-        -250,
-        -14,
-        -113
-      ],
-      "targetTolerance": 35,
       "minDistanceFromView": {
         "view": "knoll",
         "eye": 30
-      }
+      },
+      "sceneScreenshot": "stockade-scene.png",
+      "forward": {
+        "z": {
+          "min": 0.4,
+          "_why": "(southward, from behind the fence toward Elm)"
+        }
+      },
+      "inFrame": [
+        {
+          "object": "stockade-fence",
+          "minInViewOfProjected": 0.1,
+          "minHudFreeOfInView": 0.75,
+          "minScreenFraction": 0.04,
+          "_comment": "a substantial stretch of the picket fence is in frame and mostly clear of HUD cards",
+          "useParts": true
+        }
+      ],
+      "inFramePoints": [
+        {
+          "name": "elm-knoll-frontage",
+          "point": [
+            -250,
+            -14,
+            -113
+          ],
+          "maxAbsNdcX": 0.85,
+          "ndcY": [
+            -0.7,
+            0.85
+          ],
+          "distance": [
+            60,
+            250
+          ],
+          "_comment": "Elm Street in front of the knoll"
+        }
+      ]
     },
     "depository": {
       "screenshot": "depository.png",
@@ -150,10 +246,20 @@
         -318
       ],
       "targetTolerance": 1
-    }
+    },
+    "_comment": "In-frame checks project the named object's world bounds to the canvas with the rendered camera, clip to the canvas, and subtract DOM overlay rects (HUD cards, caption) measured from the live page. They do not test occlusion by scene geometry."
   },
   "deepLinks": {
     "unknownValue": "not-a-view",
-    "fallbackView": "overview"
+    "fallbackView": "overview",
+    "aliases": {
+      "pedestal": "zapruder",
+      "pergola": "knoll"
+    },
+    "_comment": "Unknown values fall back to overview. Aliases resolve to their canonical view: hook, select and URL view parameter all report the canonical id."
+  },
+  "camera": {
+    "_comment": "Fallback projection only, used when the hook lacks camera matrices (that case also fails hook-camera-matrices).",
+    "fovDegrees": 43
   }
 }

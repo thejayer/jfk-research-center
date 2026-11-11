@@ -47,7 +47,7 @@ JFK_DATA_SOURCE=mock npm run start
 npm run critic:plaza
 ```
 
-The critic checks named world-space object bounds, camera presets, URL deep links and nonblank renders, and writes its report/screenshots to `artifacts/plaza-critic` by default. These checks verify the procedural contract, not historical or forensic accuracy.
+The critic needs a Chromium for `playwright-core`: run `npx playwright install chromium`, or set `EDGE_PATH` to a local Chrome/Edge/Chromium executable (see `scripts/plaza-critic/README.md`). It checks named world-space object bounds, camera placement and facing, whether the pedestal, stockade fence, SE sixth-floor bay and Elm Street targets are in frame and clear of the HUD cards, URL deep links (including the `pedestal` and `pergola` aliases) and nonblank renders, and writes its report/screenshots to `artifacts/plaza-critic` by default. These checks verify the procedural contract, not historical or forensic accuracy.
 
 The reconstruction review is recorded in [DEEP_REVIEW.md](DEEP_REVIEW.md). One demonstrated camera/labels regression was accepted, fixed, and independently reverified before this lazy-load follow-up.
 
