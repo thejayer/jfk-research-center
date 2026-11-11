@@ -5,11 +5,16 @@ export const PLAZA_VIEWS = {
   elm: { label: "Elm Street approach", eye: [-20, 9, -245], at: [-330, -5, -75] },
   knoll: { label: "North pergola vicinity", eye: [-245, 13, -188], at: [-165, 0, -150] },
   // Documented visual estimates in feet, not survey-calibrated camera positions.
-  // Pedestal top is grade(-242) + 4; standing eye is another 5.5 ft above it.
-  zapruder: { label: "Zapruder pedestal", eye: [-242, -4.165882352941177, -155], at: [-260, -15, -106] },
-  // Standing eye clears the nearby pickets while remaining beside the fence.
-  stockade: { label: "Stockade fence / grassy knoll", eye: [-290, 4.5, -253], at: [-250, -14, -113] },
-  window: { label: "Sixth-floor window bay", eye: [-26.25, 9 + 5 * 78 / 7, -273], at: [-250, -14, -113] },
+  // Standing eye 5.25 ft above the pedestal top, about 18 ft west-northwest.
+  // The ESE aim shifts the shelter columns left and keeps the whole
+  // pedestal at lower left, clear of the HUD, with Elm across the middle.
+  zapruder: { label: "Zapruder pedestal", eye: [-259.75, -4.415882352941177, -158], at: [-168, -36, -115] },
+  // Inside the allowed north setback and height, clear the picket tops.
+  // Look south, slightly west toward the underpass direction; the fence
+  // forms a lower-middle band above the HUD with lawn and Elm beyond.
+  stockade: { label: "Stockade fence / grassy knoll", eye: [-290, 6, -267], at: [-302, -49, -113] },
+  // Just inside the opened bay; jambs and sill frame the down-Elm sightline.
+  window: { label: "Sixth-floor window bay", eye: [-23.5, 64, -278], at: [-250, -14, -113] },
 } as const;
 export type PlazaView = keyof typeof PLAZA_VIEWS;
 
