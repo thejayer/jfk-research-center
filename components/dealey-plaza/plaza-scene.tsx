@@ -17,7 +17,13 @@ type CriticState = {
   eye: number[];
   target: number[];
   renders: number;
-  objects: Record<string, { center: number[]; min: number[]; max: number[] }>;
+  camera: { matrixWorldInverse: number[]; projectionMatrix: number[] };
+  objects: Record<string, {
+    center: number[];
+    min: number[];
+    max: number[];
+    parts?: { min: number[]; max: number[] }[];
+  }>;
 };
 
 declare global {
@@ -121,7 +127,10 @@ export default function PlazaScene({
     // Static landmark bounds are computed only for an explicitly requested critic.
     const critic: CriticState | null =
       new URLSearchParams(window.location.search).get("critic") === "1"
-        ? { view: "overview", eye: [], target: [], renders: 0, objects: {} }
+        ? {
+            view: "overview", eye: [], target: [], renders: 0, objects: {},
+            camera: { matrixWorldInverse: [], projectionMatrix: [] },
+          }
         : null;
     if (critic) {
       for (const name of ["tsbd", "tsbd-sniper-window", "zapruder-pedestal", "stockade-fence", "north-pergola"]) {
@@ -132,6 +141,12 @@ export default function PlazaScene({
           center: bounds.getCenter(new THREE.Vector3()).toArray(),
           min: bounds.min.toArray(),
           max: bounds.max.toArray(),
+          ...(name === "stockade-fence" ? {
+            parts: object.children.map((picket) => {
+              const part = new THREE.Box3().setFromObject(picket);
+              return { min: part.min.toArray(), max: part.max.toArray() };
+            }),
+          } : {}),
         };
       }
     }
@@ -151,6 +166,9 @@ export default function PlazaScene({
       });
       renderer.render(scene, camera);
       if (critic) {
+        camera.updateMatrixWorld();
+        critic.camera.matrixWorldInverse = camera.matrixWorldInverse.toArray();
+        critic.camera.projectionMatrix = camera.projectionMatrix.toArray();
         critic.eye = camera.position.toArray();
         critic.target = controls.target.toArray();
         critic.renders++;
