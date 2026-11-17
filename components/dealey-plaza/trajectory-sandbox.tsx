@@ -111,9 +111,16 @@ export function TrajectorySandbox({
   const cameraActions = useRef<PlazaCameraActions | null>(null);
   const [view, setView] = useState<PlazaView>("overview");
   useEffect(() => {
-    const requested = new URL(window.location.href).searchParams.get("view");
-    if (requested && Object.prototype.hasOwnProperty.call(PLAZA_VIEWS, requested)) {
-      setView(requested as PlazaView);
+    const url = new URL(window.location.href);
+    const requested = url.searchParams.get("view");
+    const canonical = requested === "pedestal" ? "zapruder"
+      : requested === "pergola" ? "knoll" : requested;
+    if (canonical && Object.prototype.hasOwnProperty.call(PLAZA_VIEWS, canonical)) {
+      setView(canonical as PlazaView);
+      if (canonical !== requested) {
+        url.searchParams.set("view", canonical);
+        window.history.replaceState(window.history.state, "", url);
+      }
     }
   }, []);
 
@@ -286,7 +293,7 @@ export function TrajectorySandbox({
         <details className={styles.reconstructionNotes}>
           <summary>Reconstruction sources, accuracy and usage</summary>
           <p>Source-informed architectural reconstruction. Documented anchors: 40 ft roadways, 10 ft outer sidewalks, approximately 24 ft fall from Houston to the underpass, and a 94 ft depository height (CE877). The depository footprint is 100 × 100 ft (TSHA). Curves, slopes between anchors, facade details, vegetation and street furniture are visual approximations.</p>
-          <p>The Zapruder pedestal, distinct southeast sixth-floor window bay and viewpoint positions are documented visual estimates, not survey-calibrated. The pedestal and stockade views look toward Elm Street; the north pergola vicinity remains a separate view. Share a viewpoint using the URL’s view parameter.</p>
+          <p>The Zapruder pedestal, distinct southeast sixth-floor window bay and viewpoint positions are documented visual estimates, not survey-calibrated. The pedestal view looks east from behind the block, the stockade view looks south past the pickets toward Elm Street, and the window view looks southwest through the opened bay. The north pergola vicinity remains a separate view. Share a viewpoint using the URL’s view parameter.</p>
           <p>The legacy ray remains uncalibrated. It keeps its original feet and straight-line math, with a rigid rotation and translation for orientation. Its provisional anchors have not been registered to this scene. It is hidden initially; enabling it does not establish a window, vehicle position, sightline or shot source. The plan and historical overlay retain their existing schematic coordinate frame.</p>
           <ul>
             <li><a href="https://www.archives.gov/research/jfk/warren-commission-report/chapter-2.html">NARA: CE876 plaza diagram and CE2114–2116 photographs / plans</a></li>

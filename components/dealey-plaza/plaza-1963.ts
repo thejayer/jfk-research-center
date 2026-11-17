@@ -87,6 +87,25 @@ export function buildPlaza1963(scene: THREE.Scene) {
     box(x,-foundationDepth/2,z,w,foundationDepth,d,0x9a9482);
     const walls=box(x,h/2,z,w,h,d,color);
     if(color===0x976747||color===0x79604d)walls.material=new THREE.MeshStandardMaterial({color,map:brickTexture,roughness:1});
+    if (color === 0x976747) {
+      // Replace the solid south face with four masonry panels around the
+      // open SE sixth-floor bay. Both sides read as a wall from inside/out.
+      const indices = Array.from(walls.geometry.index!.array);
+      walls.geometry.setIndex(indices.filter((_, i) => i < 24 || i >= 30));
+      const bayX = x + w / 2 - w / cols / 2;
+      const bayY = 9 + 5 * (h - 16) / rows;
+      const left = bayX - 2.725, right = bayX + 2.725;
+      const bottom = bayY - 4, top = bayY + 4;
+      for (const [cx, cy, width, height] of [
+        [x, bottom / 2, w, bottom],
+        [x, (top + h) / 2, w, h - top],
+        [(x - w / 2 + left) / 2, bayY, left - (x - w / 2), 8],
+        [(right + x + w / 2) / 2, bayY, x + w / 2 - right, 8],
+      ]) {
+        const panel = box(cx,cy,z+d/2-.5,width,height,1,color);
+        panel.material = walls.material;
+      }
+    }
     box(x,2,z,w+1,4,d+1,0xbeb39b);
     box(x,h-3,z,w+3,2,d+3,0xb5a18c);box(x,h,z,w+5,2,d+5,0x9c8b73);
     box(x,h+1.3,z,w-5,.6,d-5,0x726e62);
@@ -94,16 +113,19 @@ export function buildPlaza1963(scene: THREE.Scene) {
       const yy=9+row*(h-16)/rows, xx=x-w/2+(col+.5)*w/cols;
       for(const zz of [z-d/2-.12,z+d/2+.12]){
         if (color === 0x976747 && row === 5 && col === cols - 1 && zz > z) {
-          // Single SE sixth-floor bay: raised lower sash over a dark opening.
+          // Single SE sixth-floor bay: real opening, jambs, head and sill.
           // Position and sash detailing are documented visual estimates.
           const bay = new THREE.Group();
           bay.name = "tsbd-sniper-window";
           scene.add(bay);
           bay.add(
-            box(xx,yy,zz,6.1,8.5,.3,0xd8c6a5),
-            box(xx,yy+.3,zz+.2,4.8,7,.2,0x25302d),
-            box(xx,yy+1.7,zz+.35,4.9,.45,.25,0xe1cfaa),
-            box(xx,yy-4.3,zz,7,.55,1,0xc3b394),
+            box(xx-3.05,yy,z+d/2,.65,8.5,1,0xd8c6a5),
+            box(xx+3.05,yy,z+d/2,.65,8.5,1,0xd8c6a5),
+            box(xx,yy+4.25,z+d/2,7,.5,1,0xd8c6a5),
+            box(xx,yy-4.3,z+d/2,7,.55,1.4,0xc3b394),
+            box(xx,yy+.8,z+d/2+.3,5.45,.4,.25,0xe1cfaa),
+            box(xx,yy+2.5,z+d/2+.15,5.45,3,.2,0x354341),
+            box(xx,yy+2.5,z+d/2+.3,.2,3,.25,0xe1cfaa),
           );
           continue;
         }
@@ -188,15 +210,17 @@ export function buildPlaza1963(scene: THREE.Scene) {
     box(-110,grade(-110)+9,side*175,6,18,6,0xd8ceb4);
   }
   // Concrete pedestal at the Elm-side end of the north pergola. Its base
-  // follows local terrain; dimensions/placement are visual estimates in feet.
+  // follows local terrain; dimensions/placement are documented visual estimates
+  // in feet: a 4 × 4 × 4 ft block.
   box(-242,lawnHeight(-242,-155)+2,-155,4,4,4,0xcfc9b7).name = "zapruder-pedestal";
-  // Stockade, behind the north pergola; pickets, not chain link.
+  // Stockade, behind the north pergola; six-foot pickets, not chain link.
+  // Height is a documented visual estimate; bases follow the same local lawn.
   const stockade = new THREE.Group();
   stockade.name = "stockade-fence";
   scene.add(stockade);
   for(let i=0;i<98;i++){
     const x=-360+i*1.65,z=-245-i*.12;
-    stockade.add(box(x,lawnHeight(x,z)+4,z,1.5,8,.5,0x877359));
+    stockade.add(box(x,lawnHeight(x,z)+3,z,1.5,6,.5,0x877359));
   }
   // Triple underpass: three independent open spans and concrete abutments.
   box(-440,3,-1,32,7,237,0xaaa696);
