@@ -26,6 +26,12 @@ const check = (view, id, pass, detail) => {
 };
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 const distXZ = (a, b) => Math.hypot(a[0] - b[0], a[2] - b[2]);
+// Index list as ranges, e.g. [0,1,2,5] -> "0-2, 5".
+const ranges = (xs) => xs.reduce((acc, x) => {
+  const last = acc[acc.length - 1];
+  if (last && x === last[1] + 1) last[1] = x; else acc.push([x, x]);
+  return acc;
+}, []).map(([a, b]) => (a === b ? `${a}` : `${a}-${b}`)).join(", ");
 const fmt = (v) => (Array.isArray(v) ? `[${v.map((n) => Number(n).toFixed(2)).join(", ")}]` : String(v));
 const pitch = (eye, at) => {
   const dy = at[1] - eye[1];
@@ -99,12 +105,15 @@ function clipRect(P, r) {
 // sampled on an n^3 grid; samples in front of the near plane are projected,
 // their convex hull is clipped to the canvas and rasterised onto a 4 px mask.
 // Mask cells under DOM overlays (HUD cards, caption) do not count as clear.
+// Boxes with no on-canvas screen polygon (off-screen, behind the camera or
+// degenerate) are listed in noScreenBounds by index.
 function footprint(boxes, project, W, H, overlays) {
   const cell = 4, cols = Math.ceil(W / cell), rows = Math.ceil(H / cell);
   const mask = new Uint8Array(cols * rows);
   const n = boxes.length > 20 ? 2 : 6;
   let total = 0, inside = 0;
-  for (const o of boxes) {
+  const noScreenBounds = [];
+  for (const [bi, o] of boxes.entries()) {
     const pts = [];
     for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) for (let k = 0; k <= n; k++) {
       const p = [0, 1, 2].map((a, m) => o.min[a] + ((o.max[a] - o.min[a]) * [i, j, k][m]) / n);
@@ -117,7 +126,7 @@ function footprint(boxes, project, W, H, overlays) {
     }
     const h = pts.length >= 3 ? hull(pts) : [];
     const poly = h.length >= 3 ? clipRect(h, { x0: 0, y0: 0, x1: W, y1: H }) : [];
-    if (poly.length < 3) continue;
+    if (poly.length < 3) { noScreenBounds.push(bi); continue; }
     const xs = poly.map((p) => p[0]), ys = poly.map((p) => p[1]);
     const c0 = Math.max(0, Math.floor(Math.min(...xs) / cell)), c1 = Math.min(cols - 1, Math.floor(Math.max(...xs) / cell));
     const r0 = Math.max(0, Math.floor(Math.min(...ys) / cell)), r1 = Math.min(rows - 1, Math.floor(Math.max(...ys) / cell));
@@ -142,6 +151,7 @@ function footprint(boxes, project, W, H, overlays) {
     inViewOfProjected: total ? inside / total : 0,
     hudFreeOfInView: covered ? clear / covered : 0,
     screenFraction: clear / (cols * rows),
+    noScreenBounds,
   };
 }
 // DOM overlays drawn over the canvas: absolutely positioned elements in the
@@ -309,7 +319,14 @@ for (const view of views) {
   const shotPath = path.join(outDir, v.screenshot);
   const png = await canvas.screenshot({ path: shotPath });
   // Scene panel including DOM overlays, for human review of HUD occlusion.
-  if (v.sceneScreenshot) await page.locator("canvas").first().locator("xpath=../..").screenshot({ path: path.join(outDir, v.sceneScreenshot) }).catch(() => {});
+  // A failed scene shot is a failed check, so a run cannot pass without it.
+  if (v.sceneScreenshot) {
+    try {
+      await page.locator("canvas").first().locator("xpath=../..").screenshot({ path: path.join(outDir, v.sceneScreenshot) });
+    } catch (e) {
+      check(view, "scene-screenshot", false, `could not capture ${v.sceneScreenshot}: ${e.message}`);
+    }
+  }
   const px = await pixelStats(png);
   const p = cfg.pixel;
   check(view, "canvas-non-blank", px.lumaStdDev >= p.minLumaStdDev && px.distinctBuckets >= p.minDistinctColorBuckets && px.topBucketFraction <= p.maxSingleBucketFraction,
@@ -353,16 +370,33 @@ for (const view of views) {
     for (const f of v.inFrame ?? []) {
       const o = objs[f.object];
       if (!o) { check(view, `in-frame:${f.object}`, false, "object missing"); continue; }
-      let boxes = [o];
+      let boxes = [o], boxIndex = [0];
+      let partsOk = true;
       if (f.useParts) {
-        const ok = Array.isArray(o.parts) && o.parts.length > 0;
-        check(view, `hook-parts:${f.object}`, ok, ok ? `${o.parts.length} part bounds reported` : "hook lacks objects[name].parts; footprint used the whole-object bounds");
-        if (ok) boxes = o.parts;
+        // One valid world-bounds box per part (per picket for the stockade),
+        // compared with the critic-owned expected count, not just nonempty.
+        const expected = cfg.objects[f.object]?.expectedParts;
+        const parts = Array.isArray(o.parts) ? o.parts : [];
+        const vec3 = (a) => Array.isArray(a) && a.length === 3 && a.every(Number.isFinite);
+        const bad = parts.flatMap((q, i) => (q && vec3(q.min) && vec3(q.max) && [0, 1, 2].every((k) => q.min[k] <= q.max[k]) ? [] : [i]));
+        const countOk = Number.isInteger(expected) ? parts.length === expected : parts.length > 0;
+        partsOk = Array.isArray(o.parts) && countOk && bad.length === 0;
+        check(view, `hook-parts:${f.object}`, partsOk,
+          !Array.isArray(o.parts) ? "hook lacks objects[name].parts; footprint used the whole-object bounds"
+            : `${parts.length} part bounds reported (expected ${expected ?? "> 0"})${bad.length ? `; invalid bounds at part index ${ranges(bad)}` : ""}`);
+        if (parts.length) {
+          boxIndex = parts.map((_, i) => i).filter((i) => !bad.includes(i));
+          boxes = boxIndex.map((i) => parts[i]);
+        }
       }
       const fp = footprint(boxes, project, W, H, m.overlays);
+      // With parts, report how many parts have on-canvas screen bounds and list
+      // the ones that project nowhere (off-screen, behind the camera). Close
+      // views frame only part of the fence, so this is reported, not required.
+      const missing = f.useParts ? fp.noScreenBounds.map((i) => boxIndex[i]) : [];
       check(view, `in-frame:${f.object}`,
-        fp.inViewOfProjected >= f.minInViewOfProjected && fp.hudFreeOfInView >= f.minHudFreeOfInView && fp.screenFraction >= f.minScreenFraction,
-        `${(fp.inViewOfProjected * 100).toFixed(0)}% of sample points inside canvas (min ${f.minInViewOfProjected * 100}%), ${(fp.hudFreeOfInView * 100).toFixed(0)}% of the in-canvas footprint clear of HUD/overlays (min ${f.minHudFreeOfInView * 100}%), clear footprint ${(fp.screenFraction * 100).toFixed(2)}% of canvas (min ${f.minScreenFraction * 100}%)`);
+        fp.inViewOfProjected >= f.minInViewOfProjected && fp.hudFreeOfInView >= f.minHudFreeOfInView && fp.screenFraction >= f.minScreenFraction && partsOk,
+        `${(fp.inViewOfProjected * 100).toFixed(0)}% of sample points inside canvas (min ${f.minInViewOfProjected * 100}%), ${(fp.hudFreeOfInView * 100).toFixed(0)}% of the in-canvas footprint clear of HUD/overlays (min ${f.minHudFreeOfInView * 100}%), clear footprint ${(fp.screenFraction * 100).toFixed(2)}% of canvas (min ${f.minScreenFraction * 100}%)${f.useParts && !Array.isArray(o.parts) ? "; no per-part bounds (hook lacks parts)" : ""}${f.useParts && Array.isArray(o.parts) ? `; ${boxes.length - missing.length}/${cfg.objects[f.object]?.expectedParts ?? boxes.length} parts with on-canvas screen bounds${missing.length ? ` (none for part index ${ranges(missing)})` : ""}${partsOk ? "" : "; hook-parts failed"}` : ""}`);
     }
     for (const t of v.inFramePoints ?? []) {
       const q = project(t.point);

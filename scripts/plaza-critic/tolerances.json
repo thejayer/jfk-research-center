@@ -57,7 +57,9 @@
     },
     "stockade-fence": {
       "_comment": "Existing picket stockade behind the north pergola (x -360..-200, z about -245..-257).",
-      "minLengthX": 120
+      "minLengthX": 120,
+      "expectedParts": 98,
+      "_expectedParts": "One part bound per picket: the hook must report exactly this many, each a valid world box. On-canvas coverage per picket is reported in the in-frame detail, not required."
     }
   },
   "views": {
