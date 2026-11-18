@@ -506,6 +506,24 @@ export function buildIdentifierSearchSql(
         LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 }
 
+export function buildTitleSearchSql(
+  tables: WarehouseTableRef,
+  whereSql: string,
+  limit: number,
+  offset: number,
+): string {
+  const exactMatch = "LOWER(r.title) = @titleNorm";
+  const extraWhere = whereSql.trim() ? `AND ${whereSql}` : "";
+  return `SELECT ${searchDocumentSelectSql("r")},
+              'high' AS match_confidence,
+              COUNT(*) OVER() AS total_count
+         FROM ${recordsTable(tables)} r
+        WHERE (${exactMatch} OR STARTS_WITH(LOWER(r.title), @titleNorm))
+          ${extraWhere}
+        ORDER BY (${exactMatch}) DESC, r.start_date DESC NULLS LAST
+        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
+}
+
 export function buildCorpusYearFacetSql(tables: WarehouseTableRef): string {
   return `SELECT CAST(EXTRACT(YEAR FROM start_date) AS STRING) AS y,
               COUNT(*) AS n

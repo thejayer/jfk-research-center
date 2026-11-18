@@ -126,6 +126,7 @@ import {
   withDocumentCache,
 } from "./document-cache";
 import { searchCacheKey, withSearchCache } from "./search-cache";
+import { isTitleLikeQuery, normalizeTitleQuery } from "./search-title-query";
 import { extractSearchTokens, ocrTokenRangeParams } from "./search-tokens";
 import { warehouseJobLabels } from "./warehouse-request-context";
 import {
@@ -193,6 +194,7 @@ import {
   buildOcrHitDocumentIdSql,
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
+  buildTitleSearchSql,
   buildTopicMembershipSql,
   recordsTable,
   type TopicTableRef,
@@ -2093,6 +2095,10 @@ async function fetchSearchUncached({
       offset,
     });
     if (identifierResult.total > 0) return identifierResult;
+  } else if (isTitleLikeQuery(qNorm)) {
+    // Title-shaped queries are mostly crawlers copying exact titles, so a miss
+    // stays on this path.
+    return fetchTitleSearch({ query: qNorm, filters, limit, offset });
   }
   const params: Record<string, unknown> = {
     qNorm,
@@ -2294,22 +2300,41 @@ async function fetchMentionSearch({
   };
 }
 
-async function fetchIdentifierSearch({
-  query: qNorm,
-  filters,
-  limit,
-  offset,
-}: {
+type BoundedDocumentSearchInput = {
   query: string;
   filters: SearchFilterInput;
   limit: number;
   offset: number;
-}): Promise<SearchResponse> {
-  const params: Record<string, unknown> = { qNorm };
-  const where = [
-    "(r.document_id = @qNorm OR CAST(r.naid AS STRING) = @qNorm)",
-  ];
+};
 
+function fetchIdentifierSearch(
+  input: BoundedDocumentSearchInput,
+): Promise<SearchResponse> {
+  return fetchBoundedDocumentSearch(
+    input,
+    buildIdentifierSearchSql,
+    { qNorm: input.query },
+    ["(r.document_id = @qNorm OR CAST(r.naid AS STRING) = @qNorm)"],
+  );
+}
+
+function fetchTitleSearch(
+  input: BoundedDocumentSearchInput,
+): Promise<SearchResponse> {
+  return fetchBoundedDocumentSearch(
+    input,
+    buildTitleSearchSql,
+    { titleNorm: normalizeTitleQuery(input.query) },
+    [],
+  );
+}
+
+async function fetchBoundedDocumentSearch(
+  { query: searchQuery, filters, limit, offset }: BoundedDocumentSearchInput,
+  buildSql: typeof buildIdentifierSearchSql,
+  params: Record<string, unknown>,
+  where: string[],
+): Promise<SearchResponse> {
   if (filters.confidence?.length && !filters.confidence.includes("high")) {
     where.push("FALSE");
   }
@@ -2343,7 +2368,7 @@ async function fetchIdentifierSearch({
       total_count: number;
     }
   >(
-    buildIdentifierSearchSql(
+    buildSql(
       WAREHOUSE_TABLES,
       where.join(" AND "),
       Number(limit),
@@ -2360,15 +2385,15 @@ async function fetchIdentifierSearch({
   }));
 
   return {
-    query: qNorm,
+    query: searchQuery,
     mode: "document",
     total,
-    filters: identifierSearchFilters(rows, filters, total),
+    filters: boundedDocumentSearchFilters(rows, filters, total),
     results,
   };
 }
 
-function identifierSearchFilters(
+function boundedDocumentSearchFilters(
   rows: RecordRow[],
   selected: SearchFilterInput,
   total: number,

@@ -21,6 +21,7 @@ import {
   buildOcrHitDocumentIdSql,
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
+  buildTitleSearchSql,
   buildDocumentTopicCountSql,
   buildDocumentTopicSlugsSql,
   sortTopicSlugsByDisplayOrder,
@@ -310,6 +311,27 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlSelectsStarFromRecords(sql)).toBe(false);
     expect(sqlSelectsReleaseHistory(sql)).toBe(false);
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
+  });
+
+  it("matches titles by exact equality and prefix in one bounded records query", () => {
+    const sql = buildTitleSearchSql(
+      tables,
+      "r.agency IN UNNEST(@agencies)",
+      25,
+      50,
+    ).replace(/\s+/g, " ");
+    expect(sql).toContain(
+      "WHERE (LOWER(r.title) = @titleNorm OR STARTS_WITH(LOWER(r.title), @titleNorm)) " +
+        "AND r.agency IN UNNEST(@agencies)",
+    );
+    expect(sql).toContain(
+      "ORDER BY (LOWER(r.title) = @titleNorm) DESC, r.start_date DESC NULLS LAST",
+    );
+    expect(sql).toContain("'high' AS match_confidence");
+    expect(sql).toContain("COUNT(*) OVER() AS total_count");
+    expect(sql).toMatch(/LIMIT 25 OFFSET 50$/);
+    expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sql).not.toMatch(/\bLIKE\b/i);
   });
 
   it("scores query-scoped facet documents without scanning OCR text", () => {
