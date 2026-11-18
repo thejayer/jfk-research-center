@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   extractSearchTokens,
-  ocrTokenRangeParams,
-  tokenPrefixEnd,
+  ocrLookupTokens,
+  ocrTokenParams,
 } from "../search-tokens";
 
 describe("search tokens", () => {
@@ -21,15 +21,28 @@ describe("search tokens", () => {
     expect(many).toHaveLength(8);
   });
 
-  it("builds a clustered prefix range that includes plurals but not other stems", () => {
-    expect(tokenPrefixEnd("oswald")).toBe("oswale");
-    expect(ocrTokenRangeParams(["oswald"])).toEqual({
+  it("builds only exact OCR token parameters", () => {
+    expect(ocrTokenParams([])).toEqual({});
+    expect(ocrTokenParams(["oswald", "1963"])).toEqual({
       ocrTok0: "oswald",
-      ocrTok0End: "oswale",
+      ocrTok1: "1963",
     });
-    expect("oswald" >= "oswald" && "oswald" < "oswale").toBe(true);
-    expect("oswalds" >= "oswald" && "oswalds" < "oswale").toBe(true);
-    expect("oswald2" >= "oswald" && "oswald2" < "oswale").toBe(true);
-    expect("koswald" >= "oswald" && "koswald" < "oswale").toBe(false);
+  });
+});
+
+describe("OCR lookup tokens", () => {
+  it("drops stopwords and short tokens while keeping acronyms, numbers, and archival terms", () => {
+    expect(ocrLookupTokens("THE CIA and Oswald OSWALD re 12 1963 201 memo subject"))
+      .toEqual(["cia", "oswald", "1963", "201", "memo", "subject"]);
+  });
+
+  it("caps the unique tokens after filtering", () => {
+    expect(ocrLookupTokens(
+      "the and for with from that this was Oswald OSWALD Lee CIA FBI Dallas Mexico City 1963 201",
+    )).toEqual(["oswald", "lee", "cia", "fbi", "dallas", "mexico", "city", "1963"]);
+  });
+
+  it("returns no tokens for an all-stopword query", () => {
+    expect(ocrLookupTokens("The AND with")).toEqual([]);
   });
 });

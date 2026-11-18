@@ -126,7 +126,7 @@ import {
   withDocumentCache,
 } from "./document-cache";
 import { searchCacheKey, withSearchCache } from "./search-cache";
-import { extractSearchTokens, ocrTokenRangeParams } from "./search-tokens";
+import { ocrLookupTokens, ocrTokenParams } from "./search-tokens";
 import { warehouseJobLabels } from "./warehouse-request-context";
 import {
   denseSearchFacetYears,
@@ -2842,12 +2842,12 @@ async function fetchOcrSnippets(
 }
 
 async function fetchOcrHitDocumentIds(qNorm: string): Promise<string[]> {
-  const tokens = extractSearchTokens(qNorm);
+  const tokens = ocrLookupTokens(qNorm);
   if (tokens.length === 0) return [];
   try {
     const rows = await query<{ document_id: string }>(
       buildOcrHitDocumentIdSql(WAREHOUSE_TABLES, tokens.length),
-      ocrTokenRangeParams(tokens),
+      ocrTokenParams(tokens),
     );
     return rows.map((row) => row.document_id);
   } catch (error) {
