@@ -22,11 +22,14 @@ export function searchCacheKey(input: {
   filters?: SearchFilterInput;
   limit?: number;
   offset?: number;
+  /** Warehouse route (see searchRoute); routing is case-sensitive, the query key is not. */
+  route?: "title" | "default";
 }): string {
   const filters = input.filters ?? {};
   return JSON.stringify({
     query: input.query.trim().toLowerCase(),
     mode: input.mode,
+    route: input.route ?? "default",
     filters: {
       agencies: normalizeList(filters.agencies),
       yearFrom: filters.yearFrom ?? null,

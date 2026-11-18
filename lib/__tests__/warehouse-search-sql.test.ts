@@ -314,43 +314,51 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
   });
 
-  it("groups normalized title matches by agency in one bounded records query", () => {
+  it("matches normalized titles anywhere in one bounded records scan, grouped by agency and year", () => {
     const sql = buildTitleSearchSql(
       tables,
-      "EXTRACT(YEAR FROM r.start_date) >= @yearFrom",
+      "r.document_id IN (SELECT document_id FROM x)",
       25,
       50,
-      true,
+      { agencies: true, yearFrom: true, yearTo: true },
     ).replace(/\s+/g, " ");
-    const normalizedTitle = String.raw`LOWER(REGEXP_REPLACE(TRIM(r.title), r'\s+', ' '))`;
-    const exactMatch = `${normalizedTitle} = @titleNorm`;
-    const selection = "r.agency IN UNNEST(@agencies)";
+    const t = String.raw`LOWER(REGEXP_REPLACE(TRIM(r.title), r'\s+', ' '))`;
+    const agencySel = "r.agency IN UNNEST(@agencies)";
+    const yearSel =
+      "(EXTRACT(YEAR FROM r.start_date) >= @yearFrom AND EXTRACT(YEAR FROM r.start_date) <= @yearTo)";
     const fields = SEARCH_DOCUMENT_COLUMNS.map((column) => `r.${column} AS ${column}`);
+    const rank = `CASE WHEN ${t} = @titleNorm THEN 0 WHEN STARTS_WITH(${t}, @titleNorm) THEN 1 ELSE 2 END`;
 
     expect(sql).toContain(
-      `WHERE (${exactMatch} OR STARTS_WITH(${normalizedTitle}, @titleNorm)) ` +
-        "AND EXTRACT(YEAR FROM r.start_date) >= @yearFrom GROUP BY agency",
+      `WHERE STRPOS(${t}, @titleNorm) > 0 AND r.document_id IN (SELECT document_id FROM x) GROUP BY agency, start_year`,
     );
-    expect(sql).toContain("COUNT(*) AS agency_count");
-    expect(sql).toContain(`COUNTIF(${selection}) AS selected_count`);
+    expect(sql).toContain("EXTRACT(YEAR FROM r.start_date) AS start_year");
+    expect(sql).toContain(`COUNTIF(${agencySel}) AS agency_selected_count`);
+    expect(sql).toContain(`COUNTIF(${yearSel}) AS year_selected_count`);
+    expect(sql).toContain(`COUNTIF((${agencySel}) AND ${yearSel}) AS selected_count`);
     expect(sql).toContain(
-      `ARRAY_AGG( IF(${selection}, STRUCT(${fields.join(", ")}, (${exactMatch}) AS exact_title), NULL) IGNORE NULLS`,
+      `IF((${agencySel}) AND ${yearSel}, STRUCT(${fields.join(", ")}, ${rank} AS title_rank), NULL) IGNORE NULLS`,
     );
     expect(sql).toContain(
-      `ORDER BY (${exactMatch}) DESC, r.start_date DESC, r.document_id ASC LIMIT 75 ) AS page_rows`,
+      `ORDER BY ${rank} ASC, r.start_date DESC, r.document_id ASC LIMIT 75 ) AS page_rows`,
     );
-    expect(sql.split("@agencies")).toHaveLength(3);
+    // Agency and year selections gate counts only; they are not in WHERE.
+    const where = sql.slice(sql.indexOf(" WHERE "));
+    expect(where).not.toContain("@agencies");
+    expect(where).not.toContain("@yearFrom");
     expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
     expect(sql.match(/\bjfk_records\b/g)).toHaveLength(1);
     expect(sql).not.toMatch(/\bLIKE\b/i);
+    expect(sqlUsesOcrTokenTable(sql)).toBe(false);
   });
 
-  it("caps candidate rows per group and selects all agencies by default", () => {
+  it("caps candidate rows per group and selects everything by default", () => {
     const sql = buildTitleSearchSql(tables, "", 25, TITLE_SEARCH_MAX_ROWS);
-    expect(sql).toContain("COUNTIF(TRUE) AS selected_count");
-    expect(sql).toContain("IF(TRUE, STRUCT(");
+    expect(sql).toContain("COUNTIF(TRUE) AS agency_selected_count");
+    expect(sql).toContain("COUNTIF((TRUE) AND TRUE) AS selected_count");
     expect(sql).toMatch(new RegExp(`\\bLIMIT ${TITLE_SEARCH_MAX_ROWS}\\b`));
     expect(sql).not.toContain("@agencies");
+    expect(sql).not.toContain("@yearFrom");
   });
 
   it("scores query-scoped facet documents without scanning OCR text", () => {

@@ -28,6 +28,15 @@ describe("search cache", () => {
     expect(right).toBe(left);
   });
 
+  it("keeps title-route and keyword-route keys apart when only case differs", () => {
+    const title = searchCacheKey({ query: "AIRGRAM: OSWALD", mode: "document", route: "title" });
+    const keyword = searchCacheKey({ query: "AIRgram: OSWALD", mode: "document", route: "default" });
+    expect(title).not.toBe(keyword);
+    expect(searchCacheKey({ query: "oswald", mode: "document" })).toBe(
+      searchCacheKey({ query: "OSWALD", mode: "document", route: "default" }),
+    );
+  });
+
   it("coalesces concurrent loads and reuses the result within the ttl", async () => {
     const load = vi.fn(async () => response);
     const options = {

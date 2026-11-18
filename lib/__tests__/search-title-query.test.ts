@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { isTitleLikeQuery, normalizeTitleQuery } from "../search-title-query";
+import {
+  isTitleLikeQuery,
+  normalizeTitleQuery,
+  searchRoute,
+} from "../search-title-query";
 
 describe("isTitleLikeQuery", () => {
   it.each([
     "MEMORANDUM: SUBJECT OSWALD",
-    "memo: a subject",
+    "MEMO: a subject",
     "CABLE: MEXICO CITY",
     "AIRGRAM: OSWALD",
+    "TELETYPE: DALLAS",
     "  FBI   REPORT:   interview notes  ",
-    "Routing Slip: Review",
-    "F.B.I./CIA: JOINT REPORT",
+    "ROUTING SLIP: Review",
+    "MEMORANDUM : SUBJECT OSWALD",
   ])("recognizes %j as a title query", (query) => {
     expect(isTitleLikeQuery(query)).toBe(true);
   });
@@ -23,13 +28,39 @@ describe("isTitleLikeQuery", () => {
     "104-10338-10005",
     "123456789",
     "MEMO:   ",
-    "MEMO : a subject",
-    "who was oswald: a profile",
+    // Lowercase or mixed-case labels stay on the keyword path.
+    "memo: oswald",
+    "report: oswald",
+    "Routing Slip: Review",
     "AIRgram: OSWALD",
+    "who was oswald: a profile",
+    // Short acronyms and non-document-type phrases, even in uppercase.
+    "CIA: oswald",
+    "FBI: ruby",
+    "FYI: x",
+    "NOTE: x",
     "AB: a subject",
+    "WHO WAS OSWALD: a profile",
+    "BOOK V: THE INVESTIGATION",
     "WHAT DID THE FBI REPORT SAY: a profile",
-  ])("keeps %j on its existing search path", (query) => {
+  ])("keeps %j on the keyword path", (query) => {
     expect(isTitleLikeQuery(query)).toBe(false);
+  });
+});
+
+describe("searchRoute", () => {
+  it("routes title-shaped document queries to the title path", () => {
+    expect(searchRoute({ query: " AIRGRAM: OSWALD ", mode: "document" })).toBe("title");
+  });
+
+  it.each([
+    { query: "AIRgram: OSWALD", mode: "document" },
+    { query: "AIRGRAM: OSWALD", mode: "mention" },
+    { query: "AIRGRAM: OSWALD", mode: "semantic" },
+    { query: "104-10338-10005", mode: "document" },
+    { query: "   ", mode: "document" },
+  ])("keeps $mode $query on the default path", (input) => {
+    expect(searchRoute(input)).toBe("default");
   });
 });
 
