@@ -1,5 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { normalizeTitleQuery } from "../search-title-query";
 import { sqlUsesOcrTokenTable, TITLE_SEARCH_MAX_ROWS } from "../warehouse-search-sql";
+
+/**
+ * Applies the stored-title normalization from the generated SQL in JS:
+ * TRIM, then each REGEXP_REPLACE (innermost first), then LOWER.
+ */
+function normalizeStoredTitleLikeSql(sql: string, title: string): string {
+  const expr = /LOWER\(((?:REGEXP_REPLACE\()+)TRIM\(r\.title\)((?:, r'[^']*', '[^']*'\))+)\)/.exec(sql);
+  if (!expr) throw new Error("normalized title expression not found");
+  const replacements = [...expr[2].matchAll(/, r'([^']*)', '([^']*)'\)/g)];
+  expect(replacements).toHaveLength(expr[1].split("REGEXP_REPLACE(").length - 1);
+  return replacements
+    .reduce((value, [, pattern, replacement]) => value.replace(new RegExp(pattern, "g"), replacement), title.trim())
+    .toLowerCase();
+}
 
 const bqQuery = vi.fn<
   (options: { query: string; params: Record<string, unknown> }) =>
@@ -197,6 +212,71 @@ describe("warehouse title search routing", () => {
     ).toEqual(["prefix-hit", "ps-church-memo"]);
   });
 
+  it("matches a stored title when the query has a space before the colon", async () => {
+    const { fetchSearch } = await import("../warehouse");
+    const stored = "MEMORANDUM: SUBJECT OSWALD";
+    bqQuery.mockResolvedValueOnce([[
+      group({
+        agency: "CIA",
+        start_year: 1963,
+        selected_count: 1,
+        page_rows: [titleRow("104-10001-10001", "CIA", "1963-11-23", 0, stored)],
+      }),
+    ]]);
+
+    const result = await fetchSearch({
+      query: "MEMORANDUM : SUBJECT OSWALD",
+      mode: "document",
+    });
+
+    expect(bqQuery).toHaveBeenCalledTimes(1);
+    const [{ query, params }] = bqQuery.mock.calls[0];
+    expect(params.titleNorm).toBe("memorandum: subject oswald");
+    // The SQL's stored-title key equals the query key, so STRPOS and the
+    // exact-match rank both hit; stored titles with a space before the colon
+    // normalize the same way.
+    expect(normalizeStoredTitleLikeSql(query, stored)).toBe(params.titleNorm);
+    expect(normalizeStoredTitleLikeSql(query, "  MEMORANDUM  :  SUBJECT   OSWALD ")).toBe(
+      normalizeTitleQuery("MEMORANDUM : SUBJECT OSWALD"),
+    );
+    expect(result.total).toBe(1);
+    expect(result.results).toMatchObject([
+      { kind: "document", document: { id: "104-10001-10001" } },
+    ]);
+  });
+
+  it("keeps a selected agency in the facet list when it has no matches in the selected years", async () => {
+    const { fetchSearch } = await import("../warehouse");
+    bqQuery.mockResolvedValueOnce([[
+      group({
+        agency: "FBI",
+        start_year: 1964,
+        agency_selected_count: 0,
+        year_selected_count: 2,
+        selected_count: 0,
+        page_rows: null,
+      }),
+      group({
+        agency: "CIA",
+        start_year: 1975,
+        agency_selected_count: 1,
+        year_selected_count: 0,
+        selected_count: 0,
+        page_rows: null,
+      }),
+    ]]);
+
+    const result = await fetchSearch({
+      query: "MEMORANDUM: SUBJECT OSWALD",
+      mode: "document",
+      filters: { agencies: ["CIA"], yearFrom: 1963, yearTo: 1964 },
+    });
+
+    expect(result).toMatchObject({ total: 0, results: [] });
+    expect(result.filters.agencyCounts).toEqual({ FBI: 2 });
+    expect(result.filters.agencies).toEqual(["FBI", "CIA"]);
+  });
+
   it("sorts candidates across groups by rank, date and id before the offset and limit", async () => {
     const { fetchSearch } = await import("../warehouse");
     bqQuery.mockResolvedValueOnce([[
@@ -267,7 +347,7 @@ describe("warehouse title search routing", () => {
     expect(bqQuery).toHaveBeenCalledTimes(1);
   });
 
-  it("clamps the total to the title row cap so every offered page can be served", async () => {
+  it("clamps only the total to the title row cap and keeps facet counts as full match counts", async () => {
     const { fetchSearch } = await import("../warehouse");
     const matchesPerAgency = TITLE_SEARCH_MAX_ROWS;
     const rowsFor = (agency: string) =>
@@ -292,7 +372,13 @@ describe("warehouse title search routing", () => {
     });
     expect(lastPage.total).toBe(TITLE_SEARCH_MAX_ROWS);
     expect(lastPage.results).toHaveLength(1);
-    expect(lastPage.filters.confidenceCounts).toEqual({ high: TITLE_SEARCH_MAX_ROWS });
+    // Facet counts are full match counts (as on the other search paths);
+    // only the servable total is clamped.
+    expect(lastPage.filters.confidenceCounts).toEqual({ high: matchesPerAgency * 2 });
+    expect(lastPage.filters.agencyCounts).toEqual({
+      CIA: matchesPerAgency,
+      FBI: matchesPerAgency,
+    });
 
     bqQuery.mockResolvedValueOnce([groups]);
     const pastCap = await fetchSearch({

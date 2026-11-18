@@ -18,7 +18,9 @@ export const OPTIONS = preflight;
 
 /**
  * GET /api/v1/documents
- *   ?q=          full-text query over title/description/OCR
+ *   ?q=          full-text query over title/description/OCR; a query starting
+ *                with an uppercase known document-type label ("MEMORANDUM: …")
+ *                matches titles only (exact, prefix, or contained phrase)
  *   &topic=      (repeatable) topic slug filter
  *   &entity=     (repeatable) entity id filter
  *   &agency=     (repeatable) agency name filter

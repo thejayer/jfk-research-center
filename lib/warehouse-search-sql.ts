@@ -518,7 +518,7 @@ export type TitleSearchSelection = {
 
 /**
  * Title-shaped search in one jfk_records scan. Matches when the
- * whitespace-normalized lowercase title contains @titleNorm, ranked exact (0),
+ * normalized (see normalizeTitleQuery) lowercase title contains @titleNorm, ranked exact (0),
  * prefix (1), then elsewhere in the title (2).
  *
  * Rows are grouped by agency and start year. The agency and year selections
@@ -534,7 +534,9 @@ export function buildTitleSearchSql(
   offset: number,
   selection: TitleSearchSelection = {},
 ): string {
-  const normalizedTitle = String.raw`LOWER(REGEXP_REPLACE(TRIM(r.title), r'\s+', ' '))`;
+  // Same key as normalizeTitleQuery: no whitespace before a colon, other
+  // whitespace runs collapsed, lowercase.
+  const normalizedTitle = String.raw`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(r.title), r'\s*:', ':'), r'\s+', ' '))`;
   const titleRank = `CASE
                   WHEN ${normalizedTitle} = @titleNorm THEN 0
                   WHEN STARTS_WITH(${normalizedTitle}, @titleNorm) THEN 1

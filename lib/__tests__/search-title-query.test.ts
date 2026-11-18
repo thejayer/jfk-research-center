@@ -42,6 +42,11 @@ describe("isTitleLikeQuery", () => {
     "AB: a subject",
     "WHO WAS OSWALD: a profile",
     "BOOK V: THE INVESTIGATION",
+    // Uppercase words that aren't known document types.
+    "SECRET: oswald",
+    "ABOUT: oswald",
+    "SUBJECT: OSWALD",
+    "CONFIDENTIAL: OSWALD",
     "WHAT DID THE FBI REPORT SAY: a profile",
   ])("keeps %j on the keyword path", (query) => {
     expect(isTitleLikeQuery(query)).toBe(false);
@@ -68,4 +73,8 @@ it("normalizes the full title for matching", () => {
   expect(normalizeTitleQuery("  FBI\tREPORT: \n  MEXICO  CITY  ")).toBe(
     "fbi report: mexico city",
   );
+  expect(normalizeTitleQuery("MEMORANDUM : SUBJECT OSWALD")).toBe(
+    "memorandum: subject oswald",
+  );
+  expect(normalizeTitleQuery("MEMO\t:SUBJECT")).toBe("memo:subject");
 });

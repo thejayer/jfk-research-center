@@ -322,7 +322,7 @@ describe("warehouse search SQL cost envelope", () => {
       50,
       { agencies: true, yearFrom: true, yearTo: true },
     ).replace(/\s+/g, " ");
-    const t = String.raw`LOWER(REGEXP_REPLACE(TRIM(r.title), r'\s+', ' '))`;
+    const t = String.raw`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(r.title), r'\s*:', ':'), r'\s+', ' '))`;
     const agencySel = "r.agency IN UNNEST(@agencies)";
     const yearSel =
       "(EXTRACT(YEAR FROM r.start_date) >= @yearFrom AND EXTRACT(YEAR FROM r.start_date) <= @yearTo)";

@@ -2469,13 +2469,12 @@ async function fetchTitleSearch({
   // while the confidence facet still reports how many High matches exist.
   const confidenceSelected =
     !filters.confidence?.length || filters.confidence.includes("high");
-  const highCount = Math.min(
-    groups.reduce((sum, group) => sum + Number(group.selected_count), 0),
-    TITLE_SEARCH_MAX_ROWS,
-  );
-  // At most TITLE_SEARCH_MAX_ROWS rows can be served, so the total is clamped
-  // to that and the UI never offers a page that comes back empty.
-  const total = confidenceSelected ? highCount : 0;
+  // Facet counts (agency, year, confidence) are full match counts, as on the
+  // other search paths. Only `total` is clamped: at most
+  // TITLE_SEARCH_MAX_ROWS rows can be served, so the UI never offers a page
+  // that comes back empty.
+  const highCount = groups.reduce((sum, group) => sum + Number(group.selected_count), 0);
+  const total = confidenceSelected ? Math.min(highCount, TITLE_SEARCH_MAX_ROWS) : 0;
 
   const agencyCounts: Record<string, number> = {};
   const yearCounts: Record<string, number> = {};
@@ -2522,7 +2521,7 @@ async function fetchTitleSearch({
       years: denseSearchFacetYears(),
       yearCounts,
       yearBounds: SEARCH_FACET_YEAR_BOUNDS,
-      agencies: rankedFacetValues(agencyCounts),
+      agencies: rankedFacetValues(agencyCounts, filters.agencies ?? []),
       agencyCounts,
       // Topic and entity counts aren't computed on the title path; the
       // selected values are kept so they stay visible and clearable.
