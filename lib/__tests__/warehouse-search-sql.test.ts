@@ -88,20 +88,28 @@ describe("warehouse search SQL cost envelope", () => {
     }
   });
 
-  it("loads OCR document ids from the clustered token table, not chunk_text", () => {
+  it("loads OCR document ids with one exact token predicate", () => {
     const sql = buildOcrHitDocumentIdSql(tables, 1);
     expect(sqlUsesOcrTokenTable(sql)).toBe(true);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
-    expect(sql).toContain("token >= @ocrTok0 AND token < @ocrTok0End");
-    expect(sql).not.toMatch(/LIKE/i);
+    expect(sql).toContain("token = @ocrTok0");
+    expect(sql).not.toMatch(/LIKE|INTERSECT|[<>]|@ocrTok\d+End/i);
     expect(sql).toContain(`LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`);
   });
 
-  it("intersects multi-token OCR lookups so each range can prune a cluster", () => {
+  it("intersects two exact token branches", () => {
     const sql = buildOcrHitDocumentIdSql(tables, 2);
-    expect(sql).toContain("INTERSECT DISTINCT");
-    expect(sql).toContain("@ocrTok1");
+    expect(sql).toMatch(/token = @ocrTok0\b[\s\S]*INTERSECT DISTINCT[\s\S]*token = @ocrTok1\b/);
+    expect(sql).not.toMatch(/[<>]|@ocrTok\d+End/);
+    expect(sql).toContain(`LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`);
     expect(sqlScansLegacyTextChunks(sql)).toBe(false);
+  });
+
+  it("selects from an empty array when no OCR tokens are supplied", () => {
+    const sql = buildOcrHitDocumentIdSql(tables, 0);
+    expect(sql).toContain("UNNEST(CAST([] AS ARRAY<STRING>)) AS document_id");
+    expect(sqlUsesOcrTokenTable(sql)).toBe(false);
+    expect(sql).not.toContain("@ocrTok");
   });
 
   it("bounds OCR hit document ids well above current corpus coverage", () => {

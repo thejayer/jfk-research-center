@@ -165,14 +165,14 @@ function ocrTokenDocumentIdSubquery(
   if (tokenCount === 1) {
     return `SELECT document_id
           FROM ${ocrTokenTable(tables)}
-         WHERE token >= @ocrTok0 AND token < @ocrTok0End
+         WHERE token = @ocrTok0
          GROUP BY document_id
          LIMIT ${OCR_HIT_DOCUMENT_ID_LIMIT}`;
   }
   const branches = Array.from({ length: tokenCount }, (_, index) => {
     return `SELECT document_id
           FROM ${ocrTokenTable(tables)}
-         WHERE token >= @ocrTok${index} AND token < @ocrTok${index}End
+         WHERE token = @ocrTok${index}
          GROUP BY document_id`;
   });
   return `SELECT document_id FROM (
@@ -183,7 +183,7 @@ function ocrTokenDocumentIdSubquery(
 
 /**
  * OCR-hit document IDs from the clustered token table.
- * `tokenCount` must match the @ocrTokN / @ocrTokNEnd params.
+ * `tokenCount` must match the number of @ocrTokN params.
  */
 export function buildOcrHitDocumentIdSql(
   tables: WarehouseTableRef,
