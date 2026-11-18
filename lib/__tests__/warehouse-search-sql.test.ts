@@ -29,6 +29,7 @@ import {
   literalDocumentIds,
   OCR_HIT_DOCUMENT_ID_LIMIT,
   SEARCH_DOCUMENT_COLUMNS,
+  TITLE_SEARCH_MAX_ROWS,
   sqlDocumentIdInList,
   sqlHasSelectiveDocumentIdFilter,
   sqlLikeScansOcrWithoutDocumentIdFilter,
@@ -313,25 +314,43 @@ describe("warehouse search SQL cost envelope", () => {
     expect(sqlMentionsOcrChunks(sql)).toBe(false);
   });
 
-  it("matches titles by exact equality and prefix in one bounded records query", () => {
+  it("groups normalized title matches by agency in one bounded records query", () => {
     const sql = buildTitleSearchSql(
       tables,
-      "r.agency IN UNNEST(@agencies)",
+      "EXTRACT(YEAR FROM r.start_date) >= @yearFrom",
       25,
       50,
+      true,
     ).replace(/\s+/g, " ");
+    const normalizedTitle = String.raw`LOWER(REGEXP_REPLACE(TRIM(r.title), r'\s+', ' '))`;
+    const exactMatch = `${normalizedTitle} = @titleNorm`;
+    const selection = "r.agency IN UNNEST(@agencies)";
+    const fields = SEARCH_DOCUMENT_COLUMNS.map((column) => `r.${column} AS ${column}`);
+
     expect(sql).toContain(
-      "WHERE (LOWER(r.title) = @titleNorm OR STARTS_WITH(LOWER(r.title), @titleNorm)) " +
-        "AND r.agency IN UNNEST(@agencies)",
+      `WHERE (${exactMatch} OR STARTS_WITH(${normalizedTitle}, @titleNorm)) ` +
+        "AND EXTRACT(YEAR FROM r.start_date) >= @yearFrom GROUP BY agency",
+    );
+    expect(sql).toContain("COUNT(*) AS agency_count");
+    expect(sql).toContain(`COUNTIF(${selection}) AS selected_count`);
+    expect(sql).toContain(
+      `ARRAY_AGG( IF(${selection}, STRUCT(${fields.join(", ")}, (${exactMatch}) AS exact_title), NULL) IGNORE NULLS`,
     );
     expect(sql).toContain(
-      "ORDER BY (LOWER(r.title) = @titleNorm) DESC, r.start_date DESC NULLS LAST",
+      `ORDER BY (${exactMatch}) DESC, r.start_date DESC, r.document_id ASC LIMIT 75 ) AS page_rows`,
     );
-    expect(sql).toContain("'high' AS match_confidence");
-    expect(sql).toContain("COUNT(*) OVER() AS total_count");
-    expect(sql).toMatch(/LIMIT 25 OFFSET 50$/);
+    expect(sql.split("@agencies")).toHaveLength(3);
     expect(sqlReferencedTableNames(sql)).toEqual(["jfk_records"]);
+    expect(sql.match(/\bjfk_records\b/g)).toHaveLength(1);
     expect(sql).not.toMatch(/\bLIKE\b/i);
+  });
+
+  it("caps candidate rows per group and selects all agencies by default", () => {
+    const sql = buildTitleSearchSql(tables, "", 25, TITLE_SEARCH_MAX_ROWS);
+    expect(sql).toContain("COUNTIF(TRUE) AS selected_count");
+    expect(sql).toContain("IF(TRUE, STRUCT(");
+    expect(sql).toMatch(new RegExp(`\\bLIMIT ${TITLE_SEARCH_MAX_ROWS}\\b`));
+    expect(sql).not.toContain("@agencies");
   });
 
   it("scores query-scoped facet documents without scanning OCR text", () => {

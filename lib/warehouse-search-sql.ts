@@ -506,22 +506,34 @@ export function buildIdentifierSearchSql(
         LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 }
 
+export const TITLE_SEARCH_MAX_ROWS = 1_000;
+
 export function buildTitleSearchSql(
   tables: WarehouseTableRef,
   whereSql: string,
   limit: number,
   offset: number,
+  hasAgencyFilter = false,
 ): string {
-  const exactMatch = "LOWER(r.title) = @titleNorm";
+  const normalizedTitle = String.raw`LOWER(REGEXP_REPLACE(TRIM(r.title), r'\s+', ' '))`;
+  const exactMatch = `${normalizedTitle} = @titleNorm`;
+  const agencySelected = hasAgencyFilter ? "r.agency IN UNNEST(@agencies)" : "TRUE";
+  const rowCap = Math.min(offset + limit, TITLE_SEARCH_MAX_ROWS);
+  const fields = SEARCH_DOCUMENT_COLUMNS.map((column) => `r.${column} AS ${column}`);
   const extraWhere = whereSql.trim() ? `AND ${whereSql}` : "";
-  return `SELECT ${searchDocumentSelectSql("r")},
-              'high' AS match_confidence,
-              COUNT(*) OVER() AS total_count
+  return `SELECT r.agency AS agency,
+              COUNT(*) AS agency_count,
+              COUNTIF(${agencySelected}) AS selected_count,
+              ARRAY_AGG(
+                IF(${agencySelected}, STRUCT(${fields.join(", ")}, (${exactMatch}) AS exact_title), NULL)
+                IGNORE NULLS
+                ORDER BY (${exactMatch}) DESC, r.start_date DESC, r.document_id ASC
+                LIMIT ${rowCap}
+              ) AS page_rows
          FROM ${recordsTable(tables)} r
-        WHERE (${exactMatch} OR STARTS_WITH(LOWER(r.title), @titleNorm))
+        WHERE (${exactMatch} OR STARTS_WITH(${normalizedTitle}, @titleNorm))
           ${extraWhere}
-        ORDER BY (${exactMatch}) DESC, r.start_date DESC NULLS LAST
-        LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
+        GROUP BY agency`;
 }
 
 export function buildCorpusYearFacetSql(tables: WarehouseTableRef): string {

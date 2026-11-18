@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { sqlUsesOcrTokenTable } from "../warehouse-search-sql";
+import { sqlUsesOcrTokenTable, TITLE_SEARCH_MAX_ROWS } from "../warehouse-search-sql";
 
 const bqQuery = vi.fn<
   (options: { query: string; params: Record<string, unknown> }) =>
@@ -10,6 +10,22 @@ vi.mock("@google-cloud/bigquery", () => ({
     return { query: bqQuery };
   }),
 }));
+
+function titleRow(
+  documentId: string,
+  agency: string | null,
+  startDate: string | null,
+  exactTitle = true,
+) {
+  return {
+    document_id: documentId,
+    naid: documentId,
+    title: exactTitle ? "FBI REPORT: MEXICO CITY" : "FBI REPORT: MEXICO CITY ADDENDUM",
+    agency,
+    start_date: startDate === null ? null : { value: startDate },
+    exact_title: exactTitle,
+  };
+}
 
 describe("warehouse title search routing", () => {
   beforeEach(() => {
@@ -22,23 +38,26 @@ describe("warehouse title search routing", () => {
     vi.unstubAllEnvs();
   });
 
-  it("uses a single title query with metadata filters and builds facets from the result", async () => {
+  it("uses one title query and counts all agencies while returning only the selected agency", async () => {
     const { fetchSearch } = await import("../warehouse");
     bqQuery.mockResolvedValueOnce([[
       {
-        document_id: "104-10338-10005",
-        naid: "123456789",
-        title: "FBI REPORT: MEXICO CITY",
-        agency: "FBI",
-        total_count: 4,
+        agency: "CIA",
+        agency_count: 2,
+        selected_count: 2,
+        page_rows: [
+          titleRow("104-10338-10005", "CIA", "1964-01-01"),
+          titleRow("104-10338-10006", "CIA", "1963-01-01"),
+        ],
       },
+      { agency: "FBI", agency_count: 3, selected_count: 0, page_rows: null },
     ]]);
 
     const result = await fetchSearch({
       query: "  FBI   REPORT: MEXICO CITY  ",
       mode: "document",
       filters: {
-        agencies: ["FBI"],
+        agencies: ["CIA"],
         yearFrom: 1963,
         yearTo: 1965,
         entities: ["oswald"],
@@ -46,37 +65,131 @@ describe("warehouse title search routing", () => {
         confidence: ["high"],
       },
       limit: 3,
-      offset: 3,
     });
 
     expect(bqQuery).toHaveBeenCalledTimes(1);
     const [{ query, params }] = bqQuery.mock.calls[0];
-    expect(query).toContain("STARTS_WITH(LOWER(r.title), @titleNorm)");
-    expect(query).toContain("r.agency IN UNNEST(@agencies)");
+    expect(query).toContain("COUNTIF(r.agency IN UNNEST(@agencies)) AS selected_count");
     expect(query).toContain("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
     expect(query).toContain("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
     expect(query).toContain("entity_id IN UNNEST(@entities)");
     expect(query).toMatch(/r\.document_id IN \(SELECT document_id FROM `[^`]+\.jfk_mvp\.cia_docs`\)/);
-    expect(query).toContain("LIMIT 3 OFFSET 3");
+    expect(query).toContain("LIMIT 3");
     expect(sqlUsesOcrTokenTable(query)).toBe(false);
     expect(params).toEqual({
       titleNorm: "fbi report: mexico city",
-      agencies: ["FBI"],
+      agencies: ["CIA"],
       yearFrom: 1963,
       yearTo: 1965,
       entities: ["oswald"],
     });
-    expect(result.total).toBe(4);
+    expect(result).toMatchObject({ mode: "document", total: 2 });
     expect(result.results).toMatchObject([
-      { kind: "document", document: { id: "104-10338-10005" }, confidence: "high" },
+      { kind: "document", document: { id: "104-10338-10005", agency: "CIA" }, confidence: "high" },
+      { kind: "document", document: { id: "104-10338-10006", agency: "CIA" }, confidence: "high" },
     ]);
     expect(result.filters).toMatchObject({
       countScope: "query",
-      agencyCounts: { FBI: 1 },
-      entityCounts: { oswald: 4 },
-      topicCounts: { cia: 4 },
-      confidenceCounts: { high: 4 },
+      agencies: ["CIA", "FBI"],
+      agencyCounts: { CIA: 2, FBI: 3 },
+      yearCounts: {},
+      entityCounts: { oswald: 2 },
+      topicCounts: { cia: 2 },
+      confidenceCounts: { high: 2 },
     });
+  });
+
+  it("sorts candidates across agencies before applying the offset and limit", async () => {
+    const { fetchSearch } = await import("../warehouse");
+    bqQuery.mockResolvedValueOnce([[
+      {
+        agency: "CIA",
+        agency_count: 3,
+        selected_count: 3,
+        page_rows: [
+          titleRow("07", "CIA", "1965-01-01"),
+          titleRow("03", "CIA", "1964-01-01"),
+          titleRow("05", "CIA", "1970-01-01", false),
+        ],
+      },
+      {
+        agency: "FBI",
+        agency_count: 2,
+        selected_count: 2,
+        page_rows: [
+          titleRow("02", "FBI", "1964-01-01"),
+          titleRow("01", "FBI", null, false),
+        ],
+      },
+      {
+        agency: null,
+        agency_count: 1,
+        selected_count: 1,
+        page_rows: [titleRow("00", null, null)],
+      },
+    ]]);
+
+    const result = await fetchSearch({
+      query: "FBI REPORT: MEXICO CITY",
+      mode: "document",
+      offset: 1,
+      limit: 4,
+    });
+
+    expect(result.total).toBe(6);
+    expect(result.filters.agencyCounts).toEqual({ CIA: 3, FBI: 2 });
+    expect(
+      result.results.map((hit) => hit.kind === "document" ? hit.document.id : hit.kind),
+    ).toEqual(["02", "03", "00", "05"]);
+    expect(bqQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps totals and facets when the offset is past the last match", async () => {
+    const { fetchSearch } = await import("../warehouse");
+    bqQuery.mockResolvedValueOnce([[
+      {
+        agency: "CIA",
+        agency_count: 1,
+        selected_count: 1,
+        page_rows: [titleRow("01", "CIA", null)],
+      },
+    ]]);
+
+    const result = await fetchSearch({
+      query: "FBI REPORT: MEXICO CITY",
+      mode: "document",
+      offset: 2,
+    });
+
+    expect(result).toMatchObject({
+      total: 1,
+      results: [],
+      filters: { agencyCounts: { CIA: 1 }, confidenceCounts: { high: 1 } },
+    });
+    expect(bqQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the total when pagination reaches the title row cap", async () => {
+    const { fetchSearch } = await import("../warehouse");
+    const rowsPerAgency = Math.ceil((TITLE_SEARCH_MAX_ROWS + 1) / 2);
+    bqQuery.mockResolvedValueOnce([["CIA", "FBI"].map((agency) => ({
+      agency,
+      agency_count: rowsPerAgency,
+      selected_count: rowsPerAgency,
+      page_rows: Array.from({ length: rowsPerAgency }, (_, index) =>
+        titleRow(`${agency}-${String(index).padStart(4, "0")}`, agency, null),
+      ),
+    }))]);
+
+    const result = await fetchSearch({
+      query: "FBI REPORT: MEXICO CITY",
+      mode: "document",
+      offset: TITLE_SEARCH_MAX_ROWS,
+      limit: 1,
+    });
+
+    expect(result).toMatchObject({ total: rowsPerAgency * 2, results: [] });
+    expect(bqQuery).toHaveBeenCalledTimes(1);
   });
 
   it("returns a title miss without falling back", async () => {

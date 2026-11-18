@@ -197,6 +197,7 @@ import {
   buildTitleSearchSql,
   buildTopicMembershipSql,
   recordsTable,
+  TITLE_SEARCH_MAX_ROWS,
   type TopicTableRef,
   type WarehouseTableRef,
 } from "./warehouse-search-sql";
@@ -2300,41 +2301,22 @@ async function fetchMentionSearch({
   };
 }
 
-type BoundedDocumentSearchInput = {
+async function fetchIdentifierSearch({
+  query: qNorm,
+  filters,
+  limit,
+  offset,
+}: {
   query: string;
   filters: SearchFilterInput;
   limit: number;
   offset: number;
-};
+}): Promise<SearchResponse> {
+  const params: Record<string, unknown> = { qNorm };
+  const where = [
+    "(r.document_id = @qNorm OR CAST(r.naid AS STRING) = @qNorm)",
+  ];
 
-function fetchIdentifierSearch(
-  input: BoundedDocumentSearchInput,
-): Promise<SearchResponse> {
-  return fetchBoundedDocumentSearch(
-    input,
-    buildIdentifierSearchSql,
-    { qNorm: input.query },
-    ["(r.document_id = @qNorm OR CAST(r.naid AS STRING) = @qNorm)"],
-  );
-}
-
-function fetchTitleSearch(
-  input: BoundedDocumentSearchInput,
-): Promise<SearchResponse> {
-  return fetchBoundedDocumentSearch(
-    input,
-    buildTitleSearchSql,
-    { titleNorm: normalizeTitleQuery(input.query) },
-    [],
-  );
-}
-
-async function fetchBoundedDocumentSearch(
-  { query: searchQuery, filters, limit, offset }: BoundedDocumentSearchInput,
-  buildSql: typeof buildIdentifierSearchSql,
-  params: Record<string, unknown>,
-  where: string[],
-): Promise<SearchResponse> {
   if (filters.confidence?.length && !filters.confidence.includes("high")) {
     where.push("FALSE");
   }
@@ -2368,7 +2350,7 @@ async function fetchBoundedDocumentSearch(
       total_count: number;
     }
   >(
-    buildSql(
+    buildIdentifierSearchSql(
       WAREHOUSE_TABLES,
       where.join(" AND "),
       Number(limit),
@@ -2385,15 +2367,15 @@ async function fetchBoundedDocumentSearch(
   }));
 
   return {
-    query: searchQuery,
+    query: qNorm,
     mode: "document",
     total,
-    filters: boundedDocumentSearchFilters(rows, filters, total),
+    filters: identifierSearchFilters(rows, filters, total),
     results,
   };
 }
 
-function boundedDocumentSearchFilters(
+function identifierSearchFilters(
   rows: RecordRow[],
   selected: SearchFilterInput,
   total: number,
@@ -2403,6 +2385,14 @@ function boundedDocumentSearchFilters(
     if (!row.agency) continue;
     agencyCounts[row.agency] = (agencyCounts[row.agency] ?? 0) + 1;
   }
+  return boundedDocumentSearchFilters(agencyCounts, selected, total);
+}
+
+function boundedDocumentSearchFilters(
+  agencyCounts: Record<string, number>,
+  selected: SearchFilterInput,
+  total: number,
+): SearchFacetData {
   const agencies = Object.keys(agencyCounts);
   const topics = selected.topics ?? [];
   const entities = selected.entities ?? [];
@@ -2424,6 +2414,101 @@ function boundedDocumentSearchFilters(
     confidence: total > 0 ? ["high"] : [],
     confidenceCounts: total > 0 ? { high: total } : {},
   };
+}
+
+type TitleSearchRow = RecordRow & { exact_title: boolean };
+
+type TitleSearchGroup = {
+  agency: string | null;
+  agency_count: number;
+  selected_count: number;
+  page_rows: TitleSearchRow[] | null;
+};
+
+async function fetchTitleSearch({
+  query: searchQuery,
+  filters,
+  limit,
+  offset,
+}: {
+  query: string;
+  filters: SearchFilterInput;
+  limit: number;
+  offset: number;
+}): Promise<SearchResponse> {
+  const params: Record<string, unknown> = { titleNorm: normalizeTitleQuery(searchQuery) };
+  const where: string[] = [];
+  const hasAgencyFilter = !!filters.agencies?.length;
+  if (hasAgencyFilter) {
+    params.agencies = filters.agencies;
+  }
+  if (filters.confidence?.length && !filters.confidence.includes("high")) {
+    where.push("FALSE");
+  }
+  if (typeof filters.yearFrom === "number") {
+    where.push("EXTRACT(YEAR FROM r.start_date) >= @yearFrom");
+    params.yearFrom = filters.yearFrom;
+  }
+  if (typeof filters.yearTo === "number") {
+    where.push("EXTRACT(YEAR FROM r.start_date) <= @yearTo");
+    params.yearTo = filters.yearTo;
+  }
+  if (filters.entities?.length) {
+    where.push(`r.document_id IN (
+      SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+      WHERE entity_id IN UNNEST(@entities)
+    )`);
+    params.entities = filters.entities;
+  }
+  if (filters.topics?.length) {
+    const unionSql = topicDocumentUnionSql(filters.topics);
+    where.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
+  }
+
+  const groups = await query<TitleSearchGroup>(
+    buildTitleSearchSql(
+      WAREHOUSE_TABLES,
+      where.join(" AND "),
+      limit,
+      offset,
+      hasAgencyFilter,
+    ),
+    params,
+  );
+  const total = groups.reduce((sum, group) => sum + Number(group.selected_count), 0);
+  const agencyCounts = Object.fromEntries(
+    groups.flatMap(({ agency, agency_count }) =>
+      agency === null ? [] : [[agency, Number(agency_count)]],
+    ),
+  );
+  const page = offset >= TITLE_SEARCH_MAX_ROWS
+    ? []
+    : groups.flatMap((group) => group.page_rows ?? [])
+      .sort(compareTitleSearchRows)
+      .slice(offset, offset + limit);
+  const results: SearchResult[] = page.map((row) => ({
+    kind: "document",
+    document: rowToCard(row),
+    mentionCount: 0,
+    confidence: "high",
+  }));
+
+  return {
+    query: searchQuery,
+    mode: "document",
+    total,
+    filters: boundedDocumentSearchFilters(agencyCounts, filters, total),
+    results,
+  };
+}
+
+function compareTitleSearchRows(a: TitleSearchRow, b: TitleSearchRow): number {
+  if (a.exact_title !== b.exact_title) return a.exact_title ? -1 : 1;
+  const dateA = readDate(a.start_date) ?? "";
+  const dateB = readDate(b.start_date) ?? "";
+  if (dateA !== dateB) return dateA > dateB ? -1 : 1;
+  if (a.document_id === b.document_id) return 0;
+  return a.document_id < b.document_id ? -1 : 1;
 }
 
 type SemanticHitRow = {
