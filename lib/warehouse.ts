@@ -126,6 +126,7 @@ import {
   withDocumentCache,
 } from "./document-cache";
 import { searchCacheKey, withSearchCache } from "./search-cache";
+import { normalizeTitleQuery, searchRoute } from "./search-title-query";
 import { ocrLookupTokens, ocrTokenParams } from "./search-tokens";
 import { warehouseJobLabels } from "./warehouse-request-context";
 import {
@@ -193,8 +194,10 @@ import {
   buildOcrHitDocumentIdSql,
   buildOcrSnippetSql,
   buildQueryMatchedDocumentsSql,
+  buildTitleSearchSql,
   buildTopicMembershipSql,
   recordsTable,
+  TITLE_SEARCH_MAX_ROWS,
   type TopicTableRef,
   type WarehouseTableRef,
 } from "./warehouse-search-sql";
@@ -2045,7 +2048,7 @@ export async function fetchSearch(
   input: WarehouseSearchInput,
 ): Promise<SearchResponse> {
   return withSearchCache(
-    searchCacheKey(input),
+    searchCacheKey({ ...input, route: searchRoute(input) }),
     () => fetchSearchUncached(input),
   );
 }
@@ -2093,6 +2096,10 @@ async function fetchSearchUncached({
       offset,
     });
     if (identifierResult.total > 0) return identifierResult;
+  } else if (searchRoute({ query: qNorm, mode }) === "title") {
+    // Title-shaped queries are mostly crawlers copying exact titles, so a miss
+    // stays on this path.
+    return fetchTitleSearch({ query: qNorm, filters, limit, offset });
   }
   const params: Record<string, unknown> = {
     qNorm,
@@ -2399,6 +2406,148 @@ function identifierSearchFilters(
     confidence: total > 0 ? ["high"] : [],
     confidenceCounts: total > 0 ? { high: total } : {},
   };
+}
+
+type TitleSearchRow = RecordRow & { title_rank: number };
+
+type TitleSearchGroup = {
+  agency: string | null;
+  start_year: number | null;
+  match_count: number;
+  agency_selected_count: number;
+  year_selected_count: number;
+  selected_count: number;
+  page_rows: TitleSearchRow[] | null;
+};
+
+async function fetchTitleSearch({
+  query: searchQuery,
+  filters,
+  limit,
+  offset,
+}: {
+  query: string;
+  filters: SearchFilterInput;
+  limit: number;
+  offset: number;
+}): Promise<SearchResponse> {
+  const params: Record<string, unknown> = { titleNorm: normalizeTitleQuery(searchQuery) };
+  const where: string[] = [];
+  // Agency and year selections are applied inside the query's counts, not in
+  // WHERE, so their facets can exclude their own selection.
+  if (filters.agencies?.length) params.agencies = filters.agencies;
+  if (typeof filters.yearFrom === "number") params.yearFrom = filters.yearFrom;
+  if (typeof filters.yearTo === "number") params.yearTo = filters.yearTo;
+  if (filters.entities?.length) {
+    where.push(`r.document_id IN (
+      SELECT document_id FROM \`${PROJECT}.${DATASET_CURATED}.jfk_document_entity_map\`
+      WHERE entity_id IN UNNEST(@entities)
+    )`);
+    params.entities = filters.entities;
+  }
+  if (filters.topics?.length) {
+    const unionSql = topicDocumentUnionSql(filters.topics);
+    where.push(unionSql ? `r.document_id IN (${unionSql})` : "FALSE");
+  }
+
+  const groups = await query<TitleSearchGroup>(
+    buildTitleSearchSql(
+      WAREHOUSE_TABLES,
+      where.join(" AND "),
+      limit,
+      offset,
+      {
+        agencies: "agencies" in params,
+        yearFrom: "yearFrom" in params,
+        yearTo: "yearTo" in params,
+      },
+    ),
+    params,
+  );
+
+  // Title matches are all "high"; a confidence filter without it hides them,
+  // while the confidence facet still reports how many High matches exist.
+  const confidenceSelected =
+    !filters.confidence?.length || filters.confidence.includes("high");
+  // Facet counts (agency, year, confidence) are full match counts, as on the
+  // other search paths. Only `total` is clamped: at most
+  // TITLE_SEARCH_MAX_ROWS rows can be served, so the UI never offers a page
+  // that comes back empty.
+  const highCount = groups.reduce((sum, group) => sum + Number(group.selected_count), 0);
+  const total = confidenceSelected ? Math.min(highCount, TITLE_SEARCH_MAX_ROWS) : 0;
+
+  const agencyCounts: Record<string, number> = {};
+  const yearCounts: Record<string, number> = {};
+  if (confidenceSelected) {
+    for (const group of groups) {
+      const agencyN = Number(group.year_selected_count);
+      if (group.agency !== null && agencyN > 0) {
+        agencyCounts[group.agency] = (agencyCounts[group.agency] ?? 0) + agencyN;
+      }
+      const year = group.start_year === null ? null : Number(group.start_year);
+      const yearN = Number(group.agency_selected_count);
+      if (
+        year !== null &&
+        yearN > 0 &&
+        year >= SEARCH_FACET_YEAR_BOUNDS.min &&
+        year <= SEARCH_FACET_YEAR_BOUNDS.max
+      ) {
+        yearCounts[String(year)] = (yearCounts[String(year)] ?? 0) + yearN;
+      }
+    }
+  }
+
+  const page = !confidenceSelected || offset >= total
+    ? []
+    : groups
+      .flatMap((group) => group.page_rows ?? [])
+      .sort(compareTitleSearchRows)
+      .slice(offset, Math.min(offset + limit, total));
+  const results: SearchResult[] = page.map((row) => ({
+    kind: "document",
+    document: rowToCard(row),
+    mentionCount: 0,
+    confidence: "high",
+  }));
+
+  const topics = filters.topics ?? [];
+  const entities = filters.entities ?? [];
+  return {
+    query: searchQuery,
+    mode: "document",
+    total,
+    filters: {
+      countScope: "query",
+      years: denseSearchFacetYears(),
+      yearCounts,
+      yearBounds: SEARCH_FACET_YEAR_BOUNDS,
+      agencies: rankedFacetValues(agencyCounts, filters.agencies ?? []),
+      agencyCounts,
+      // Topic and entity counts aren't computed on the title path; the
+      // selected values are kept so they stay visible and clearable.
+      topics,
+      topicLabels: Object.fromEntries(
+        topics.map((slug) => [slug, TOPIC_CATALOG[slug]?.title ?? slug]),
+      ),
+      topicCounts: {},
+      entities,
+      entityLabels: Object.fromEntries(entities.map((id) => [id, id])),
+      entityCounts: {},
+      confidence: highCount > 0 ? ["high"] : [],
+      confidenceCounts: highCount > 0 ? { high: highCount } : {},
+    },
+    results,
+  };
+}
+
+function compareTitleSearchRows(a: TitleSearchRow, b: TitleSearchRow): number {
+  const rankA = Number(a.title_rank), rankB = Number(b.title_rank);
+  if (rankA !== rankB) return rankA - rankB;
+  const dateA = readDate(a.start_date) ?? "";
+  const dateB = readDate(b.start_date) ?? "";
+  if (dateA !== dateB) return dateA > dateB ? -1 : 1;
+  if (a.document_id === b.document_id) return 0;
+  return a.document_id < b.document_id ? -1 : 1;
 }
 
 type SemanticHitRow = {

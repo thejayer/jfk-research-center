@@ -506,6 +506,73 @@ export function buildIdentifierSearchSql(
         LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 }
 
+export const TITLE_SEARCH_MAX_ROWS = 1_000;
+
+export type TitleSearchSelection = {
+  /** Agency filter present: @agencies. */
+  agencies?: boolean;
+  /** Year filters present: @yearFrom / @yearTo. */
+  yearFrom?: boolean;
+  yearTo?: boolean;
+};
+
+/**
+ * Title-shaped search in one jfk_records scan. Matches when the
+ * normalized (see normalizeTitleQuery) lowercase title contains @titleNorm, ranked exact (0),
+ * prefix (1), then elsewhere in the title (2).
+ *
+ * Rows are grouped by agency and start year. The agency and year selections
+ * are not in WHERE; they only gate the counts and page rows, so the caller
+ * can build self-excluding agency and year facets from the same result.
+ * Each group returns at most offset+limit selected rows (capped at
+ * TITLE_SEARCH_MAX_ROWS) for the caller to merge, sort and slice.
+ */
+export function buildTitleSearchSql(
+  tables: WarehouseTableRef,
+  whereSql: string,
+  limit: number,
+  offset: number,
+  selection: TitleSearchSelection = {},
+): string {
+  // Same key as normalizeTitleQuery: no whitespace before a colon, other
+  // whitespace runs collapsed, lowercase.
+  const normalizedTitle = String.raw`LOWER(REGEXP_REPLACE(REGEXP_REPLACE(TRIM(r.title), r'\s*:', ':'), r'\s+', ' '))`;
+  const titleRank = `CASE
+                  WHEN ${normalizedTitle} = @titleNorm THEN 0
+                  WHEN STARTS_WITH(${normalizedTitle}, @titleNorm) THEN 1
+                  ELSE 2
+                END`;
+  const agencySelected = selection.agencies ? "r.agency IN UNNEST(@agencies)" : "TRUE";
+  const yearParts = [
+    selection.yearFrom ? "EXTRACT(YEAR FROM r.start_date) >= @yearFrom" : "",
+    selection.yearTo ? "EXTRACT(YEAR FROM r.start_date) <= @yearTo" : "",
+  ].filter(Boolean);
+  const yearSelected = yearParts.length ? `(${yearParts.join(" AND ")})` : "TRUE";
+  const bothSelected = `(${agencySelected}) AND ${yearSelected}`;
+  const rowCap = Math.max(
+    0,
+    Math.min(Number(offset) + Number(limit), TITLE_SEARCH_MAX_ROWS),
+  );
+  const fields = SEARCH_DOCUMENT_COLUMNS.map((column) => `r.${column} AS ${column}`);
+  const extraWhere = whereSql.trim() ? `AND ${whereSql}` : "";
+  return `SELECT r.agency AS agency,
+              EXTRACT(YEAR FROM r.start_date) AS start_year,
+              COUNT(*) AS match_count,
+              COUNTIF(${agencySelected}) AS agency_selected_count,
+              COUNTIF(${yearSelected}) AS year_selected_count,
+              COUNTIF(${bothSelected}) AS selected_count,
+              ARRAY_AGG(
+                IF(${bothSelected}, STRUCT(${fields.join(", ")}, ${titleRank} AS title_rank), NULL)
+                IGNORE NULLS
+                ORDER BY ${titleRank} ASC, r.start_date DESC, r.document_id ASC
+                LIMIT ${rowCap}
+              ) AS page_rows
+         FROM ${recordsTable(tables)} r
+        WHERE STRPOS(${normalizedTitle}, @titleNorm) > 0
+          ${extraWhere}
+        GROUP BY agency, start_year`;
+}
+
 export function buildCorpusYearFacetSql(tables: WarehouseTableRef): string {
   return `SELECT CAST(EXTRACT(YEAR FROM start_date) AS STRING) AS y,
               COUNT(*) AS n

@@ -41,7 +41,7 @@ function buildSpec(baseUrl: string) {
           description:
             "Keyword-driven search over titles, descriptions, and ABBYY OCR chunks, with repeatable topic/entity/agency filters and an event-date range. Returns a SearchResponse with facet sidebar data.",
           parameters: [
-            queryParam("q", "Full-text query. Substring LIKE over title, description, OCR."),
+            queryParam("q", "Full-text query. Substring LIKE over title, description, OCR. Queries that start with an uppercase known document-type label (MEMORANDUM:, MEMO:, CABLE:, AIRGRAM:, AIRTEL:, TELETYPE:, FBI REPORT:, and similar) match titles only (exact, prefix, or contained phrase), with no description or OCR fallback."),
             queryParam("topic", "Repeatable topic slug (e.g. warren-commission)."),
             queryParam("entity", "Repeatable entity id (e.g. oswald)."),
             queryParam("agency", "Repeatable agency name (e.g. CIA)."),
